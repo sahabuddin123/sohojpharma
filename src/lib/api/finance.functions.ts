@@ -644,16 +644,23 @@ export const getTrialBalance = createServerFn({ method: "POST" })
 export const getPaymentAccountBalances = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
   .inputValidator((i: unknown) =>
-    TenantOnly.extend({ from: z.string().optional(), to: z.string().optional() }).parse(i),
+    TenantOnly.extend({
+      from: z.string().optional(),
+      to: z.string().optional(),
+      include_inactive: z.boolean().optional(),
+    }).parse(i),
   )
   .handler(async ({ data, context }) => {
-    const { data: accounts, error: e1 } = await context.supabase
+    let qAcc = context.supabase
       .from("chart_of_accounts")
-      .select("id, code, name, type")
+      .select("id, code, name, type, is_active")
       .eq("tenant_id", data.tenant_id)
       .eq("type", "asset")
-      .eq("is_active", true)
       .order("code");
+    if (!data.include_inactive) {
+      qAcc = qAcc.eq("is_active", true);
+    }
+    const { data: accounts, error: e1 } = await qAcc;
     if (e1) throw new Error(e1.message);
 
     const cashLike = (accounts ?? []).filter((a) => /^10\d{2}$/.test(a.code));
@@ -680,6 +687,7 @@ export const getPaymentAccountBalances = createServerFn({ method: "POST" })
       id: a.id,
       code: a.code,
       name: a.name,
+      is_active: a.is_active,
       balance: Number((balMap.get(a.id) ?? 0).toFixed(2)),
     }));
   });
