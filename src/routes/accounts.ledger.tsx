@@ -14,6 +14,7 @@ import { listAccounts, getAccountLedger } from "@/lib/api/finance.functions";
 import { customerLedger } from "@/lib/api/collections.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 
 export const Route = createFileRoute("/accounts/ledger")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -43,6 +44,7 @@ function LedgerPage() {
 
 function AccountLedger({ tenantId }: { tenantId: string }) {
   const { t } = useTranslation();
+  const { from, to } = useAccountsDateFilter();
   const listAccFn = useServerFn(listAccounts);
   const ledgerFn = useServerFn(getAccountLedger);
   const [code, setCode] = useState<string>("1000");
@@ -53,9 +55,9 @@ function AccountLedger({ tenantId }: { tenantId: string }) {
     queryFn: () => listAccFn({ data: { tenant_id: tenantId } }),
   });
   const { data, isLoading } = useQuery({
-    queryKey: ["account-ledger", tenantId, code],
+    queryKey: ["account-ledger", tenantId, code, from, to],
     enabled: !!tenantId && !!code,
-    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: code } }),
+    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: code, from, to } }),
   });
 
   return (

@@ -17,6 +17,7 @@ import { Landmark, Loader2, Plus, Wallet } from "lucide-react";
 import { getPaymentAccountBalances, addBankDeposit, upsertAccount } from "@/lib/api/finance.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/accounts/banks")({
@@ -29,6 +30,7 @@ function BanksPage() {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const { branchId } = useActiveBranch();
+  const { from, to } = useAccountsDateFilter();
   const tenantId = currentTenantId ?? "";
   const balFn = useServerFn(getPaymentAccountBalances);
   const depositFn = useServerFn(addBankDeposit);
@@ -46,9 +48,9 @@ function BanksPage() {
   const [newAccName, setNewAccName] = useState("");
 
   const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ["payment-account-balances", tenantId],
+    queryKey: ["payment-account-balances", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => balFn({ data: { tenant_id: tenantId } }),
+    queryFn: () => balFn({ data: { tenant_id: tenantId, from, to } }),
   });
 
   const depositMutation = useMutation({

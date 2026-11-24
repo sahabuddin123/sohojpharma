@@ -18,6 +18,7 @@ import { Plus, Receipt, TrendingDown, Loader2, Pencil, Trash2, Check, X } from "
 import { listExpenses, createExpense, updateExpense, deleteExpense, listAccounts, upsertAccount, getPaymentAccountBalances } from "@/lib/api/finance.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/accounts/expenses")({
@@ -54,6 +55,7 @@ function ExpensesPage() {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const { branchId } = useActiveBranch();
+  const { from, to } = useAccountsDateFilter();
   const tenantId = currentTenantId ?? "";
   const listFn = useServerFn(listExpenses);
   const deleteFn = useServerFn(deleteExpense);
@@ -63,9 +65,9 @@ function ExpensesPage() {
   const [editing, setEditing] = useState<ExpenseRow | null>(null);
 
   const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ["expenses", tenantId],
+    queryKey: ["expenses", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => listFn({ data: { tenant_id: tenantId, limit: 200 } }),
+    queryFn: () => listFn({ data: { tenant_id: tenantId, from, to, limit: 500 } }),
   });
 
   const delMutation = useMutation({

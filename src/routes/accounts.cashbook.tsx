@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Wallet, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { getAccountLedger } from "@/lib/api/finance.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 
 export const Route = createFileRoute("/accounts/cashbook")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -24,15 +25,14 @@ function CashbookPage() {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
-  const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
+  const { from, to } = useAccountsDateFilter();
   const [accountCode, setAccountCode] = useState("1000");
 
   const ledgerFn = useServerFn(getAccountLedger);
   const { data, isLoading } = useQuery({
-    queryKey: ["cashbook", tenantId, accountCode, date],
+    queryKey: ["cashbook", tenantId, accountCode, from, to],
     queryFn: () =>
-      ledgerFn({ data: { tenant_id: tenantId, account_code: accountCode, from: date, to: date } }),
+      ledgerFn({ data: { tenant_id: tenantId, account_code: accountCode, from, to } }),
     enabled: !!tenantId,
   });
 
@@ -52,7 +52,6 @@ function CashbookPage() {
     <>
       <PageHeader title={t("acct.cashbook.title")} description={t("acct.cashbook.desc")} />
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div><Label>{t("acct.common.date")}</Label><Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" /></div>
         <div>
           <Label>{t("acct.common.account")}</Label>
           <select value={accountCode} onChange={(e) => setAccountCode(e.target.value)} className="block h-9 rounded-md border border-input bg-background px-3 text-sm">
@@ -69,7 +68,7 @@ function CashbookPage() {
         <StatCard label={t("acct.cashbook.netForDay")} value={`৳ ${closing.toLocaleString("en-IN")}`} icon={Wallet} tone="primary" />
       </div>
       <Card className="shadow-card">
-        <CardHeader><CardTitle className="text-base">{t("acct.cashbook.transactionsOn", { date })}</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">{from === to ? t("acct.cashbook.transactionsOn", { date: from }) : `${from} → ${to}`}</CardTitle></CardHeader>
         <CardContent className="p-0">
           <Table>
             <TableHeader><TableRow>

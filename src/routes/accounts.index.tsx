@@ -10,6 +10,7 @@ import { Wallet, Landmark, ArrowDownCircle, ArrowUpCircle, Receipt, TrendingUp, 
 import { listExpenses, listIncomes, getAccountLedger } from "@/lib/api/finance.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 
 export const Route = createFileRoute("/accounts/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -21,42 +22,42 @@ function AccountsDashboard() {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
+  const { from, to } = useAccountsDateFilter();
   const listExpFn = useServerFn(listExpenses);
   const listIncFn = useServerFn(listIncomes);
   const ledgerFn = useServerFn(getAccountLedger);
 
   const today = new Date().toISOString().slice(0, 10);
-  const monthStart = `${today.slice(0, 7)}-01`;
 
   const { data: expenses = [] } = useQuery({
-    queryKey: ["expenses-dash", tenantId],
+    queryKey: ["expenses-dash", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => listExpFn({ data: { tenant_id: tenantId, from: monthStart, limit: 500 } }),
+    queryFn: () => listExpFn({ data: { tenant_id: tenantId, from, to, limit: 500 } }),
   });
   const { data: incomes = [] } = useQuery({
-    queryKey: ["incomes-dash", tenantId],
+    queryKey: ["incomes-dash", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => listIncFn({ data: { tenant_id: tenantId, from: monthStart, limit: 500 } }),
+    queryFn: () => listIncFn({ data: { tenant_id: tenantId, from, to, limit: 500 } }),
   });
   const { data: sales = [] } = useQuery({
-    queryKey: ["sales-month", tenantId, monthStart],
+    queryKey: ["sales-range", tenantId, from, to],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data } = await supabase.from("sales")
         .select("sale_date,total,is_return")
-        .eq("tenant_id", tenantId).neq("status", "void").gte("sale_date", monthStart);
+        .eq("tenant_id", tenantId).neq("status", "void").gte("sale_date", from).lte("sale_date", to);
       return data ?? [];
     },
   });
   const { data: cashLedger } = useQuery({
-    queryKey: ["cash-ledger", tenantId],
+    queryKey: ["cash-ledger", tenantId, to],
     enabled: !!tenantId,
-    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1000" } }),
+    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1000", to } }),
   });
   const { data: bankLedger } = useQuery({
-    queryKey: ["bank-ledger", tenantId],
+    queryKey: ["bank-ledger", tenantId, to],
     enabled: !!tenantId,
-    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1010" } }),
+    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1010", to } }),
   });
 
   const todaysSales = sales.filter((s) => s.sale_date?.slice(0, 10) === today).reduce((s, x) => s + (x.is_return ? -Number(x.total) : Number(x.total)), 0);

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { CheckCircle2 } from "lucide-react";
 import { listExpenses, listIncomes, getAccountLedger } from "@/lib/api/finance.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { useAccountsDateFilter } from "@/components/accounts/accounts-date-filter";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -25,8 +26,7 @@ function DayClosingPage() {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
-  const today = new Date().toISOString().slice(0, 10);
-  const [date, setDate] = useState(today);
+  const { from, to } = useAccountsDateFilter();
   const [counted, setCounted] = useState<number | "">("");
   const [notes, setNotes] = useState("");
 
@@ -35,7 +35,7 @@ function DayClosingPage() {
   const ledgerFn = useServerFn(getAccountLedger);
 
   const { data: sales = [] } = useQuery({
-    queryKey: ["dc-sales", tenantId, date],
+    queryKey: ["dc-sales", tenantId, from, to],
     enabled: !!tenantId,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -43,27 +43,27 @@ function DayClosingPage() {
         .select("total, status")
         .eq("tenant_id", tenantId)
         .neq("status", "void")
-        .gte("sale_date", date)
-        .lte("sale_date", date);
+        .gte("sale_date", from)
+        .lte("sale_date", to);
       if (error) throw error;
       return data ?? [];
     },
   });
 
   const { data: expenses = [] } = useQuery({
-    queryKey: ["dc-exp", tenantId, date],
+    queryKey: ["dc-exp", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => expFn({ data: { tenant_id: tenantId, from: date, to: date } }),
+    queryFn: () => expFn({ data: { tenant_id: tenantId, from, to } }),
   });
   const { data: incomes = [] } = useQuery({
-    queryKey: ["dc-inc", tenantId, date],
+    queryKey: ["dc-inc", tenantId, from, to],
     enabled: !!tenantId,
-    queryFn: () => incFn({ data: { tenant_id: tenantId, from: date, to: date } }),
+    queryFn: () => incFn({ data: { tenant_id: tenantId, from, to } }),
   });
   const { data: cashLedger } = useQuery({
-    queryKey: ["dc-cash", tenantId, date],
+    queryKey: ["dc-cash", tenantId, to],
     enabled: !!tenantId,
-    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1000", to: date } }),
+    queryFn: () => ledgerFn({ data: { tenant_id: tenantId, account_code: "1000", to } }),
   });
 
   const summary = useMemo(() => {
@@ -85,13 +85,7 @@ function DayClosingPage() {
 
   return (
     <>
-      <PageHeader title={t("acct.dayClose.title")} description={t("acct.dayClose.desc")} />
-      <div className="mb-4 flex items-end gap-3">
-        <div>
-          <Label>{t("acct.common.date")}</Label>
-          <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
-        </div>
-      </div>
+      <PageHeader title={t("acct.dayClose.title")} description={`${t("acct.dayClose.desc")} (${from} → ${to})`} />
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="shadow-card lg:col-span-2">
           <CardHeader><CardTitle className="text-base">{t("acct.dayClose.dayEndSummary")}</CardTitle></CardHeader>

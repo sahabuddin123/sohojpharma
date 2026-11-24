@@ -643,7 +643,9 @@ export const getTrialBalance = createServerFn({ method: "POST" })
 
 export const getPaymentAccountBalances = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
-  .inputValidator((i: unknown) => TenantOnly.parse(i))
+  .inputValidator((i: unknown) =>
+    TenantOnly.extend({ from: z.string().optional(), to: z.string().optional() }).parse(i),
+  )
   .handler(async ({ data, context }) => {
     const { data: accounts, error: e1 } = await context.supabase
       .from("chart_of_accounts")
@@ -658,11 +660,14 @@ export const getPaymentAccountBalances = createServerFn({ method: "POST" })
     if (cashLike.length === 0) return [];
 
     const ids = cashLike.map((a) => a.id);
-    const { data: lines, error: e2 } = await context.supabase
+    let q = context.supabase
       .from("journal_lines")
-      .select("account_id, debit, credit")
+      .select("account_id, debit, credit, journal_entries!inner(entry_date)")
       .eq("tenant_id", data.tenant_id)
       .in("account_id", ids);
+    if (data.from) q = q.gte("journal_entries.entry_date", data.from);
+    if (data.to) q = q.lte("journal_entries.entry_date", data.to);
+    const { data: lines, error: e2 } = await q;
     if (e2) throw new Error(e2.message);
 
     const balMap = new Map<string, number>();
