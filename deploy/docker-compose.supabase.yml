@@ -1,0 +1,70 @@
+services:
+  # Kong API Gateway (Unified endpoint on 54321)
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: sohojpharma_kong
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:54321:8000"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+      SUPABASE_ANON_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY in .env}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-CHANGE_ME_SERVICE_ROLE_KEY}
+    volumes:
+      - ./kong.yml:/var/lib/kong/kong.yml:ro
+    depends_on:
+      - supabase-auth
+      - supabase-rest
+
+  # GoTrue Auth Service
+  supabase-auth:
+    image: supabase/gotrue:v2.158.1
+    container_name: sohojpharma_auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: ${APP_PUBLIC_URL:-https://sohojpharma.cloud}
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres?sslmode=disable
+      GOTRUE_SITE_URL: ${APP_PUBLIC_URL:-https://sohojpharma.cloud}
+      GOTRUE_URI_ALLOW_LIST: "${APP_PUBLIC_URL:-https://sohojpharma.cloud}/*"
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
+      GOTRUE_JWT_EXP: 3600
+    depends_on:
+      - supabase-db
+
+  # PostgREST REST API
+  supabase-rest:
+    image: postgrest/postgrest:v12.2.0
+    container_name: sohojpharma_rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres?sslmode=disable
+      PGRST_DB_SCHEMAS: public,storage
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      - supabase-db
+
+  # PostgreSQL Database Engine
+  supabase-db:
+    image: supabase/postgres:15.6.1.138
+    container_name: sohojpharma_db
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:54322:5432"
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - sohojpharma_pgdata:/var/lib/postgresql/data
+      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+
+volumes:
+  sohojpharma_pgdata:

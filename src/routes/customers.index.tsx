@@ -1,0 +1,438 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { RouteErrorPanel } from "@/components/route-error";
+import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Plus, Phone, Mail, Search, Loader2, MoreVertical, Eye, Pencil,
+  FileText, BookOpen, Wallet, Trash2,
+} from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
+  DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { toast } from "sonner";
+import { CustomerFormDialog } from "@/components/customers/customer-form-dialog";
+import { EditCustomerDialog } from "@/components/customers/edit-customer-dialog";
+import { CollectPaymentDialog, type DueCustomer } from "@/components/pos/customer-due-dialogs";
+
+
+export const Route = createFileRoute("/customers/")({
+  errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
+  head: () => ({
+    meta: [
+      { title: "Customers — SohojPharma" },
+      { name: "description", content: "Customer directory, loyalty and prescription history." },
+    ],
+  }),
+  component: CustomersPage,
+});
+
+type CustomerRow = {
+  id: string;
+  customer_code: string | null;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  nid_passport: string | null;
+  type: string | null;
+  due_balance: number | null;
+  credit_limit: number | null;
+  is_active: boolean | null;
+};
+
+const TYPE_STYLES: Record<string, string> = {
+  retail: "border-primary/30 bg-primary/10 text-primary",
+  dealer: "border-secondary/30 bg-secondary/10 text-secondary",
+  wholesale: "border-success/30 bg-success/10 text-success",
+};
+
+function CustomersPage() {
+  const { t } = useTranslation();
+  const { currentTenantId, user } = useAuth();
+  const tenantId = currentTenantId ?? "";
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<string>("all");
+  const [open, setOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [collectFor, setCollectFor] = useState<DueCustomer | null>(null);
+
+
+  const { data: customers = [], isLoading } = useQuery({
+    queryKey: ["customers-list", tenantId],
+    enabled: !!tenantId,
+    queryFn: async (): Promise<CustomerRow[]> => {
+      const { data, error } = await supabase
+        .from("v_customer_due")
+        .select("id:customer_id,customer_code,name,phone,email,nid_passport,type,due_balance,credit_limit,is_active")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .order("name")
+        .limit(500);
+      if (error) throw error;
+      return (data ?? [])
+        .filter((c) => c.id && c.name)
+        .map((c) => ({
+          id: c.id!,
+          customer_code: c.customer_code,
+          name: c.name!,
+          phone: c.phone,
+          email: c.email,
+          nid_passport: c.nid_passport,
+          type: c.type,
+          due_balance: c.due_balance,
+          credit_limit: c.credit_limit,
+          is_active: c.is_active,
+        }));
+    },
+  });
+
+  const { data: salesAgg = {} } = useQuery({
+    queryKey: ["customers-sales-agg", tenantId],
+    enabled: !!tenantId,
+    queryFn: async (): Promise<Record<string, { count: number; total: number; last: string | null }>> => {
+      const { data, error } = await supabase
+        .from("sales")
+        .select("customer_id,total,sale_date,status")
+        .eq("tenant_id", tenantId)
+        .not("customer_id", "is", null)
+        .neq("status", "void")
+        .limit(20000);
+      if (error) throw error;
+      const map: Record<string, { count: number; total: number; last: string | null }> = {};
+      for (const r of data ?? []) {
+        const cid = r.customer_id as string;
+        if (!map[cid]) map[cid] = { count: 0, total: 0, last: null };
+        map[cid].count += 1;
+        map[cid].total += Number(r.total ?? 0);
+        if (!map[cid].last || (r.sale_date && r.sale_date > map[cid].last)) {
+          map[cid].last = r.sale_date as string;
+        }
+      }
+      return map;
+    },
+  });
+
+  const kpis = useMemo(() => ({
+    total: customers.length,
+    retail: customers.filter((c) => (c.type ?? "retail") === "retail").length,
+    dealer: customers.filter((c) => c.type === "dealer").length,
+    wholesale: customers.filter((c) => c.type === "wholesale").length,
+    withDue: customers.filter((c) => Number(c.due_balance ?? 0) > 0).length,
+    inactive: customers.filter((c) => c.is_active === false).length,
+  }), [customers]);
+
+  const softDelete = useMutation({
+    mutationFn: async (id: string) => {
+      const before = customers.find((c) => c.id === id);
+      const { error } = await supabase
+        .from("customers")
+        .update({ is_active: false })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+      await supabase.from("audit_log").insert({
+        tenant_id: tenantId,
+        user_id: user?.id ?? null,
+        action: "customer.deleted",
+        entity_table: "customers",
+        entity_id: id,
+        before_data: before ? (before as never) : null,
+        after_data: { is_active: false } as never,
+      });
+    },
+    onSuccess: () => {
+      toast.success(t("cust.custList.deleted", { defaultValue: "Customer deleted" }));
+      setDeleteId(null);
+      qc.invalidateQueries({ queryKey: ["customers-list", tenantId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+
+  const filtered = customers.filter((c) => {
+    if (filter !== "all" && (c.type ?? "retail") !== filter) return false;
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.phone ?? "").toLowerCase().includes(q) ||
+      (c.email ?? "").toLowerCase().includes(q) ||
+      (c.customer_code ?? "").toLowerCase().includes(q) ||
+      (c.nid_passport ?? "").toLowerCase().includes(q)
+    );
+  });
+
+
+  return (
+    <AppShell variant="store" title={t("nav.customers")}>
+      <PageHeader
+        title={t("cust.custList.title")}
+        description={t("cust.custList.desc")}
+        actions={
+          <Button onClick={() => setOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" /> {t("cust.custList.add")}
+          </Button>
+        }
+      />
+
+      <div className="mb-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {[
+          { label: "Total", value: kpis.total, tone: "text-foreground" },
+          { label: "Retail", value: kpis.retail, tone: "text-primary" },
+          { label: "Dealer", value: kpis.dealer, tone: "text-secondary" },
+          { label: "Wholesale", value: kpis.wholesale, tone: "text-success" },
+          { label: "With Due", value: kpis.withDue, tone: "text-destructive" },
+          { label: "Inactive", value: kpis.inactive, tone: "text-muted-foreground" },
+        ].map((k) => (
+          <Card key={k.label} className="shadow-card">
+            <CardContent className="p-4">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{k.label}</p>
+              <p className={`mt-1 text-2xl font-bold ${k.tone}`}>{k.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Card className="mb-5 shadow-card">
+        <CardContent className="flex flex-wrap items-center gap-3 p-4">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={t("cust.custList.searchPh")}
+              className="pl-9"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <Tabs value={filter} onValueChange={setFilter}>
+            <TabsList>
+              <TabsTrigger value="all">{t("cust.custList.all")}</TabsTrigger>
+              <TabsTrigger value="retail">{t("cust.custList.retail")}</TabsTrigger>
+              <TabsTrigger value="dealer">{t("cust.custList.dealer")}</TabsTrigger>
+              <TabsTrigger value="wholesale">{t("cust.custList.wholesale")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </CardContent>
+      </Card>
+
+      {isLoading ? (
+        <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : filtered.length === 0 ? (
+        <Card><CardContent className="py-10 text-center text-muted-foreground">{t("cust.custList.none")}</CardContent></Card>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtered.map((c) => {
+            const type = (c.type ?? "retail").toLowerCase();
+            const due = Number(c.due_balance ?? 0);
+            const agg = salesAgg[c.id] ?? { count: 0, total: 0, last: null };
+            const code = c.customer_code ?? "—";
+            return (
+              <Card key={c.id} className="shadow-card transition-shadow hover:shadow-elevated">
+                <CardContent className="p-5">
+                  <div className="flex items-start gap-3">
+                    <Link to="/customers/$id" params={{ id: c.id }} className="flex min-w-0 flex-1 items-center gap-3">
+                      <Avatar className="h-11 w-11">
+                        <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+                          {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold">{c.name}</p>
+                        <p className="truncate font-mono text-[11px] text-muted-foreground">{code}</p>
+                      </div>
+                    </Link>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => navigate({ to: "/customers/$id", params: { id: c.id } })}>
+                          <Eye className="mr-2 h-4 w-4" /> View
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditId(c.id)}>
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate({ to: "/customers/$id/statement", params: { id: c.id } })}>
+                          <FileText className="mr-2 h-4 w-4" /> Statement
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => navigate({ to: "/accounts/ledger" })}>
+                          <BookOpen className="mr-2 h-4 w-4" /> Ledger
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setCollectFor({
+                          customer_id: c.id, name: c.name, phone: c.phone,
+                          net_due: Number(c.due_balance ?? 0), open_invoice_due: Number(c.due_balance ?? 0),
+                          code: c.customer_code,
+                        })}>
+                          <Wallet className="mr-2 h-4 w-4" /> Collect Payment
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => setDeleteId(c.id)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className={TYPE_STYLES[type] ?? TYPE_STYLES.retail}>
+                      {type}
+                    </Badge>
+                    {due > 0 ? (
+                      <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive">DUE</Badge>
+                    ) : (
+                      <Badge className="bg-success text-success-foreground hover:bg-success">CLEAR</Badge>
+                    )}
+                  </div>
+
+                  <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                    <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone ?? "—"}</p>
+                    <p className="flex items-center gap-2 truncate"><Mail className="h-3.5 w-3.5" /> {c.email ?? "—"}</p>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t("cust.custList.credit")}</p>
+                      <p className="text-base font-bold">৳ {Number(c.credit_limit ?? 0).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{t("cust.custList.due")}</p>
+                      <p className={`text-base font-bold ${due > 0 ? "text-destructive" : "text-success"}`}>
+                        ৳ {due.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-border pt-3 text-center">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Orders</p>
+                      <p className="text-sm font-semibold">{agg.count}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Purchased</p>
+                      <p className="text-sm font-semibold">৳ {Math.round(agg.total).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Last</p>
+                      <p className="text-sm font-semibold">{agg.last ? new Date(agg.last).toLocaleDateString() : "—"}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-4 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-0 text-xs"
+                      title="View"
+                      onClick={() => navigate({ to: "/customers/$id", params: { id: c.id } })}
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-0 text-xs"
+                      title="Edit"
+                      onClick={() => setEditId(c.id)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-0 text-xs"
+                      title="Statement"
+                      onClick={() => navigate({ to: "/customers/$id/statement", params: { id: c.id } })}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-0 text-xs"
+                      title="Collect Payment"
+                      onClick={() => setCollectFor({
+                        customer_id: c.id, name: c.name, phone: c.phone,
+                        net_due: Number(c.due_balance ?? 0), open_invoice_due: Number(c.due_balance ?? 0),
+                        code: c.customer_code,
+                      })}
+                    >
+                      <Wallet className="h-3.5 w-3.5" />
+                    </Button>
+
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this customer?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The customer will be soft-deleted and hidden from the list. Their ledger, sales
+              and audit history remain intact.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteId && softDelete.mutate(deleteId)}
+              disabled={softDelete.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {softDelete.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <CustomerFormDialog
+        mode="create"
+        open={open}
+        onOpenChange={setOpen}
+      />
+
+      <EditCustomerDialog
+        customerId={editId}
+        open={!!editId}
+        onOpenChange={(o) => !o && setEditId(null)}
+      />
+
+      <CollectPaymentDialog
+        open={!!collectFor}
+        onOpenChange={(o) => !o && setCollectFor(null)}
+        customer={collectFor}
+      />
+
+    </AppShell>
+
+  );
+}

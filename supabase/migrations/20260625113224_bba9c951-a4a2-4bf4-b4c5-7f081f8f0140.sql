@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.list_products_for_management(uuid, text, text, integer, integer) TO authenticated, service_role;

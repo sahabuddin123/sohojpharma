@@ -1,0 +1,354 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * SohojPharma Design System
+ * Brand: #0DB39E primary · #FF6B00 secondary · medical / SaaS aesthetic
+ * All colors use oklch. Add new tokens to :root and .dark, then map in @theme inline.
+ */
+
+@theme inline {
+  --font-sans: "Hind Siliguri", "Noto Sans Bengali", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Hind Siliguri", "Noto Sans Bengali", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-bn: "Hind Siliguri", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-soft: var(--primary-soft);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --shadow-card: 0 1px 2px 0 oklch(0.2 0.04 265 / 0.04), 0 1px 3px 0 oklch(0.2 0.04 265 / 0.06);
+  --shadow-elevated: 0 4px 12px -2px oklch(0.2 0.04 265 / 0.08), 0 2px 6px -2px oklch(0.2 0.04 265 / 0.06);
+  --shadow-glow: 0 8px 32px -8px oklch(0.68 0.13 180 / 0.35);
+}
+
+:root {
+  --radius: 0.75rem;
+
+  /* Surfaces */
+  --background: oklch(0.984 0.005 240);          /* #F8FAFC */
+  --foreground: oklch(0.2 0.04 265);             /* #0F172A */
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.04 265);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.04 265);
+
+  /* Brand */
+  --primary: oklch(0.68 0.13 180);               /* #0DB39E teal */
+  --primary-foreground: oklch(1 0 0);
+  --primary-soft: oklch(0.96 0.04 180);
+
+  --secondary: oklch(0.7 0.21 45);               /* #FF6B00 orange */
+  --secondary-foreground: oklch(1 0 0);
+
+  /* Neutrals */
+  --muted: oklch(0.965 0.008 240);
+  --muted-foreground: oklch(0.5 0.03 250);
+  --accent: oklch(0.96 0.04 180);
+  --accent-foreground: oklch(0.35 0.08 180);
+
+  /* Semantic */
+  --success: oklch(0.72 0.19 145);               /* #22C55E */
+  --success-foreground: oklch(1 0 0);
+  --warning: oklch(0.77 0.17 70);                /* #F59E0B */
+  --warning-foreground: oklch(0.2 0.04 265);
+  --destructive: oklch(0.64 0.24 25);            /* #EF4444 */
+  --destructive-foreground: oklch(1 0 0);
+  --info: oklch(0.62 0.18 250);
+  --info-foreground: oklch(1 0 0);
+
+  --border: oklch(0.92 0.012 240);
+  --input: oklch(0.92 0.012 240);
+  --ring: oklch(0.68 0.13 180);
+
+  /* Charts */
+  --chart-1: oklch(0.68 0.13 180);
+  --chart-2: oklch(0.7 0.21 45);
+  --chart-3: oklch(0.62 0.18 250);
+  --chart-4: oklch(0.77 0.17 70);
+  --chart-5: oklch(0.72 0.19 145);
+
+  /* Sidebar */
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.3 0.03 250);
+  --sidebar-primary: oklch(0.68 0.13 180);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.96 0.04 180);
+  --sidebar-accent-foreground: oklch(0.35 0.08 180);
+  --sidebar-border: oklch(0.93 0.012 240);
+  --sidebar-ring: oklch(0.68 0.13 180);
+}
+
+.dark {
+  --background: oklch(0.16 0.025 260);
+  --foreground: oklch(0.97 0.005 240);
+  --card: oklch(0.21 0.03 260);
+  --card-foreground: oklch(0.97 0.005 240);
+  --popover: oklch(0.21 0.03 260);
+  --popover-foreground: oklch(0.97 0.005 240);
+
+  --primary: oklch(0.72 0.14 180);
+  --primary-foreground: oklch(0.15 0.03 260);
+  --primary-soft: oklch(0.3 0.06 180);
+
+  --secondary: oklch(0.72 0.2 45);
+  --secondary-foreground: oklch(0.15 0.03 260);
+
+  --muted: oklch(0.26 0.03 260);
+  --muted-foreground: oklch(0.7 0.02 250);
+  --accent: oklch(0.3 0.06 180);
+  --accent-foreground: oklch(0.92 0.04 180);
+
+  --success: oklch(0.72 0.19 145);
+  --success-foreground: oklch(0.15 0.03 260);
+  --warning: oklch(0.77 0.17 70);
+  --warning-foreground: oklch(0.15 0.03 260);
+  --destructive: oklch(0.68 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --info: oklch(0.7 0.16 250);
+  --info-foreground: oklch(0.15 0.03 260);
+
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.72 0.14 180);
+
+  --chart-1: oklch(0.72 0.14 180);
+  --chart-2: oklch(0.72 0.2 45);
+  --chart-3: oklch(0.7 0.16 250);
+  --chart-4: oklch(0.77 0.17 70);
+  --chart-5: oklch(0.72 0.19 145);
+
+  --sidebar: oklch(0.19 0.03 260);
+  --sidebar-foreground: oklch(0.9 0.01 250);
+  --sidebar-primary: oklch(0.72 0.14 180);
+  --sidebar-primary-foreground: oklch(0.15 0.03 260);
+  --sidebar-accent: oklch(0.26 0.03 260);
+  --sidebar-accent-foreground: oklch(0.97 0.005 240);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.72 0.14 180);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html, body, button, input, select, textarea {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Utility: brand gradient */
+@utility bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-primary), oklch(0.62 0.14 200));
+}
+
+@utility text-brand-gradient {
+  background-image: linear-gradient(135deg, var(--color-primary), var(--color-secondary));
+  background-clip: text;
+  color: transparent;
+}
+
+/* Bengali script — switch the whole document to Hind Siliguri when html[lang="bn"]. */
+:lang(bn),
+html[lang="bn"] body {
+  font-family: "Hind Siliguri", ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Compact mode — reduces vertical spacing app-wide. */
+html.compact {
+  --spacing: 0.22rem;
+}
+html.compact .p-4 { padding: 0.6rem; }
+html.compact .p-6 { padding: 0.9rem; }
+html.compact .gap-6 { gap: 0.9rem; }
+html.compact .space-y-5 > * + * { margin-top: 0.75rem; }
+
+/* ============ Thermal Receipt Print ============ */
+@media screen {
+  #thermal-receipt-print { position: absolute; left: -10000px; top: 0; width: 80mm; box-sizing: border-box; pointer-events: none; }
+  #register-close-print { position: absolute; left: -10000px; top: 0; width: 80mm; box-sizing: border-box; pointer-events: none; }
+}
+@media print {
+  /* `80mm auto` mixes <length> + auto which is invalid per CSS Paged Media
+     and Chrome falls back to A4 — producing a second blank/duplicate sheet.
+     Use a valid length pair tall enough for any payment receipt. */
+  @page { size: 80mm 297mm; margin: 0; }
+  html, body { background:#fff !important; margin:0 !important; padding:0 !important; }
+  body * { visibility: hidden !important; }
+  /* Hide dialog overlays / poppers that would otherwise occupy print layout
+     and create a blank second page. The invoice print area is intentionally
+     NOT hidden here — invoice-print.css re-enables it for the A4 / thermal
+     invoice flow. */
+  [data-radix-dialog-overlay],
+  [data-radix-popper-content-wrapper],
+  [role="dialog"]:not(:has(#thermal-receipt-print)):not(:has(#register-close-print)):not(:has(.invoice-print-area)) { visibility: hidden !important; display: none !important; }
+  /* Any clone left over from a failed PDF export must never print. */
+  #thermal-receipt-print-clone, [id^="thermal-receipt-print-clone"],
+  #register-close-print-clone, [id^="register-close-print-clone"] { display: none !important; visibility: hidden !important; }
+  #thermal-receipt-print, #thermal-receipt-print *,
+  #register-close-print, #register-close-print *,
+  .invoice-print-area, .invoice-print-area * { visibility: visible !important; }
+  #thermal-receipt-print, #register-close-print {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    box-sizing: border-box !important;
+    display: block !important;
+    background: #fff;
+    color: #000;
+    font-family: ui-monospace, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .invoice-print-area {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    display: block !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #000 !important;
+  }
+  #thermal-receipt-print *, #register-close-print * { box-sizing: border-box !important; page-break-inside: avoid; break-inside: avoid; }
+  #thermal-receipt-print img { display: inline-block !important; max-width: 60mm; max-height: 18mm; margin: 0 auto; }
+  #register-close-print { padding: 6mm 4mm !important; }
+}
+
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+
+
+/* ============================================================
+   Global mobile responsiveness safety layer (< 640px only).
+   Desktop/tablet layouts are untouched (sm:/md:/lg: win at >=640).
+   ============================================================ */
+@media (max-width: 639.98px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Dense desktop grids collapse to 1–2 columns on phones */
+  .grid-cols-3:not(.phone-grid-keep),
+  .grid-cols-4:not(.phone-grid-keep) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid-cols-5,
+  .grid-cols-6,
+  .grid-cols-7,
+  .grid-cols-8,
+  .grid-cols-9,
+  .grid-cols-10,
+  .grid-cols-12 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Tables always scroll instead of stretching the page */
+  table {
+    max-width: 100%;
+  }
+
+  /* Dialogs/sheets stay inside the viewport and stay scrollable */
+  [role="dialog"] {
+    max-width: calc(100vw - 1.5rem);
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+  }
+
+  /* Tab bars scroll horizontally instead of overflowing */
+  [role="tablist"] {
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  [role="tablist"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Comfortable touch behaviour */
+  button,
+  [role="button"],
+  a[role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Long words/IDs never blow out the layout */
+  h1,
+  h2,
+  h3,
+  p,
+  label {
+    overflow-wrap: anywhere;
+  }
+}

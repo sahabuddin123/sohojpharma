@@ -1,0 +1,1 @@
+SELECT public.provision_full_catalog_for_tenant('f1c63c79-32cf-4eed-b6cd-d6160184f18e'::uuid, '950b36dc-1347-4ef8-8c8c-5c7bb6c2e8ac'::uuid, 2500);

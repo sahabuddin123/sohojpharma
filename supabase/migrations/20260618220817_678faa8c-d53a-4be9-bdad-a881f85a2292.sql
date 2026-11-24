@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.edit_sale_invoice(uuid, uuid, uuid, uuid, numeric, text, uuid, jsonb, jsonb, uuid) FROM PUBLIC, anon;

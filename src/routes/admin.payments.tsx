@@ -1,0 +1,306 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { RouteErrorPanel } from "@/components/route-error";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Check, X, Image as ImageIcon, Search, Clock, CircleCheck, CircleX, CreditCard, Loader2, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { StatCard } from "@/components/dashboard/stat-card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  adminListSubscriptionPayments,
+  adminApproveSubscriptionPayment,
+  adminRejectSubscriptionPayment,
+} from "@/lib/api/admin-subscription-payments.functions";
+
+export const Route = createFileRoute("/admin/payments")({
+  errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
+  head: () => ({ meta: [{ title: "Subscription Payments — Super Admin" }] }),
+  component: PaymentsPage,
+});
+
+function PaymentsPage() {
+  const { t, i18n } = useTranslation();
+  const qc = useQueryClient();
+  const [active, setActive] = useState<any | null>(null);
+  const [tab, setTab] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [search, setSearch] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+
+  const listFn = useServerFn(adminListSubscriptionPayments);
+  const approveFn = useServerFn(adminApproveSubscriptionPayment);
+  const rejectFn = useServerFn(adminRejectSubscriptionPayment);
+
+  const { data: payments = [], isLoading } = useQuery({
+    queryKey: ["admin-subscription-payments", tab, search],
+    queryFn: () => listFn({ data: { status: tab, search } }),
+  });
+
+  const approveMu = useMutation({
+    mutationFn: async () => {
+      if (!active) return;
+      return approveFn({ data: { paymentId: active.id, notes: reviewNotes } });
+    },
+    onSuccess: () => {
+      toast.success("Payment approved & subscription activated!");
+      setActive(null);
+      setReviewNotes("");
+      qc.invalidateQueries({ queryKey: ["admin-subscription-payments"] });
+      qc.invalidateQueries({ queryKey: ["admin", "stores"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const rejectMu = useMutation({
+    mutationFn: async () => {
+      if (!active) return;
+      return rejectFn({ data: { paymentId: active.id, notes: reviewNotes } });
+    },
+    onSuccess: () => {
+      toast.success("Payment rejected.");
+      setActive(null);
+      setReviewNotes("");
+      qc.invalidateQueries({ queryKey: ["admin-subscription-payments"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const pendingCount = payments.filter((p: any) => p.status === "pending" || p.status === "pending_review").length;
+  const approvedCount = payments.filter((p: any) => p.status === "approved").length;
+  const rejectedCount = payments.filter((p: any) => p.status === "rejected").length;
+  const totalVolume = payments
+    .filter((p: any) => p.status === "approved")
+    .reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+
+  const dateFmt = (d?: string) => {
+    if (!d) return "—";
+    return new Date(d).toLocaleDateString(i18n.language === "bn" ? "bn-BD" : "en-US", {
+      year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
+    });
+  };
+
+  return (
+    <AppShell variant="admin" title={t("nav.payments")}>
+      <PageHeader title={t("admin.payments.title")} description="Review and approve store subscription renewal and upgrade payments." />
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard label={t("admin.payments.pending")} value={pendingCount.toString()} icon={Clock} tone="warning" />
+        <StatCard label={t("admin.payments.approvedMo")} value={approvedCount.toString()} icon={CircleCheck} tone="success" />
+        <StatCard label={t("admin.payments.rejected")} value={rejectedCount.toString()} icon={CircleX} tone="secondary" />
+        <StatCard label="Total Approved Volume" value={`৳ ${totalVolume.toLocaleString("en-IN")}`} icon={CreditCard} tone="primary" />
+      </div>
+
+      <Card className="mt-6 shadow-card">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+              <TabsList>
+                <TabsTrigger value="all">{t("common.all")}</TabsTrigger>
+                <TabsTrigger value="pending">{t("common.pending")}</TabsTrigger>
+                <TabsTrigger value="approved">{t("common.approved")}</TabsTrigger>
+                <TabsTrigger value="rejected">{t("common.rejected")}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative ml-auto min-w-0 flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by store or transaction ID…"
+                className="pl-9"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            {isLoading ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</p>
+            ) : payments.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">No subscription payments found.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Payment ID</TableHead>
+                    <TableHead>{t("admin.payments.tenant")}</TableHead>
+                    <TableHead>{t("admin.payments.plan")}</TableHead>
+                    <TableHead>{t("admin.payments.method")}</TableHead>
+                    <TableHead className="text-right">{t("admin.payments.amount")}</TableHead>
+                    <TableHead>{t("admin.payments.date")}</TableHead>
+                    <TableHead>{t("admin.payments.status")}</TableHead>
+                    <TableHead className="text-right">{t("admin.payments.action")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {payments.map((p: any) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-mono text-xs text-muted-foreground">{p.id.slice(0, 8)}</TableCell>
+                      <TableCell>
+                        <div className="font-medium">{p.tenants?.name ?? "Store"}</div>
+                        <div className="text-xs text-muted-foreground">{p.tenants?.slug}</div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
+                          {p.plans?.name ?? p.plan_id ?? "Custom"}
+                        </Badge>
+                        <span className="ml-1 text-[10px] text-muted-foreground capitalize">({p.billing_cycle})</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-sm font-medium uppercase">{p.method}</span>
+                        {p.transaction_id && <p className="font-mono text-[11px] text-pink-600 font-bold">{p.transaction_id}</p>}
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-foreground">
+                        ৳ {Number(p.amount || 0).toLocaleString("en-IN")}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{dateFmt(p.created_at)}</TableCell>
+                      <TableCell>
+                        <PaymentBadge status={p.status} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="outline" onClick={() => { setActive(p); setReviewNotes(p.review_notes || ""); }}>
+                          {t("admin.payments.review")}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Review Dialog */}
+      <Dialog open={!!active} onOpenChange={(o) => { if (!o) { setActive(null); setReviewNotes(""); } }}>
+        <DialogContent className="max-w-2xl">
+          {active && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Verify Payment — {active.id.slice(0, 8).toUpperCase()}</DialogTitle>
+              </DialogHeader>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2.5 text-sm">
+                  <Row label="Store" value={<span className="font-bold">{active.tenants?.name}</span>} />
+                  <Row label="Plan" value={<span>{active.plans?.name} ({active.billing_cycle})</span>} />
+                  <Row label="Total Amount" value={<span className="font-bold text-primary text-base">৳ {Number(active.amount).toLocaleString("en-IN")}</span>} />
+                  <Row label="Method" value={<span className="uppercase font-semibold">{active.method}</span>} />
+                  {active.transaction_id && (
+                    <Row label="Txn ID" value={<span className="font-mono font-bold text-pink-600 bg-pink-50 px-2 py-0.5 rounded">{active.transaction_id}</span>} />
+                  )}
+                  <Row label="Status" value={<PaymentBadge status={active.status} />} />
+                  <Row label="Submitted" value={<span>{dateFmt(active.created_at)}</span>} />
+                  {active.notes && (
+                    <div className="rounded border bg-muted/20 p-2 text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">Customer Notes: </span>{active.notes}
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{t("admin.payments.adminNotes")}</label>
+                    <Textarea
+                      className="mt-1"
+                      rows={2}
+                      placeholder="Approval remarks or reason for rejection…"
+                      value={reviewNotes}
+                      onChange={(e) => setReviewNotes(e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 p-4 text-center">
+                  {active.proof_url ? (
+                    <div className="space-y-3 w-full">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase">Payment Screenshot / Receipt</p>
+                      <div className="max-h-56 overflow-hidden rounded-lg border bg-white flex items-center justify-center p-2">
+                        <img
+                          src={`http://127.0.0.1:54321/storage/v1/object/public/subscription-proofs/${active.proof_url}`}
+                          alt="Proof"
+                          className="max-h-52 object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <Button asChild variant="outline" size="sm" className="w-full text-xs">
+                        <a
+                          href={`http://127.0.0.1:54321/storage/v1/object/public/subscription-proofs/${active.proof_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Open receipt in new tab
+                        </a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="py-8">
+                      <ImageIcon className="mx-auto h-10 w-10 text-muted-foreground/50" />
+                      <p className="mt-2 text-sm text-muted-foreground">No screenshot uploaded</p>
+                      <p className="text-xs text-muted-foreground">Verify via Transaction ID</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="destructive"
+                  disabled={rejectMu.isPending || approveMu.isPending}
+                  onClick={() => rejectMu.mutate()}
+                >
+                  {rejectMu.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <X className="mr-1.5 h-4 w-4" />}
+                  {t("admin.payments.reject")}
+                </Button>
+                <Button
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                  disabled={rejectMu.isPending || approveMu.isPending}
+                  onClick={() => approveMu.mutate()}
+                >
+                  {approveMu.isPending ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Check className="mr-1.5 h-4 w-4" />}
+                  Approve & Activate Subscription
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </AppShell>
+  );
+}
+
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="grid grid-cols-[90px_minmax(0,1fr)] items-center gap-2 text-sm">
+      <span className="text-xs uppercase tracking-wider text-muted-foreground">{label}</span>
+      <div>{value}</div>
+    </div>
+  );
+}
+
+function PaymentBadge({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    pending: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    pending_review: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+    approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+    rejected: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+    failed: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+  };
+  const label: Record<string, string> = {
+    pending: "Pending",
+    pending_review: "Pending Review",
+    approved: "Approved",
+    rejected: "Rejected",
+    failed: "Failed",
+  };
+  return <Badge variant="outline" className={map[status] || ""}>{label[status] || status}</Badge>;
+}

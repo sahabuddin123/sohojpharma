@@ -1,0 +1,457 @@
+{
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "modules": "Modules",
+    "pricing": "Pricing",
+    "customers": "Customers",
+    "resources": "Resources",
+    "contact": "Contact",
+    "login": "Login",
+    "trial": "Free Trial",
+    "demo": "Book Demo"
+  },
+  "hero": {
+    "badge": "Cloud Pharmacy ERP for Bangladesh",
+    "title": "Manage Your Pharmacy Smarter",
+    "subtitle": "Inventory, POS, sales, accounts and reports — one cloud platform trusted by pharmacies across Bangladesh.",
+    "ctaPrimary": "Start Free Trial",
+    "ctaSecondary": "Book a Demo",
+    "tag1": "No card required",
+    "tag2": "7-day free trial",
+    "tag3": "Bangla & English",
+    "card1": "Inventory",
+    "card1Sub": "Live stock",
+    "card2": "POS",
+    "card2Sub": "Fast billing",
+    "card3": "Sales",
+    "card3Sub": "Real-time",
+    "card4": "Analytics",
+    "card4Sub": "Smart reports",
+    "card5": "Stock Alerts",
+    "card5Sub": "Auto reminders",
+    "card6": "Medicine DB",
+    "card6Sub": "50,000+ items"
+  },
+  "trust": {
+    "title": "Trusted by leading pharmacies, hospitals and distributors",
+    "items": [
+      "Hospitals",
+      "Clinics",
+      "Medicine Companies",
+      "Distributors",
+      "Associations",
+      "Government",
+      "Banks",
+      "Certified"
+    ]
+  },
+  "problems": {
+    "title": "Still managing your pharmacy the old way?",
+    "subtitle": "Manual processes lose money every single day. SohojPharma solves them all.",
+    "list": [
+      {
+        "t": "Manual Stock",
+        "d": "Lost items, missing counts and zero visibility."
+      },
+      {
+        "t": "Expiry Loss",
+        "d": "Thousands of taka wasted on expired medicines."
+      },
+      {
+        "t": "Wrong Purchase",
+        "d": "Over-ordering and under-stocking the wrong items."
+      },
+      {
+        "t": "Manual Accounting",
+        "d": "Paper ledgers, missed dues, calculation errors."
+      },
+      {
+        "t": "Paper Billing",
+        "d": "Slow checkout and unhappy customers."
+      },
+      {
+        "t": "Medicine Shortage",
+        "d": "Customers leave because the item is unavailable."
+      },
+      {
+        "t": "No Reports",
+        "d": "Decisions made on guesses, not data."
+      },
+      {
+        "t": "Data Loss",
+        "d": "One crash and your entire business is gone."
+      }
+    ]
+  },
+  "why": {
+    "title": "Why SohojPharma",
+    "subtitle": "A single platform built for the way Bangladeshi pharmacies actually work.",
+    "items": [
+      {
+        "t": "Inventory",
+        "d": "Live stock across branches"
+      },
+      {
+        "t": "POS",
+        "d": "Lightning fast billing"
+      },
+      {
+        "t": "Purchase",
+        "d": "Smart PO and GRN"
+      },
+      {
+        "t": "Sales",
+        "d": "Cash, due and online"
+      },
+      {
+        "t": "Reports",
+        "d": "Owner dashboards"
+      },
+      {
+        "t": "Medicine DB",
+        "d": "Pre-loaded 50K+ items"
+      },
+      {
+        "t": "CRM",
+        "d": "Customer loyalty"
+      },
+      {
+        "t": "Barcode",
+        "d": "Scan & print"
+      },
+      {
+        "t": "Expiry",
+        "d": "Auto alerts"
+      },
+      {
+        "t": "Supplier",
+        "d": "Due tracking"
+      },
+      {
+        "t": "Returns",
+        "d": "One-click returns"
+      },
+      {
+        "t": "Backup",
+        "d": "Cloud-secure"
+      }
+    ]
+  },
+  "modules": {
+    "title": "Every module your pharmacy needs",
+    "subtitle": "From POS to payroll — everything in one place.",
+    "items": [
+      "POS",
+      "Inventory",
+      "Medicine",
+      "Purchase",
+      "Sales",
+      "Returns",
+      "Barcode",
+      "Accounting",
+      "Reports",
+      "CRM",
+      "Supplier",
+      "HR",
+      "Payroll",
+      "Prescription"
+    ]
+  },
+  "highlights": {
+    "title": "Built for serious pharmacy owners",
+    "items": [
+      {
+        "t": "Lightning-fast POS",
+        "d": "Scan, bill and print in seconds. Works on any device, online or offline.",
+        "cta": "Explore POS",
+        "image": ""
+      },
+      {
+        "t": "Smart Inventory",
+        "d": "Live stock, batch-wise tracking, expiry alerts and auto-reorder suggestions.",
+        "cta": "Explore Inventory",
+        "image": ""
+      },
+      {
+        "t": "Owner Dashboard",
+        "d": "See sales, profit, dues and top products in real time — from your phone.",
+        "cta": "Explore Reports",
+        "image": ""
+      }
+    ]
+  },
+  "mobile": {
+    "title": "Run your pharmacy from your pocket",
+    "subtitle": "Android, iOS, tablet and desktop. Your data syncs everywhere.",
+    "android": "Get on Play Store",
+    "ios": "Download on App Store",
+    "qr": "Scan to download"
+  },
+  "benefits": {
+    "title": "Why owners choose SohojPharma",
+    "items": [
+      {
+        "t": "Cloud Native",
+        "d": "Access anywhere, anytime"
+      },
+      {
+        "t": "Blazing Fast",
+        "d": "Optimized for low bandwidth"
+      },
+      {
+        "t": "Bank-grade Security",
+        "d": "256-bit encryption"
+      },
+      {
+        "t": "Auto Backup",
+        "d": "Never lose data"
+      },
+      {
+        "t": "Offline Mode",
+        "d": "Works without internet"
+      },
+      {
+        "t": "Multi Branch",
+        "d": "Manage all outlets"
+      },
+      {
+        "t": "Multi User",
+        "d": "Role-based access"
+      },
+      {
+        "t": "Analytics",
+        "d": "AI-powered insights"
+      },
+      {
+        "t": "Auto Update",
+        "d": "Always latest version"
+      },
+      {
+        "t": "Local Support",
+        "d": "Bangla support team"
+      }
+    ]
+  },
+  "stats": {
+    "title": "Trusted across Bangladesh",
+    "items": [
+      {
+        "n": "500+",
+        "l": "Pharmacies"
+      },
+      {
+        "n": "50K+",
+        "l": "Medicines"
+      },
+      {
+        "n": "2M+",
+        "l": "Invoices"
+      },
+      {
+        "n": "99.9%",
+        "l": "Uptime"
+      }
+    ]
+  },
+  "testimonials": {
+    "title": "What our customers say",
+    "items": [
+      {
+        "q": "SohojPharma saved us 3 hours every day. Stock counting is now automatic.",
+        "n": "Mohammad Rahim",
+        "b": "Rahim Pharmacy",
+        "c": "Dhaka"
+      },
+      {
+        "q": "Reports are clear and the dashboard tells me everything I need to know.",
+        "n": "Salma Akter",
+        "b": "Apollo Drugs",
+        "c": "Chittagong"
+      },
+      {
+        "q": "Best decision for our 3-branch business. Everything syncs in real time.",
+        "n": "Karim Hossain",
+        "b": "Karim Medico",
+        "c": "Sylhet"
+      }
+    ]
+  },
+  "pricing": {
+    "title": "Simple, transparent pricing",
+    "subtitle": "Choose the plan that fits your pharmacy. Cancel anytime.",
+    "monthly": "Monthly",
+    "yearly": "Yearly (save 20%)",
+    "month": "/mo",
+    "popular": "Most Popular",
+    "cta": "Start Free Trial",
+    "plans": [
+      {
+        "name": "Basic",
+        "price": "৳999",
+        "priceYearly": "৳799",
+        "desc": "Perfect for single small pharmacy",
+        "features": [
+          "1 Branch",
+          "2 Users",
+          "POS & Inventory",
+          "Basic Reports",
+          "Email Support"
+        ]
+      },
+      {
+        "name": "Starter",
+        "price": "৳1,499",
+        "priceYearly": "৳1,199",
+        "desc": "For growing retail pharmacy",
+        "features": [
+          "2 Branches",
+          "5 Users",
+          "POS & Inventory",
+          "Purchase & Accounts",
+          "Email & Phone Support"
+        ]
+      },
+      {
+        "name": "Business",
+        "price": "৳2,499",
+        "priceYearly": "৳1,999",
+        "desc": "Most popular for multi-branch stores",
+        "popular": true,
+        "features": [
+          "5 Branches",
+          "15 Users",
+          "All Modules",
+          "Advanced Reports",
+          "Priority Support",
+          "WhatsApp Support"
+        ]
+      },
+      {
+        "name": "Enterprise",
+        "price": "Custom",
+        "priceYearly": "Custom",
+        "desc": "For chains and distributors",
+        "features": [
+          "Unlimited Branches",
+          "Unlimited Users",
+          "API Access",
+          "Dedicated Manager",
+          "Custom Reports",
+          "On-site Training"
+        ]
+      }
+    ]
+  },
+  "banner": {
+    "title": "Join 500+ pharmacies already growing with SohojPharma",
+    "subtitle": "Start your 7-day free trial today. No credit card required.",
+    "cta": "Start Free Trial"
+  },
+  "faq": {
+    "title": "Frequently Asked Questions",
+    "items": [
+      {
+        "q": "How long does setup take?",
+        "a": "Most pharmacies are up and running in under 30 minutes. We provide free onboarding."
+      },
+      {
+        "q": "Does it work offline?",
+        "a": "Yes. POS works fully offline and syncs automatically when you reconnect."
+      },
+      {
+        "q": "Can I import my existing data?",
+        "a": "Yes. We support Excel, CSV and one-click migration from popular software."
+      },
+      {
+        "q": "Is my data secure?",
+        "a": "All data is encrypted with bank-grade 256-bit encryption and backed up hourly."
+      },
+      {
+        "q": "Do you support multiple branches?",
+        "a": "Yes. Business and Enterprise plans include multi-branch management."
+      },
+      {
+        "q": "Is there a free trial?",
+        "a": "Yes. 14 days free with no credit card required."
+      },
+      {
+        "q": "What devices are supported?",
+        "a": "Any device with a browser — Android, iOS, Windows, Mac, tablet."
+      },
+      {
+        "q": "Do you provide training?",
+        "a": "Free video training plus on-site training for Enterprise plans."
+      },
+      {
+        "q": "Can I cancel anytime?",
+        "a": "Yes. No contracts, no cancellation fees."
+      },
+      {
+        "q": "Do you support Bangla?",
+        "a": "Yes. The full app is available in Bangla and English."
+      }
+    ]
+  },
+  "blog": {
+    "title": "Latest from our blog",
+    "subtitle": "Tips, news and guides for modern pharmacies.",
+    "readMore": "Read more",
+    "items": [
+      {
+        "cat": "Guide",
+        "date": "Jun 20, 2026",
+        "t": "10 ways to reduce expiry loss in your pharmacy"
+      },
+      {
+        "cat": "News",
+        "date": "Jun 15, 2026",
+        "t": "New AI prescription module now live"
+      },
+      {
+        "cat": "Tips",
+        "date": "Jun 10, 2026",
+        "t": "How to set up multi-branch in SohojPharma"
+      }
+    ]
+  },
+  "contact": {
+    "title": "Get in touch",
+    "subtitle": "Our team will respond within 24 hours.",
+    "name": "Full Name",
+    "business": "Business Name",
+    "phone": "Phone",
+    "email": "Email",
+    "message": "Message",
+    "send": "Send Message",
+    "support": "Support",
+    "sales": "Sales",
+    "whatsapp": "WhatsApp",
+    "messenger": "Messenger"
+  },
+  "finalCta": {
+    "title": "Ready to digitize your pharmacy?",
+    "subtitle": "Join hundreds of pharmacy owners growing with SohojPharma.",
+    "primary": "Start Free Trial",
+    "secondary": "Book Demo"
+  },
+  "footer": {
+    "tagline": "Cloud-based pharmacy management built for Bangladesh.",
+    "company": "Company",
+    "products": "Products",
+    "solutions": "Solutions",
+    "resources": "Resources",
+    "legal": "Legal",
+    "pricing": "Pricing",
+    "blog": "Blog",
+    "help": "Help Center",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "refund": "Refund",
+    "newsletter": "Newsletter",
+    "newsletterDesc": "Pharmacy tips, product news, and updates.",
+    "subscribe": "Subscribe",
+    "emailPlaceholder": "Your email",
+    "copyright": "© 2026 SohojPharma. All rights reserved."
+  }
+}

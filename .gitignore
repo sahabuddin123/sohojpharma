@@ -1,0 +1,51 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+.output
+.vinxi
+.tanstack/**
+.nitro
+*.local
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+!.env.production.example
+
+# Temporary and local archives
+innova-pharma*.zip
+*.zip
+*.tar.gz
+*.sql.gz
+.playwright-mcp/
+.wrangler/
+.dev.vars
+db_backup/
+
+# Supabase local temp
+supabase/.temp/
+supabase/.branches/
+
+# Deploy directory exceptions
+!deploy/**
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

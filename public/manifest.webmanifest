@@ -1,0 +1,21 @@
+{
+  "name": "SohojPharma — Pharmacy ERP",
+  "short_name": "SohojPharma",
+  "description": "Multi-tenant pharmacy management SaaS — POS, inventory, purchases, customers and reports.",
+  "start_url": "/m",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F8FAFC",
+  "theme_color": "#0DB39E",
+  "categories": ["business", "medical", "productivity"],
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/favicon.ico", "sizes": "64x64 32x32 24x24 16x16", "type": "image/x-icon" }
+  ],
+  "shortcuts": [
+    { "name": "Sale", "url": "/m/sale", "description": "Quick sale" },
+    { "name": "Home", "url": "/m", "description": "Phone home" }
+  ]
+}

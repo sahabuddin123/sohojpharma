@@ -1,0 +1,1 @@
+CREATE POLICY batches_permissive_base ON public.batches AS PERMISSIVE FOR ALL TO authenticated USING (true) WITH CHECK (true);
