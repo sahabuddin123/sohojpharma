@@ -58,7 +58,7 @@ services:
       GOTRUE_SMTP_PASS: ${SMTP_PASS:-CHANGE_ME}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-support@sohojpharma.cloud}
       GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-SohojPharma}
-      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
       GOTRUE_MAILER_URLPATHS_RECOVERY: "/reset-password"
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth"
     depends_on:
