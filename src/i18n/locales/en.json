@@ -593,7 +593,7 @@
     "prescriptions": {
       "title": "AI Prescription Scanner",
       "desc": "Scan or upload a prescription. AI extracts medicines, matches them to your inventory and pushes the cart to POS.",
-      "poweredBy": "Powered by Lovable AI",
+      "poweredBy": "Smart OCR Scanner",
       "uploadTitle": "1. Upload prescription",
       "uploadDesc": "JPG, PNG or PDF. Use a clear, well-lit photo for best OCR accuracy.",
       "camera": "Camera",

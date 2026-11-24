@@ -5,8 +5,6 @@ import { requireFeature } from "@/lib/api/middleware/require-feature";
 import { requireActiveSubscription } from "@/lib/api/middleware/require-active-subscription";
 import { loadBusinessRules } from "./business-rules.functions";
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/chat/completions";
-
 type ExtractedItem = {
   raw_text: string;
   brand_name?: string | null;
@@ -25,6 +23,7 @@ type ExtractResult = {
   prescription_date?: string | null;
   ocr_text?: string;
   items: ExtractedItem[];
+  fallbackToClientOcr?: boolean;
 };
 
 /* ---------- Frequency → doses/day ---------- */
@@ -50,61 +49,94 @@ function computeQty(item: ExtractedItem): number {
   return 1;
 }
 
-/* ---------- AI OCR + extraction ---------- */
+/* ---------- OCR + medicine extraction ---------- */
+const RX_SYSTEM_PROMPT =
+  "You are a pharmacy assistant that extracts structured medicine data from prescription images " +
+  "(English or Bangla, printed or handwritten). " +
+  "Return STRICT JSON matching the schema. Do not invent medicines; only list ones written. " +
+  "For each medicine, capture frequency exactly as written (e.g. '1+1+1', '1-0-1', 'OD', 'BD', 'TDS', 'QID', 'SOS') " +
+  "and duration in days as an integer. If quantity is explicitly written use it; otherwise leave quantity null " +
+  "and the system will compute it.";
+
+const RX_USER_PROMPT =
+  "Extract the prescription. Schema:\n" +
+  '{ "patient_name": string|null, "doctor_name": string|null, ' +
+  '"prescription_date": "YYYY-MM-DD"|null, "ocr_text": string, ' +
+  '"items": [{ "raw_text": string, "brand_name": string|null, ' +
+  '"generic_name": string|null, "strength": string|null, ' +
+  '"dosage": string|null, "frequency": string|null, "duration_days": number|null, ' +
+  '"quantity": number|null, "interpreted_notes": string|null }] }';
+
 export const extractPrescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("prescription")])
   .inputValidator(z.object({
     imageUrl: z.string().min(10),
   }))
   .handler(async ({ data }): Promise<ExtractResult> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("AI gateway not configured");
+    const openaiKey = process.env.OPENAI_API_KEY?.trim();
+    const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)?.trim();
 
-    const body = {
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are a pharmacy assistant that extracts structured medicine data from prescription images " +
-            "(English or Bangla, printed or handwritten). " +
-            "Return STRICT JSON matching the schema. Do not invent medicines; only list ones written. " +
-            "For each medicine, capture frequency exactly as written (e.g. '1+1+1', 'OD', 'BD', 'TDS', 'QID', 'SOS') " +
-            "and duration in days as an integer. If quantity is explicitly written use it; otherwise leave quantity null " +
-            "and the system will compute it.",
+    let text = "";
+
+    if (openaiKey) {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${openaiKey}`,
         },
-        {
-          role: "user",
-          content: [
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: RX_SYSTEM_PROMPT },
             {
-              type: "text",
-              text:
-                "Extract the prescription. Schema:\n" +
-                '{ "patient_name": string|null, "doctor_name": string|null, ' +
-                '"prescription_date": "YYYY-MM-DD"|null, "ocr_text": string, ' +
-                '"items": [{ "raw_text": string, "brand_name": string|null, ' +
-                '"generic_name": string|null, "strength": string|null, ' +
-                '"dosage": string|null, "frequency": string|null, "duration_days": number|null, ' +
-                '"quantity": number|null, "interpreted_notes": string|null }] }',
+              role: "user",
+              content: [
+                { type: "text", text: RX_USER_PROMPT },
+                { type: "image_url", image_url: { url: data.imageUrl } },
+              ],
             },
-            { type: "image_url", image_url: { url: data.imageUrl } },
           ],
+          response_format: { type: "json_object" },
+        }),
+      });
+      if (!res.ok) throw new Error(`Vision API error: ${res.status}`);
+      const json = await res.json();
+      text = json?.choices?.[0]?.message?.content ?? "{}";
+    } else if (geminiKey) {
+      const match = data.imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+      const mimeType = match?.[1] ?? "image/jpeg";
+      const base64Data = match?.[2] ?? data.imageUrl;
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: `${RX_SYSTEM_PROMPT}\n\n${RX_USER_PROMPT}` },
+                { inline_data: { mime_type: mimeType, data: base64Data } },
+              ],
+            }],
+            generationConfig: { responseMimeType: "application/json" },
+          }),
         },
-      ],
-      response_format: { type: "json_object" },
-    };
+      );
+      if (!res.ok) throw new Error(`Gemini Vision error: ${res.status}`);
+      const json = await res.json();
+      text = json?.candidates?.[0]?.content?.parts?.[0]?.text ?? "{}";
+    } else {
+      return {
+        patient_name: null,
+        doctor_name: null,
+        prescription_date: null,
+        ocr_text: "",
+        items: [],
+        fallbackToClientOcr: true,
+      };
+    }
 
-    const res = await fetch(GATEWAY, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify(body),
-    });
-    if (res.status === 402) throw new Error("AI credits exhausted. Please top up your workspace.");
-    if (res.status === 429) throw new Error("AI rate limit exceeded. Try again in a moment.");
-    if (!res.ok) throw new Error(`AI gateway error: ${res.status}`);
-
-    const json = await res.json();
-    const text: string = json?.choices?.[0]?.message?.content ?? "{}";
     let parsed: ExtractResult;
     try { parsed = JSON.parse(text); }
     catch { parsed = { items: [], ocr_text: text }; }
@@ -236,14 +268,11 @@ export const getCustomerHistory = createServerFn({ method: "POST" })
     return { customer, prescriptions: rx ?? [], frequent };
   });
 
-/* ---------- AI Summary (markdown) ---------- */
+/* ---------- Prescription Summary (markdown) ---------- */
 export const summarizePrescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("prescription")])
   .inputValidator(z.object({ tenantId: z.string().uuid(), id: z.string().uuid() }))
   .handler(async ({ data, context }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("AI gateway not configured");
-
     const { data: rx } = await context.supabase
       .from("prescriptions")
       .select("patient_name,doctor_name,prescription_date,ocr_text,customer_id")
@@ -260,39 +289,56 @@ export const summarizePrescription = createServerFn({ method: "POST" })
       allergies = c?.allergies ?? null;
     }
 
-    const payload = {
-      prescription: rx,
-      items: items ?? [],
-      patient_allergies: allergies,
-    };
+    const openaiKey = process.env.OPENAI_API_KEY?.trim();
+    if (openaiKey) {
+      const payload = { prescription: rx, items: items ?? [], patient_allergies: allergies };
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${openaiKey}` },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content:
+              "You are a pharmacist assistant. Given a prescription, write a concise markdown summary with sections: " +
+              "**Medicines** (bullet per medicine with dose/frequency/duration), " +
+              "**Duplicate generics** (flag any), **Allergy risk** (check medicines vs patient allergies), " +
+              "**General notes**. Keep it under 200 words. Do not provide medical advice; flag risks for the pharmacist." },
+            { role: "user", content: JSON.stringify(payload) },
+          ],
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const summary: string = json?.choices?.[0]?.message?.content ?? "";
+        await context.supabase.from("prescriptions")
+          .update({ ai_summary: summary }).eq("tenant_id", data.tenantId).eq("id", data.id);
+        return { summary };
+      }
+    }
 
-    const body = {
-      model: "google/gemini-3-flash-preview",
-      messages: [
-        { role: "system", content:
-          "You are a pharmacist assistant. Given a prescription, write a concise markdown summary with sections: " +
-          "**Medicines** (bullet per medicine with dose/frequency/duration), " +
-          "**Duplicate generics** (flag any), **Allergy risk** (check medicines vs patient allergies), " +
-          "**General notes**. Keep it under 200 words. Do not provide medical advice; flag risks for the pharmacist." },
-        { role: "user", content: JSON.stringify(payload) },
-      ],
-    };
-
-    const res = await fetch(GATEWAY, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-      body: JSON.stringify(body),
+    // Deterministic summary without external AI
+    const lines = (items ?? []).map((it: any) => {
+      const name = it.products?.name || it.brand_name || it.generic_name || "Medicine";
+      const details = [it.strength, it.dosage || it.frequency, it.duration_days ? `${it.duration_days}d` : null, `Qty: ${it.quantity ?? 1}`]
+        .filter(Boolean).join(" · ");
+      return `- **${name}** (${details})`;
     });
-    if (res.status === 402) throw new Error("AI credits exhausted.");
-    if (res.status === 429) throw new Error("AI rate limit exceeded.");
-    if (!res.ok) throw new Error(`AI gateway error: ${res.status}`);
-    const json = await res.json();
-    const summary: string = json?.choices?.[0]?.message?.content ?? "";
+    const genericCounts = new Map<string, number>();
+    for (const it of items ?? []) {
+      const g = (it as any).generic_name?.toLowerCase()?.trim();
+      if (g) genericCounts.set(g, (genericCounts.get(g) ?? 0) + 1);
+    }
+    const dups = [...genericCounts.entries()].filter(([, c]) => c > 1).map(([g]) => g);
+    const summary = [
+      `**Medicines (${lines.length})**`,
+      lines.length ? lines.join("\n") : "- No medicines recorded.",
+      "",
+      `**Duplicate generics:** ${dups.length ? dups.join(", ") : "None detected"}`,
+      `**Patient allergies:** ${allergies || "None recorded"}`,
+    ].join("\n");
 
     await context.supabase.from("prescriptions")
-      .update({ ai_summary: summary })
-      .eq("tenant_id", data.tenantId).eq("id", data.id);
-
+      .update({ ai_summary: summary }).eq("tenant_id", data.tenantId).eq("id", data.id);
     return { summary };
   });
 

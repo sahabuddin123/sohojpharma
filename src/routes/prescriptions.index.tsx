@@ -4,7 +4,8 @@ import { useState, useRef } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Camera, Upload, Loader2, ScanLine, CheckCircle2, AlertCircle, FileText, Sparkles } from "lucide-react";
+import { Camera, Upload, Loader2, ScanLine, CheckCircle2, AlertCircle, FileText } from "lucide-react";
+import { runClientPrescriptionOcr } from "@/lib/prescription-ocr";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -90,9 +91,16 @@ function PrescriptionsIndex() {
     try {
       setBusy("uploading");
       const path = `${currentTenantId}/${crypto.randomUUID()}-${file.name}`;
-      const { error } = await supabase.storage.from("prescriptions").upload(path, file, { upsert: false });
-      if (error) throw error;
-      setImagePath(path);
+      try {
+        const { error } = await supabase.storage.from("prescriptions").upload(path, file, { upsert: false });
+        if (!error) {
+          setImagePath(path);
+        } else {
+          console.warn("Prescription storage upload skipped:", error.message);
+        }
+      } catch (storageErr) {
+        console.warn("Prescription storage unavailable, continuing with OCR:", storageErr);
+      }
 
       if (kind === "pdf") {
         toast.info(t("pages.prescriptions.errPdfOcr"));
@@ -100,7 +108,7 @@ function PrescriptionsIndex() {
         return;
       }
 
-      // Convert to data URL for AI (cheap & works for small images)
+      // Convert to data URL for OCR extraction
       const dataUrl = await new Promise<string>((resolve, reject) => {
         const r = new FileReader();
         r.onload = () => resolve(r.result as string);
@@ -109,7 +117,10 @@ function PrescriptionsIndex() {
       });
 
       setBusy("ocr");
-      const ex = await extract({ data: { imageUrl: dataUrl } });
+      let ex = await extract({ data: { imageUrl: dataUrl } });
+      if (ex.fallbackToClientOcr) {
+        ex = await runClientPrescriptionOcr(dataUrl);
+      }
       setMeta({
         patient_name: ex.patient_name,
         doctor_name: ex.doctor_name,
@@ -214,7 +225,6 @@ function PrescriptionsIndex() {
             <Button variant="outline" size="sm" asChild>
               <Link to="/prescriptions/new"><FileText className="h-4 w-4 mr-1" /> {t("pages.prescriptions.newManual", "Manual entry")}</Link>
             </Button>
-            <Badge variant="secondary" className="gap-1"><Sparkles className="h-3 w-3" /> {t("pages.prescriptions.poweredBy")}</Badge>
           </div>
         }
       />
