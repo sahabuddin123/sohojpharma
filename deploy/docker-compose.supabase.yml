@@ -96,6 +96,7 @@ services:
     ports:
       - "127.0.0.1:54322:5432"
     environment:
+      POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: postgres
     volumes:
