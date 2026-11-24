@@ -106,7 +106,17 @@ sed -i 's|^APP_URL=.*|APP_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^VITE_APP_URL=.*|VITE_APP_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^APP_PUBLIC_URL=.*|APP_PUBLIC_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^BKASH_MERCHANT_NUMBER=.*|BKASH_MERCHANT_NUMBER=01951413828|' .env
-echo -e "${GREEN}✓ Production .env is ready with domain https://sohojpharma.cloud${NC}"
+
+# Ensure SMTP WebMail settings (support@sohojpharma.cloud)
+grep -q '^SMTP_HOST=' .env && sed -i 's|^SMTP_HOST=.*|SMTP_HOST=mail.sohojpharma.cloud|' .env || echo "SMTP_HOST=mail.sohojpharma.cloud" >> .env
+grep -q '^SMTP_PORT=' .env && sed -i 's|^SMTP_PORT=.*|SMTP_PORT=587|' .env || echo "SMTP_PORT=587" >> .env
+grep -q '^SMTP_USER=' .env && sed -i 's|^SMTP_USER=.*|SMTP_USER=support@sohojpharma.cloud|' .env || echo "SMTP_USER=support@sohojpharma.cloud" >> .env
+grep -q '^SMTP_PASS=' .env && sed -i 's|^SMTP_PASS=.*|SMTP_PASS=CHANGE_ME|' .env || echo "SMTP_PASS=CHANGE_ME" >> .env
+grep -q '^SMTP_ADMIN_EMAIL=' .env && sed -i 's|^SMTP_ADMIN_EMAIL=.*|SMTP_ADMIN_EMAIL=support@sohojpharma.cloud|' .env || echo "SMTP_ADMIN_EMAIL=support@sohojpharma.cloud" >> .env
+grep -q '^SMTP_SENDER_NAME=' .env && sed -i 's|^SMTP_SENDER_NAME=.*|SMTP_SENDER_NAME="SohojPharma"|' .env || echo 'SMTP_SENDER_NAME="SohojPharma"' >> .env
+grep -q '^EMAIL_FROM=' .env && sed -i 's|^EMAIL_FROM=.*|EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"|' .env || echo 'EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"' >> .env
+
+echo -e "${GREEN}✓ Production .env is ready with domain https://sohojpharma.cloud and SMTP mail support@sohojpharma.cloud${NC}"
 
 # ------------------------------------------------------------------------------
 # 5. Start Backend / Database Stack (Supabase Docker)

@@ -35,6 +35,16 @@ services:
       GOTRUE_DISABLE_SIGNUP: "false"
       GOTRUE_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
       GOTRUE_JWT_EXP: 3600
+      # SMTP Email Configuration for Password Recovery, Invites & Confirmations
+      GOTRUE_SMTP_HOST: ${SMTP_HOST:-mail.sohojpharma.cloud}
+      GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
+      GOTRUE_SMTP_USER: ${SMTP_USER:-support@sohojpharma.cloud}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-CHANGE_ME}
+      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-support@sohojpharma.cloud}
+      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-SohojPharma}
+      GOTRUE_MAILER_AUTOCONFIRM: "false"
+      GOTRUE_MAILER_URLPATHS_RECOVERY: "/reset-password"
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth"
     depends_on:
       - supabase-db
 
