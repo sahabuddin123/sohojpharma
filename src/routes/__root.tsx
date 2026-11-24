@@ -82,8 +82,12 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
-              router.invalidate();
-              reset();
+              if (typeof window !== "undefined") {
+                window.location.reload();
+              } else {
+                router.invalidate();
+                reset();
+              }
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
@@ -155,6 +159,17 @@ function RootComponent() {
   useEffect(() => {
     void import("@/lib/observability/capture").then((m) => m.installGlobalErrorHandlers());
     void import("@/lib/observability/sentry").then((m) => m.initSentry());
+
+    const handlePreloadError = () => {
+      const lastReload = sessionStorage.getItem("chunk_reload_ts");
+      const now = Date.now();
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem("chunk_reload_ts", String(now));
+        window.location.reload();
+      }
+    };
+    window.addEventListener("vite:preloadError", handlePreloadError);
+    return () => window.removeEventListener("vite:preloadError", handlePreloadError);
   }, []);
 
   return (
