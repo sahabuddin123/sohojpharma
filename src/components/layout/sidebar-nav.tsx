@@ -130,7 +130,6 @@ const storeGroups: NavGroup[] = [
       { to: "/staff", k: "nav.staff", icon: Users },
       { to: "/ops", k: "nav.operations", icon: ShieldCheck },
       { to: "/mobile", k: "nav.mobile", icon: Smartphone },
-      { to: "/developer", k: "nav.developer", icon: Code2 },
       { to: "/settings", k: "nav.settings", icon: Settings },
     ],
   },
