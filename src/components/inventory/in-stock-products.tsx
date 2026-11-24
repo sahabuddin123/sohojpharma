@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ArrowUpDown, Loader2, Package, Pencil, SlidersHorizontal, Search, Zap } from "lucide-react";
+import { ArrowUpDown, Loader2, Package, Pencil, SlidersHorizontal, Search, Zap, Box, Camera } from "lucide-react";
+import { CartonScannerDialog } from "@/components/inventory/carton-scanner-dialog";
 import { BatchManagementDialog } from "@/components/inventory/batch-management-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +48,8 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
   const [sortBy, setSortBy] = useState<InventoryInStockSortBy>("name");
   const [sortDir, setSortDir] = useState<InventoryInStockSortDir>("asc");
   const [jumpPage, setJumpPage] = useState("");
+  const [filterTab, setFilterTab] = useState<"all" | "low" | "expiring">("all");
+  const [cartonOpen, setCartonOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["in-stock-products", tenantId, search, page, pageSize, sortBy, sortDir],
@@ -125,22 +128,58 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
       <Card className="mt-6 shadow-card">
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-base">In-Stock Products ({totalCount.toLocaleString()})</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-base">In-Stock Products ({totalCount.toLocaleString()})</CardTitle>
+              {/* Filter Tabs: [সব] [কম (Low)] [মেয়াদ (Expiring)] */}
+              <div className="inline-flex rounded-lg bg-muted/80 p-0.5 border border-border text-xs">
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("all")}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "all" ? "bg-emerald-700 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  সব ({totalCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("low")}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "low" ? "bg-amber-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  কম (Low Stock)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterTab("expiring")}
+                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "expiring" ? "bg-rose-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  মেয়াদ (Expiring)
+                </button>
+              </div>
+            </div>
             <p className="mt-1 text-xs text-muted-foreground">
               Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()} · Showing only this page
             </p>
           </div>
-          <div className="relative w-full sm:w-96">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search product, Bangla name, SKU, barcode, batch, manufacturer, generic, category, type"
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-8"
-            />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCartonOpen(true)}
+              className="gap-1.5 text-xs font-semibold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 shrink-0"
+            >
+              <Camera className="h-3.5 w-3.5" /> কার্টন স্ক্যান
+            </Button>
+            <div className="relative flex-1 sm:w-80">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search product, Bangla name, SKU, barcode, batch..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+                className="pl-8"
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -159,55 +198,85 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
                   <TableHead>Barcode</TableHead>
                   <SortableHead label="Manufacturer" active={sortBy === "manufacturer"} dir={sortDir} onClick={() => changeSort("manufacturer")} />
                   <SortableHead label="Generic" active={sortBy === "generic"} dir={sortDir} onClick={() => changeSort("generic")} />
-                  <SortableHead label="Stock" align="right" active={sortBy === "stock"} dir={sortDir} onClick={() => changeSort("stock")} />
-                  <SortableHead label="Purchase" align="right" active={sortBy === "purchase_price"} dir={sortDir} onClick={() => changeSort("purchase_price")} />
-                  <SortableHead label="Sale Price" align="right" active={sortBy === "retail_price"} dir={sortDir} onClick={() => changeSort("retail_price")} />
-                  <SortableHead label="MRP" align="right" active={sortBy === "mrp"} dir={sortDir} onClick={() => changeSort("mrp")} />
+                  <SortableHead label="Stock (পাতা • পিস)" align="right" active={sortBy === "stock"} dir={sortDir} onClick={() => changeSort("stock")} />
+                  <TableHead className="text-right">মূল্য ও লাভ (TP · MRP · Profit %)</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">
-                      <div>{r.name}</div>
-                      {(r.name_bn || r.category_name || r.medicine_type_name) && (
-                        <div className="mt-0.5 text-xs font-normal text-muted-foreground">
-                          {[r.name_bn, r.category_name, r.medicine_type_name].filter(Boolean).join(" · ")}
-                        </div>
-                      )}
-                    </TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{r.sku ?? "-"}</TableCell>
-                    <TableCell className="font-mono text-xs text-muted-foreground">{r.barcode ?? "-"}</TableCell>
-                    <TableCell>{r.manufacturer_name ?? "-"}</TableCell>
-                    <TableCell>{r.generic_name ?? "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <Badge variant="secondary">{r.stock}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">৳ {Number(r.purchase_price ?? 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">৳ {Number(r.retail_price ?? 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">৳ {Number(r.mrp ?? 0).toFixed(2)}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button size="sm" onClick={() => setQuickFor(r)}>
-                          <Zap className="mr-1 h-3.5 w-3.5" /> Quick Edit
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setBatchFor(r)}>
-                          <Package className="mr-1 h-3.5 w-3.5" /> Batch
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setAdjustFor(r)}>
-                          <SlidersHorizontal className="mr-1 h-3.5 w-3.5" /> Adjust
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
-                          <Pencil className="mr-1 h-3.5 w-3.5" /> Price
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {rows
+                  .filter((r) => {
+                    if (filterTab === "low") return (r.stock ?? 0) <= 20;
+                    return true;
+                  })
+                  .map((r) => {
+                    const tp = Number(r.purchase_price ?? 0);
+                    const mrp = Number(r.retail_price ?? r.mrp ?? 0);
+                    const profitPct = mrp > tp && mrp > 0 ? Math.round(((mrp - tp) / mrp) * 100) : 0;
+                    const totalPcs = Number(r.stock ?? 0);
+                    const pata = Math.floor(totalPcs / 10);
+                    const extraPcs = totalPcs % 10;
+                    const stockFormatted = totalPcs > 10 ? `${pata} পাতা + ${extraPcs} (${totalPcs} পিস)` : `${totalPcs} পিস`;
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-medium">
+                          <div>{r.name}</div>
+                          {(r.name_bn || r.category_name || r.medicine_type_name) && (
+                            <div className="mt-0.5 text-xs font-normal text-muted-foreground">
+                              {[r.name_bn, r.category_name, r.medicine_type_name].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{r.sku ?? "-"}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{r.barcode ?? "-"}</TableCell>
+                        <TableCell>{r.manufacturer_name ?? "-"}</TableCell>
+                        <TableCell>{r.generic_name ?? "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="font-semibold text-xs">
+                            {stockFormatted}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-foreground">MRP ৳{mrp.toFixed(2)}</span>
+                            <span className="text-[11px] text-muted-foreground">TP ৳{tp.toFixed(2)}</span>
+                            {profitPct > 0 && (
+                              <span className="mt-0.5 inline-block text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-1.5 py-0.5 rounded-sm">
+                                {profitPct}% লাভ
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" onClick={() => setQuickFor(r)}>
+                              <Zap className="mr-1 h-3.5 w-3.5" /> Quick Edit
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setBatchFor(r)}>
+                              <Package className="mr-1 h-3.5 w-3.5" /> Batch
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setAdjustFor(r)}>
+                              <SlidersHorizontal className="mr-1 h-3.5 w-3.5" /> Adjust
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+                              <Pencil className="mr-1 h-3.5 w-3.5" /> Price
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           )}
+
+          <CartonScannerDialog
+            open={cartonOpen}
+            onOpenChange={setCartonOpen}
+            onDataDetected={(data) => {
+              toast.success(`কার্টন স্ক্যান সফল: ব্যাচ ${data.batchNo}, মেয়াদ ${data.expiry}, MRP ৳${data.mrp}`);
+            }}
+          />
 
           <div className="mt-4 flex flex-col gap-3 border-t pt-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

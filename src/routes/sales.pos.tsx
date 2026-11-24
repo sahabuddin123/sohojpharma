@@ -8,8 +8,11 @@ import { toast } from "sonner";
 import {
   ScanBarcode, Search, Trash2, Plus, Minus, Printer, X,
   AlertTriangle, PackageX, CheckCircle2, Loader2, Pause, RotateCcw,
-  ArrowDownToLine, ArrowUpFromLine, Receipt, Lock, MessageCircle, ShoppingCart, CreditCard
+  ArrowDownToLine, ArrowUpFromLine, Receipt, Lock, MessageCircle, ShoppingCart, CreditCard,
+  Camera, Volume2
 } from "lucide-react";
+import { BlisterScannerDialog } from "@/components/pos/blister-scanner-dialog";
+import { ChangeCalculatorCard } from "@/components/pos/change-calculator-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -91,11 +94,14 @@ type SearchProduct = {
   nearest_expiry: string | null;
 };
 
+type UnitType = "box" | "pata" | "piece";
+
 type CartLine = {
   product_id: string;
   name: string;
   sku: string;
   unit_price: number;
+  base_price?: number;
   cost: number;
   qty: number;
   discount: number;   // per-line absolute
@@ -103,6 +109,10 @@ type CartLine = {
   stock: number;
   generic_name?: string | null;
   category_name?: string | null;
+  manufacturer_name?: string | null;
+  unit_type?: UnitType;
+  batch_no?: string | null;
+  expiry_date?: string | null;
 };
 
 type PayLine = { method: PayMethod; amount: number };
@@ -217,6 +227,75 @@ function POSPage() {
   const [quickAddOpen, setQuickAddOpen] = useState(false);
   const [holdOpen, setHoldOpen] = useState(false);
   const [recallOpen, setRecallOpen] = useState(false);
+  const [blisterScanOpen, setBlisterScanOpen] = useState(false);
+  const [cashReceived, setCashReceived] = useState<number>(0);
+
+  const speakMedicine = (name: string, price: number) => {
+    try {
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+        const text = `${name}, দাম ${price} টাকা`;
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "bn-BD";
+        window.speechSynthesis.speak(u);
+      }
+    } catch {}
+  };
+
+  const updateLineUnit = (productId: string, unit: UnitType) => {
+    setCart((lines) =>
+      lines.map((l) => {
+        if (l.product_id !== productId) return l;
+        const base = l.base_price ?? l.unit_price;
+        let newPrice = base;
+        if (unit === "box") {
+          newPrice = Math.round(base * 10 * 100) / 100;
+        } else if (unit === "piece") {
+          newPrice = Math.max(1, Math.round((base / 10) * 100) / 100);
+        } else {
+          newPrice = base;
+        }
+        return {
+          ...l,
+          unit_type: unit,
+          base_price: base,
+          unit_price: newPrice,
+        };
+      })
+    );
+  };
+
+  const handleQuickPillClick = (name: string, price: number) => {
+    const inCart = cart.find((c) => c.name.toLowerCase().includes(name.toLowerCase()));
+    if (inCart) {
+      updateLine(inCart.product_id, { qty: inCart.qty + 1 });
+      playBeep();
+      return;
+    }
+    const inResults = results.find((r) => r.name.toLowerCase().includes(name.toLowerCase()));
+    if (inResults) {
+      addProductToCart(inResults);
+      playBeep();
+      return;
+    }
+    setCart((c) => [
+      ...c,
+      {
+        product_id: "quick-" + name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+        name: name,
+        sku: "QUICK-" + name.toUpperCase().slice(0, 4),
+        unit_price: price,
+        base_price: price,
+        cost: Math.round(price * 0.85 * 100) / 100,
+        qty: 1,
+        discount: 0,
+        vat_rate: 0,
+        stock: 999,
+        unit_type: "pata" as UnitType,
+      },
+    ]);
+    playBeep();
+  };
   const { data: register, isFetched: registerFetched, refetch: refetchRegister } = useActiveRegister();
   const { warehouses, warehouseId, setWarehouseId, selected: selectedWarehouse, isFetched: warehousesFetched } = useActiveWarehouse();
   const { settings: posSettings } = usePosSettings(tenantId || undefined);
@@ -495,10 +574,12 @@ function POSPage() {
       }
       return [...c, {
         product_id: p.id, name: p.displayName ?? p.name, sku: p.sku,
-        unit_price: p.retail_price, cost: p.purchase_price,
+        unit_price: p.retail_price, base_price: p.retail_price, cost: p.purchase_price,
         qty: 1, discount: 0, vat_rate: p.vat_rate, stock: p.stock,
         generic_name: p.generic_name ?? null,
         category_name: p.category_name ?? null,
+        manufacturer_name: p.manufacturer_name ?? null,
+        unit_type: "pata" as UnitType,
       }];
     });
     setQuery("");
@@ -1231,13 +1312,25 @@ function POSPage() {
               ref={searchRef}
               autoFocus
               placeholder={t("ipos.searchMedPh")}
-              className="h-12 rounded-xl pl-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
+              className="h-12 rounded-xl pl-12 pr-12 text-base shadow-sm focus-visible:ring-2 focus-visible:ring-primary"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onFocus={() => { if (results.length > 0) setDropdownOpen(true); }}
               onKeyDown={onSearchKey}
             />
-            {isFetching && <Loader2 className="absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {isFetching && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-1" />}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setBlisterScanOpen(true)}
+                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg"
+                title="ক্যামেরা দিয়ে পাতা স্ক্যান করুন"
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
+            </div>
             {dropdownOpen && debounced && (
               <PosSearchDropdown
                 ref={dropdownRef}
@@ -1281,7 +1374,45 @@ function POSPage() {
             <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] md:inline">F2</kbd>
           </Button>
         </div>
+
+        {/* Fast-Selling Quick Pills */}
+        <div className="mx-auto mt-2.5 flex w-full max-w-5xl items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+          <span className="text-[11px] font-bold text-muted-foreground shrink-0 uppercase tracking-wider">দ্রুত বিক্রি:</span>
+          {[
+            { name: "A-Care", price: 2.00 },
+            { name: "3-F", price: 14.00 },
+            { name: "3 Bion", price: 12.00 },
+            { name: "Napa", price: 1.20 },
+            { name: "Sompraz 20", price: 7.00 },
+            { name: "Sergel 20", price: 8.00 },
+            { name: "Ace Plus", price: 2.50 },
+            { name: "Napa Extra", price: 2.50 },
+            { name: "Ceevit", price: 1.50 },
+            { name: "Monas 10", price: 16.00 },
+            { name: "Almex", price: 10.00 },
+          ].map((med) => (
+            <button
+              key={med.name}
+              type="button"
+              onClick={() => handleQuickPillClick(med.name, med.price)}
+              className="inline-flex items-center gap-1.5 shrink-0 rounded-full border border-border/80 bg-background hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 px-3 py-1 transition-all shadow-2xs"
+            >
+              <span className="font-semibold text-foreground text-xs">{med.name}</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">৳{med.price.toFixed(2)}</span>
+            </button>
+          ))}
+        </div>
       </div>
+
+      <BlisterScannerDialog
+        open={blisterScanOpen}
+        onOpenChange={setBlisterScanOpen}
+        onMedicineDetected={(name) => {
+          handleQuickPillClick(name, 10.00);
+          toast.success(`${name} কার্টে যোগ করা হয়েছে`);
+        }}
+        availableMedicines={results}
+      />
 
       {quickAddOpen && (
         <Suspense fallback={null}>
@@ -1383,73 +1514,117 @@ function POSPage() {
                 {cart.map((l) => {
                   const lineTotal = l.unit_price * l.qty - l.discount;
                   const lowStock = l.stock < l.qty;
+                  const unitLabel = l.unit_type === "box" ? "বক্স" : l.unit_type === "piece" ? "পিস" : "পাতা";
+                  const batchInfo = liveBatchInfo?.earliest?.[l.product_id];
                   return (
                     <div key={l.product_id} className={cn(
-                      "flex flex-col gap-2 rounded-lg border bg-card p-2.5",
-                      "lg:grid lg:grid-cols-[1fr_110px_100px_100px_100px_32px] lg:items-center lg:gap-2 lg:p-2",
-                      lowStock ? "border-destructive/40" : "border-border",
+                      "flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-2xs transition-all",
+                      lowStock ? "border-destructive/40" : "border-border hover:border-emerald-500/40",
                     )}>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold leading-snug break-words lg:truncate">{l.name}</p>
-                        {l.generic_name && (
-                          <p className="truncate text-xs text-muted-foreground hidden lg:block">{l.generic_name}</p>
-                        )}
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                          <span className="text-[11px] text-muted-foreground hidden md:inline">{l.sku}</span>
-                          <span className="text-[11px] text-muted-foreground">· Stock {l.stock}</span>
-                          {lowStock && (
-                            <Badge variant="outline" className="h-4 gap-0.5 border-destructive/40 bg-destructive/10 px-1 text-[9px] text-destructive">
-                              <AlertTriangle className="h-2.5 w-2.5" /> {t("ipos.shortBadge")}
-                            </Badge>
+                      {/* Top row: Medicine name, price, speaker, remove */}
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-bold leading-snug break-words text-foreground">{l.name}</p>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 rounded-full text-muted-foreground hover:text-emerald-600"
+                              onClick={() => speakMedicine(l.name, l.unit_price)}
+                              title="নাম ও দাম শুনুন"
+                            >
+                              <Volume2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                          {l.generic_name && (
+                            <p className="truncate text-xs text-muted-foreground">{l.generic_name}</p>
                           )}
-                        </div>
-                      </div>
-
-                      {/* Editable fields — stacked grid on mobile, table cells on desktop */}
-                      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 lg:contents">
-                        {/* Qty control */}
-                        <div>
-                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:hidden">{t("ipos.col_qty")}</p>
-                          <div className="flex items-center justify-center gap-1">
-                            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0"
-                              onClick={() => updateLine(l.product_id, { qty: Math.max(1, l.qty - 1) })}>
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input type="number" className="h-8 w-full min-w-0 px-1 text-center text-sm lg:h-7 lg:w-12"
-                              data-qty-input={l.product_id}
-                              value={l.qty}
-                              onChange={(e) => updateLine(l.product_id, { qty: Math.max(1, Number(e.target.value) || 1) })}
-                              onFocus={(e) => e.target.select()} />
-                            <Button variant="outline" size="icon" className="h-8 w-8 shrink-0"
-                              onClick={() => updateLine(l.product_id, { qty: l.qty + 1 })}>
-                              <Plus className="h-3 w-3" />
-                            </Button>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline" className="h-4.5 px-1.5 text-[10px] font-mono border-muted bg-muted/30">
+                              {batchInfo?.batch_no ? `BT:${batchInfo.batch_no}` : (l.sku || "FEFO")}
+                            </Badge>
+                            {batchInfo?.expiry_date ? (
+                              <Badge variant="secondary" className="h-4.5 px-1.5 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold">
+                                মেয়াদ {batchInfo.expiry_date.slice(2, 7)}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="h-4.5 px-1.5 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-semibold">
+                                FEFO
+                              </Badge>
+                            )}
+                            <span className="text-[11px] text-muted-foreground">· স্টক {l.stock}</span>
+                            {lowStock && (
+                              <Badge variant="outline" className="h-4.5 gap-0.5 border-destructive/40 bg-destructive/10 px-1 text-[9px] text-destructive">
+                                <AlertTriangle className="h-2.5 w-2.5" /> {t("ipos.shortBadge")}
+                              </Badge>
+                            )}
                           </div>
                         </div>
 
-                        <div>
-                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:hidden">{t("ipos.col_price")}</p>
-                          <Input type="number" step="0.01" className="h-8 w-full text-right text-sm lg:h-7"
-                            value={l.unit_price}
-                            onChange={(e) => updateLine(l.product_id, { unit_price: Math.max(0, Number(e.target.value) || 0) })}
-                            onFocus={(e) => e.target.select()} />
-                        </div>
-                        <div>
-                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:hidden">{t("ipos.col_disc")}</p>
-                          <Input type="number" step="0.01" className="h-8 w-full text-right text-sm lg:h-7"
-                            value={l.discount}
-                            onChange={(e) => updateLine(l.product_id, { discount: Math.max(0, Number(e.target.value) || 0) })}
-                            onFocus={(e) => e.target.select()} />
+                        <div className="flex items-center gap-1">
+                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">৳{lineTotal.toFixed(2)}</span>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeLine(l.product_id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
 
-                      {/* Total + remove */}
-                      <div className="flex items-center justify-between border-t border-border/60 pt-2 lg:contents lg:border-0 lg:pt-0">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground lg:hidden">{t("ipos.col_total")}</span>
-                        <span className="text-right text-sm font-bold text-primary">৳{lineTotal.toFixed(2)}</span>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 lg:h-7 lg:w-7" onClick={() => removeLine(l.product_id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      {/* Bottom row: [বক্স] [পাতা] [পিস] Segmented Toggle + Stepper */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/60">
+                        {/* 1-Tap Unit Selector */}
+                        <div className="flex items-center gap-1">
+                          <div className="inline-flex rounded-lg bg-muted/70 p-0.5 border border-border">
+                            {(["box", "pata", "piece"] as const).map((u) => {
+                              const active = (l.unit_type || "pata") === u;
+                              const label = u === "box" ? "বক্স" : u === "pata" ? "পাতা" : "পিস";
+                              return (
+                                <button
+                                  key={u}
+                                  type="button"
+                                  onClick={() => updateLineUnit(l.product_id, u)}
+                                  className={cn(
+                                    "rounded-md px-2.5 py-1 text-xs font-bold transition-all",
+                                    active
+                                      ? "bg-emerald-700 text-white shadow-2xs"
+                                      : "text-muted-foreground hover:text-foreground"
+                                  )}
+                                >
+                                  {label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <span className="text-[11px] font-semibold text-muted-foreground ml-1.5 hidden sm:inline">
+                            ৳{l.unit_price} / প্রতি {unitLabel}
+                          </span>
+                        </div>
+
+                        {/* Quantity Stepper */}
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="icon"
+                            className="h-8 w-8 rounded-lg shrink-0 border-border font-bold"
+                            onClick={() => updateLine(l.product_id, { qty: Math.max(1, l.qty - 1) })}
+                          >
+                            <Minus className="h-3.5 w-3.5" />
+                          </Button>
+                          <Input
+                            type="number"
+                            className="h-8 w-12 px-1 text-center font-bold text-sm rounded-lg"
+                            data-qty-input={l.product_id}
+                            value={l.qty}
+                            onChange={(e) => updateLine(l.product_id, { qty: Math.max(1, Number(e.target.value) || 1) })}
+                            onFocus={(e) => e.target.select()}
+                          />
+                          <Button
+                            size="icon"
+                            className="h-8 w-8 rounded-lg shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                            onClick={() => updateLine(l.product_id, { qty: l.qty + 1 })}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1541,6 +1716,17 @@ function POSPage() {
               <span className="text-sm font-bold text-primary/80">{t("ipos.grandTotal")}</span>
               <span className="text-2xl font-extrabold text-primary tracking-tight">৳ {total.toFixed(2)}</span>
             </div>
+
+            {/* Change Calculator — ফেরতের হিসাব */}
+            <ChangeCalculatorCard
+              total={total}
+              received={cashReceived > 0 ? cashReceived : paid}
+              onReceivedChange={(val) => {
+                setCashReceived(val);
+                setPayments([{ method: "cash", amount: Math.min(val, total) }]);
+                setPaymentsTouched(true);
+              }}
+            />
 
             {originalSale && (
               <div className={cn(

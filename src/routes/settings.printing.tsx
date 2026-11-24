@@ -42,6 +42,7 @@ import { PrintingOverview } from "@/components/printing/printing-overview";
 import { AnalyticsTab, FleetTab } from "@/components/printing/analytics-tabs";
 import RoutingManagerProvider from "@/components/printing/routing-manager";
 import { ReceiptConfigTab, InvoiceConfigTab, BarcodeConfigTab } from "@/components/printing/config-tabs";
+import { ThermalPrinterQuickTab } from "@/components/printing/thermal-printer-quick-tab";
 
 export const Route = createFileRoute("/settings/printing")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -69,6 +70,7 @@ export function PrintingSettingsPage() {
   if (hasPrintingChild) return <Outlet />;
 
   const tabs: Array<{ value: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { value: "thermal", label: "ব্লুটুথ / ওয়াই-ফাই প্রিন্টার", icon: Printer },
     { value: "overview", label: "Overview", icon: TrendingUp },
     { value: "general", label: "General", icon: Printer },
     { value: "printers", label: "Printers", icon: Plug },
@@ -99,7 +101,7 @@ export function PrintingSettingsPage() {
         }
       />
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs defaultValue="thermal" className="w-full">
         <div className="sticky top-0 z-20 -mx-4 px-4 md:-mx-6 md:px-6 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b">
           <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-1 rounded-none">
             {tabs.map((t) => {
@@ -118,6 +120,9 @@ export function PrintingSettingsPage() {
           </TabsList>
         </div>
 
+        <TabsContent value="thermal" className="mt-6 focus-visible:outline-none">
+          <ThermalPrinterQuickTab tenantId={currentTenantId} />
+        </TabsContent>
         <TabsContent value="overview" className="mt-6 focus-visible:outline-none">
           <PrintingOverview tenantId={currentTenantId} />
         </TabsContent>

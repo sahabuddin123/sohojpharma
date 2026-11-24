@@ -26,6 +26,7 @@ import {
 import { buildProductDisplayName } from "@/lib/product-display";
 import { ExpiryMonthInput, formatMonthYear, formatFullDate } from "@/components/inventory/expiry-month-input";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CompanyReturnsTab } from "@/components/inventory/company-returns-tab";
 
 export const Route = createFileRoute("/inventory/batch-control")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -127,11 +128,16 @@ function BatchControlPage() {
         <StatCard icon={ArrowRightLeft} label="Transferred units (30d)" value={String(kpis.data?.transferredUnits30d ?? 0)} />
       </div>
 
-      <Tabs defaultValue="batches">
+      <Tabs defaultValue="company-returns">
         <TabsList>
+          <TabsTrigger value="company-returns">মেয়াদ ও ফেরত (Company Returns)</TabsTrigger>
           <TabsTrigger value="batches">Batches</TabsTrigger>
           <TabsTrigger value="recalls">Recall log</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="company-returns">
+          <CompanyReturnsTab batches={rows as any} tenantId={tenantId} />
+        </TabsContent>
 
         <TabsContent value="batches">
           <Card>

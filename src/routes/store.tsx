@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { getStoreDashboard, type StoreDashboardData } from "@/lib/api/dashboard.functions";
 import { useTranslation } from "react-i18next";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { WarehouseFilter } from "@/components/inventory/warehouse-filter";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 import { StoreSetupBanner } from "@/components/store/store-setup-banner";
@@ -192,9 +192,18 @@ function PeriodCard({
 }
 
 function StoreDashboard() {
-  const { currentTenantId, user } = useAuth();
+  const { currentTenantId, setCurrentTenantId, memberships, adminTenants, isAppAdmin, user } = useAuth();
   const { t } = useTranslation();
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!currentTenantId) {
+      const pool = isAppAdmin ? adminTenants : memberships;
+      if (pool.length > 0 && pool[0]?.tenant_id) {
+        setCurrentTenantId(pool[0].tenant_id);
+      }
+    }
+  }, [currentTenantId, memberships, adminTenants, isAppAdmin, setCurrentTenantId]);
   const fetchDashboard = useServerFn(getStoreDashboard);
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["store-dashboard", currentTenantId, warehouseId ?? "all"],

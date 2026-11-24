@@ -209,9 +209,23 @@ export function CloseRegisterDialog({
   const [notes, setNotes] = useState("");
   const [done, setDone] = useState<{ expected: number; actual: number } | null>(null);
 
+  const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1] as const;
+  const [counts, setCounts] = useState<Record<number, number>>({});
+  const [showDenoms, setShowDenoms] = useState(true);
+
   useEffect(() => {
-    if (open) { setActual(""); setNotes(""); setDone(null); }
+    if (open) { setActual(""); setNotes(""); setDone(null); setCounts({}); }
   }, [open]);
+
+  const updateCount = (denom: number, count: number) => {
+    const next = { ...counts, [denom]: Math.max(0, count) };
+    setCounts(next);
+    const totalCounted = Object.entries(next).reduce(
+      (s, [d, c]) => s + Number(d) * (Number(c) || 0),
+      0
+    );
+    setActual(String(totalCounted));
+  };
 
   const expected = sum?.expected_cash ?? 0;
   const diff = Number(actual || 0) - expected;
@@ -268,25 +282,75 @@ export function CloseRegisterDialog({
               <Row label={t("ipos.cashOutRow")} value={-(sum?.cash_out ?? 0)} accent="text-destructive" />
               <Separator className="my-1" />
               <div className="flex items-center justify-between">
-                <span className="font-semibold">{t("ipos.expectedCash")}</span>
-                <span className="font-mono text-lg font-bold text-primary">৳ {expected.toFixed(2)}</span>
+                <span className="font-semibold text-foreground">ক্যাশে থাকা উচিত (Expected)</span>
+                <span className="font-mono text-xl font-black text-emerald-600 dark:text-emerald-400">৳ {expected.toFixed(2)}</span>
               </div>
+            </div>
+
+            {/* Note banner */}
+            <div className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-xs text-blue-900 dark:text-blue-300">
+              💡 <b>মনে রাখবেন:</b> bKash, Nagad ও কার্ডের টাকা ক্যাশে থাকে না, তাই এখানে গোণা হয় না।
+            </div>
+
+            {/* Cash Denominations Note Counter */}
+            <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  নোট গোনার হিসাব (Note Denominations)
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDenoms(!showDenoms)}
+                  className="h-6 text-xs text-emerald-600"
+                >
+                  {showDenoms ? "লুকান" : "দেখান"}
+                </Button>
+              </div>
+
+              {showDenoms && (
+                <div className="grid grid-cols-2 gap-2 text-xs max-h-48 overflow-y-auto pr-1">
+                  {DENOMS.map((denom) => {
+                    const cnt = counts[denom] || 0;
+                    const sub = denom * cnt;
+                    return (
+                      <div key={denom} className="flex items-center justify-between gap-1 rounded bg-muted/30 p-1.5 border border-border/60">
+                        <span className="font-bold text-xs w-12">৳{denom}</span>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground">×</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            placeholder="0"
+                            value={cnt > 0 ? cnt : ""}
+                            onChange={(e) => updateCount(denom, Number(e.target.value) || 0)}
+                            className="h-7 w-14 text-center font-bold text-xs p-1"
+                          />
+                        </div>
+                        <span className="font-mono text-xs font-semibold text-right w-14 text-muted-foreground">
+                          {sub > 0 ? `৳${sub}` : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <div className="grid gap-3">
               <div className="grid gap-1.5">
-                <Label>{t("ipos.actualCashLbl")}</Label>
-                <Input type="number" min={0} step="0.01" autoFocus value={actual} onChange={(e) => setActual(e.target.value)} />
+                <Label className="font-semibold text-xs">ক্যাশে মোট গুনে পাওয়া টাকা (Actual Cash)</Label>
+                <Input type="number" min={0} step="0.01" autoFocus value={actual} onChange={(e) => setActual(e.target.value)} className="font-bold text-base" />
               </div>
               {actual !== "" && (
                 <div className={cn(
-                  "flex items-center justify-between rounded-md px-3 py-2 text-sm font-semibold",
-                  Math.abs(diff) < 0.01 && "bg-success/10 text-success",
-                  diff > 0.01 && "bg-warning/10 text-warning",
-                  diff < -0.01 && "bg-destructive/10 text-destructive",
+                  "flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-bold shadow-2xs",
+                  Math.abs(diff) < 0.01 && "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30",
+                  diff > 0.01 && "bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30",
+                  diff < -0.01 && "bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/30",
                 )}>
-                  <span>{Math.abs(diff) < 0.01 ? t("ipos.balanced") : diff > 0 ? t("ipos.overExcess") : t("ipos.short")}</span>
-                  <span className="font-mono">৳ {diff.toFixed(2)}</span>
+                  <span>{Math.abs(diff) < 0.01 ? "✓ ক্যাশ হুবহু মিলেছে (Balanced)" : diff > 0 ? "অতিরিক্ত ক্যাশ (+)" : "ক্যাশ ঘাটতি (-)"}</span>
+                  <span className="font-mono text-base font-black">৳ {diff.toFixed(2)}</span>
                 </div>
               )}
               <div className="grid gap-1.5">

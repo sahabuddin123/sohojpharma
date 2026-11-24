@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Plus, Phone, Mail, Search, Loader2, MoreVertical, Eye, Pencil,
-  FileText, BookOpen, Wallet, Trash2,
+  FileText, BookOpen, Wallet, Trash2, Share2, MessageCircle, AlertCircle, CheckCircle2
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -69,10 +69,31 @@ function CustomersPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<string>("all");
+  const [dueFilter, setDueFilter] = useState<"all" | "due" | "inactive_30">("all");
   const [open, setOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [collectFor, setCollectFor] = useState<DueCustomer | null>(null);
+
+  const getInactivityDays = (lastDateStr: string | null) => {
+    if (!lastDateStr) return null;
+    const last = new Date(lastDateStr);
+    const now = new Date();
+    const diffTime = Math.abs(now.getTime() - last.getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  const sendWhatsAppReminder = (c: CustomerRow) => {
+    const raw = (c.phone || "").replace(/[^0-9]/g, "");
+    if (!raw) {
+      toast.error("কাস্টমারের কোনো ফোন নম্বর নেই");
+      return;
+    }
+    const formatted = raw.startsWith("88") ? raw : raw.startsWith("0") ? "88" + raw : "880" + raw;
+    const due = Number(c.due_balance || 0);
+    const msg = encodeURIComponent(`আসসালামু আলাইকুম ${c.name}, আপনার ফার্মেসি বকেয়া পাওনা ৳${due.toLocaleString("en-IN")} টাকা। অনুগ্রহ করে পরিশোধের অনুরোধ জানাচ্ছি। ধন্যবাদ!`);
+    window.open(`https://wa.me/${formatted}?text=${msg}`, "_blank");
+  };
 
 
   const { data: customers = [], isLoading } = useQuery({
@@ -167,8 +188,25 @@ function CustomersPage() {
   });
 
 
+  const totalDueSum = useMemo(() => {
+    return customers.reduce((sum, c) => sum + Math.max(0, Number(c.due_balance) || 0), 0);
+  }, [customers]);
+
+  const dueCustomersCount = useMemo(() => {
+    return customers.filter((c) => (Number(c.due_balance) || 0) > 0).length;
+  }, [customers]);
+
   const filtered = customers.filter((c) => {
     if (filter !== "all" && (c.type ?? "retail") !== filter) return false;
+    const due = Number(c.due_balance || 0);
+    const last = salesAgg[c.id]?.last ?? null;
+    const inactDays = getInactivityDays(last);
+
+    if (dueFilter === "due" && due <= 0) return false;
+    if (dueFilter === "inactive_30") {
+      if (inactDays === null || inactDays < 30) return false;
+    }
+
     if (!search) return true;
     const q = search.toLowerCase();
     return (
@@ -192,6 +230,48 @@ function CustomersPage() {
           </Button>
         }
       />
+
+      {/* Baki Khata Summary Banner */}
+      <div className="mb-5 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-950 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="grid h-12 w-12 place-items-center rounded-xl bg-emerald-600 text-white shadow-xs font-bold text-lg">
+            ৳
+          </div>
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+              বাকির খাতা (Due Book Summary)
+            </span>
+            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+              ৳ {totalDueSum.toLocaleString("en-IN")} পাওনা · {dueCustomersCount} জনের বাকি
+            </span>
+          </div>
+        </div>
+
+        {/* 3 Baki Filter Pills: [সব] [বাকি] [৩০+ দিন আসেনি] */}
+        <div className="inline-flex rounded-xl bg-background/90 p-1 border border-border self-start sm:self-auto text-xs font-bold shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setDueFilter("all")}
+            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "all" ? "bg-emerald-700 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            সব ({customers.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setDueFilter("due")}
+            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "due" ? "bg-amber-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            বাকি ({dueCustomersCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setDueFilter("inactive_30")}
+            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "inactive_30" ? "bg-rose-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            ৩০+ দিন আসেনি
+          </button>
+        </div>
+      </div>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {[
@@ -297,19 +377,43 @@ function CustomersPage() {
                     </DropdownMenu>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <div className="mt-3 flex flex-wrap items-center gap-1.5">
                     <Badge variant="outline" className={TYPE_STYLES[type] ?? TYPE_STYLES.retail}>
                       {type}
                     </Badge>
                     {due > 0 ? (
-                      <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive">DUE</Badge>
+                      <Badge className="bg-destructive text-destructive-foreground hover:bg-destructive font-bold">৳{due.toLocaleString()} বাকি</Badge>
                     ) : (
-                      <Badge className="bg-success text-success-foreground hover:bg-success">CLEAR</Badge>
+                      <Badge className="bg-success text-success-foreground hover:bg-success">পরিশোধিত</Badge>
                     )}
+                    {(() => {
+                      const inactDays = getInactivityDays(agg.last);
+                      if (inactDays === null) return <Badge variant="outline" className="text-[10px]">নতুন কাস্টমার</Badge>;
+                      if (inactDays === 0) return <Badge className="bg-emerald-600 text-white text-[10px]">আজ লেনদেন</Badge>;
+                      if (inactDays < 30) return <Badge variant="secondary" className="text-[10px]">{inactDays} দিন আগে</Badge>;
+                      return (
+                        <Badge className="bg-rose-600 text-white text-[10px] font-bold">
+                          {inactDays} দিন আসেনি
+                        </Badge>
+                      );
+                    })()}
                   </div>
 
                   <div className="mt-3 space-y-1.5 text-xs text-muted-foreground">
-                    <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone ?? "—"}</p>
+                    <div className="flex items-center justify-between">
+                      <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {c.phone ?? "—"}</p>
+                      {due > 0 && c.phone && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => sendWhatsAppReminder(c)}
+                          className="h-6 text-[10px] font-bold gap-1 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 hover:bg-emerald-50 px-2"
+                          title="হোয়াটসঅ্যাপে তাগাদা পাঠান"
+                        >
+                          <MessageCircle className="h-3 w-3" /> তাগাদা
+                        </Button>
+                      )}
+                    </div>
                     <p className="flex items-center gap-2 truncate"><Mail className="h-3.5 w-3.5" /> {c.email ?? "—"}</p>
                   </div>
 

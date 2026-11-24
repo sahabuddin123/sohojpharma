@@ -39,6 +39,9 @@ export const Route = createFileRoute("/dashboard")({
       activeMems[0]?.tenant_id;
 
     if (targetTenantId) {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("pc_tenant", targetTenantId);
+      }
       // Check onboarding completeness (must have at least 1 branch and 1 warehouse)
       const [branches, warehouses] = await Promise.all([
         supabase
