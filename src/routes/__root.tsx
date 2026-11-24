@@ -49,6 +49,25 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+
+    // Auto-reload on stale dynamic import chunks from new code deployments
+    const errMsg = String(error?.message || "");
+    const isChunkError =
+      errMsg.includes("Failed to fetch dynamically imported module") ||
+      errMsg.includes("Importing a module script failed") ||
+      errMsg.includes("error loading dynamically imported module") ||
+      errMsg.includes("loading chunk") ||
+      errMsg.includes("is not a valid JavaScript MIME type");
+
+    if (isChunkError && typeof window !== "undefined") {
+      const lastReload = sessionStorage.getItem("chunk_reload_ts");
+      const now = Date.now();
+      // Allow one auto-reload per 10 seconds to avoid infinite loops
+      if (!lastReload || now - Number(lastReload) > 10000) {
+        sessionStorage.setItem("chunk_reload_ts", String(now));
+        window.location.reload();
+      }
+    }
   }, [error]);
 
   return (

@@ -80,20 +80,24 @@ function BatchControlPage() {
     return () => clearTimeout(id);
   }, [searchInput]);
 
+  const kpisFn = useServerFn(batchControlKpis);
+  const batchesFn = useServerFn(listActionableBatches);
+  const recallsFn = useServerFn(listRecalls);
+
   const kpis = useQuery({
     queryKey: ["batch-kpis", tenantId],
-    queryFn: () => useServerFnCall(batchControlKpis, { tenantId }),
+    queryFn: () => kpisFn({ data: { tenantId } }),
     enabled: !!tenantId,
   });
   const batches = useQuery({
     queryKey: ["actionable-batches", tenantId, search, sort, page, pageSize],
-    queryFn: () => useServerFnCall(listActionableBatches, { tenantId, search: search || undefined, sort, page, pageSize }),
+    queryFn: () => batchesFn({ data: { tenantId, search: search || undefined, sort, page, pageSize } }),
     enabled: !!tenantId,
     placeholderData: keepPreviousData,
   });
   const recalls = useQuery({
     queryKey: ["recalls", tenantId],
-    queryFn: () => useServerFnCall(listRecalls, { tenantId }),
+    queryFn: () => recallsFn({ data: { tenantId } }),
     enabled: !!tenantId,
   });
 
@@ -388,10 +392,7 @@ function EditExpiryDialog({ tenantId, batch, onClose, onSaved }: { tenantId: str
 }
 
 
-// useServerFnCall — single-shot wrapper for queryFn (avoids the hook-rule trap)
-function useServerFnCall<T, A>(fn: (args: { data: A }) => Promise<T>, args: A): Promise<T> {
-  return fn({ data: args });
-}
+
 
 function TransferDialog({ tenantId, batch, onClose, onDone }: { tenantId: string; batch: BatchRow; onClose: () => void; onDone: () => void }) {
   const [qty, setQty] = useState("");
