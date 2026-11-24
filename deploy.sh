@@ -175,7 +175,9 @@ until docker exec sohojpharma_db pg_isready -q 2>/dev/null; do sleep 1; done
 # Copy and apply Core Supabase roles, schemas, and extensions
 echo -e "Applying Core Supabase roles, schemas and extensions..."
 docker cp supabase/migrations/00000000000000_init_supabase_core.sql sohojpharma_db:/tmp/00-init.sql
-docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f /tmp/00-init.sql
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U postgres -d postgres -f /tmp/00-init.sql 2>/dev/null || \
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f /tmp/00-init.sql 2>/dev/null || \
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -d postgres -f /tmp/00-init.sql
 
 # Start remaining backend services (GoTrue Auth, PostgREST, Kong)
 echo -e "Starting GoTrue Auth, PostgREST, and Kong API Gateway..."
@@ -201,13 +203,14 @@ docker cp supabase/migrations sohojpharma_db:/tmp/
 docker exec -e PGPASSWORD=postgres sohojpharma_db bash -c '
   for f in $(ls /tmp/migrations/*.sql | sort); do
     echo "  Applying: $(basename $f)"
+    psql -U postgres -d postgres -f "$f" >/dev/null 2>&1 || \
     psql -U supabase_admin -d postgres -f "$f" >/dev/null 2>&1 || true
   done
 '
 
 # Ensure Superadmin (superadmin@gmail.com / 123456) and Demo Store Admin exist in auth.users & app_admins
 echo -e "Ensuring superadmin credentials (superadmin@gmail.com / 123456) are active..."
-docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -c "
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U postgres -d postgres -c "
 DO \$\$
 DECLARE
   v_super_id uuid := '00000000-0000-0000-0000-000000000001'::uuid;
