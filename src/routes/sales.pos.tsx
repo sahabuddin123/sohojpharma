@@ -1374,34 +1374,6 @@ function POSPage() {
             <kbd className="ml-1 hidden rounded bg-primary-foreground/20 px-1.5 py-0.5 text-[10px] md:inline">F2</kbd>
           </Button>
         </div>
-
-        {/* Fast-Selling Quick Pills */}
-        <div className="mx-auto mt-2.5 flex w-full max-w-5xl items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-          <span className="text-[11px] font-bold text-muted-foreground shrink-0 uppercase tracking-wider">দ্রুত বিক্রি:</span>
-          {[
-            { name: "A-Care", price: 2.00 },
-            { name: "3-F", price: 14.00 },
-            { name: "3 Bion", price: 12.00 },
-            { name: "Napa", price: 1.20 },
-            { name: "Sompraz 20", price: 7.00 },
-            { name: "Sergel 20", price: 8.00 },
-            { name: "Ace Plus", price: 2.50 },
-            { name: "Napa Extra", price: 2.50 },
-            { name: "Ceevit", price: 1.50 },
-            { name: "Monas 10", price: 16.00 },
-            { name: "Almex", price: 10.00 },
-          ].map((med) => (
-            <button
-              key={med.name}
-              type="button"
-              onClick={() => handleQuickPillClick(med.name, med.price)}
-              className="inline-flex items-center gap-1.5 shrink-0 rounded-full border border-border/80 bg-background hover:border-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 px-3 py-1 transition-all shadow-2xs"
-            >
-              <span className="font-semibold text-foreground text-xs">{med.name}</span>
-              <span className="font-bold text-emerald-600 dark:text-emerald-400 text-xs">৳{med.price.toFixed(2)}</span>
-            </button>
-          ))}
-        </div>
       </div>
 
       <BlisterScannerDialog
