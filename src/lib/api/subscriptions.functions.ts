@@ -155,7 +155,7 @@ export const saasMetrics = createServerFn({ method: "GET" })
     await assertAppAdmin(context);
     const { data: subs } = await context.supabase
       .from("subscriptions")
-      .select("status, billing_cycle, plan:plans(price_bdt, price_yearly_bdt)");
+      .select("status, billing_cycle, plan:plans!subscriptions_plan_id_fkey(price_bdt, price_yearly_bdt)");
     // === Audited MRR formula (Phase 2.2) ===
     // MRR = Σ over subscriptions where status = 'active':
     //   billing_cycle = 'monthly' -> plan.price_bdt
@@ -386,7 +386,7 @@ export const adminListSubscriptions = createServerFn({ method: "POST" })
         scheduled_plan_id, scheduled_cycle, scheduled_change_at,
         created_at, updated_at,
         tenant:tenants ( id, name, email, status ),
-        plan:plans ( id, name, code, price_bdt, price_yearly_bdt )
+        plan:plans!subscriptions_plan_id_fkey ( id, name, code, price_bdt, price_yearly_bdt )
       `)
       .order("updated_at", { ascending: false })
       .limit(data.limit);
@@ -813,7 +813,7 @@ export const adminSubscriptionAnalytics = createServerFn({ method: "POST" })
     // Subscriptions + plans
     let subQ = context.supabase
       .from("subscriptions")
-      .select("id, tenant_id, plan_id, status, billing_cycle, created_at, cancelled_at, trial_ends_at, current_period_start, current_period_end, plan:plans(id,name,code,price_bdt,price_yearly_bdt)")
+      .select("id, tenant_id, plan_id, status, billing_cycle, created_at, cancelled_at, trial_ends_at, current_period_start, current_period_end, plan:plans!subscriptions_plan_id_fkey(id,name,code,price_bdt,price_yearly_bdt)")
       .limit(5000);
     if (data.plan_id) subQ = subQ.eq("plan_id", data.plan_id);
     if (data.status) subQ = subQ.eq("status", data.status);

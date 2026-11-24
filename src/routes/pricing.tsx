@@ -55,7 +55,7 @@ function PricingPage() {
       <section className="border-b border-border bg-muted/30 py-16">
         <div className="mx-auto max-w-3xl px-4 text-center lg:px-8">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">Simple, transparent pricing</h1>
-          <p className="mt-4 text-muted-foreground">Start free for 14 days — no credit card. Upgrade any time.</p>
+          <p className="mt-4 text-muted-foreground">Start free for 7 days — no credit card. Upgrade any time.</p>
         </div>
       </section>
 

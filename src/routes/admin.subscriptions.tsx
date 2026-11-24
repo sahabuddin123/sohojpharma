@@ -169,7 +169,7 @@ function SubscriptionsPage() {
   const [historyOpen, setHistoryOpen] = useState<SubRow | null>(null);
 
   const [assignForm, setAssignForm] = useState({
-    tenant_id: "", plan_id: "", billing_cycle: "monthly" as string, trial_days: 14,
+    tenant_id: "", plan_id: "", billing_cycle: "monthly" as string, trial_days: 7,
   });
   const [changeForm, setChangeForm] = useState({
     plan_id: "", billing_cycle: "monthly" as string,
@@ -300,7 +300,7 @@ function SubscriptionsPage() {
   }
 
   function openAssign() {
-    setAssignForm({ tenant_id: "", plan_id: "", billing_cycle: "monthly", trial_days: 14 });
+    setAssignForm({ tenant_id: "", plan_id: "", billing_cycle: "monthly", trial_days: 7 });
     setAssignOpen(true);
   }
   function openChange(s: SubRow) {

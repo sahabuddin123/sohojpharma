@@ -64,10 +64,13 @@ interface StoreRow {
 }
 
 const PLAN_LABELS: Record<string, string> = {
-  free: "Free Trial",
-  starter: "Starter",
-  pro: "Professional",
-  enterprise: "Enterprise",
+  free: "Basic (7 Days Trial)",
+  basic: "Basic (৳999)",
+  starter: "Starter (৳1,499)",
+  business: "Business (৳2,499)",
+  pro: "Business (৳2,499)",
+  professional: "Business (৳2,499)",
+  enterprise: "Enterprise (Custom)",
 };
 
 function StoresPage() {
@@ -221,7 +224,7 @@ type CreatePayload = {
   address?: string;
   district?: string;
   trade_license?: string;
-  plan: "free" | "starter" | "pro" | "enterprise";
+  plan: "basic" | "starter" | "business" | "enterprise";
   status: "pending" | "active";
 };
 
@@ -235,7 +238,7 @@ function AddStoreDialog({
 }) {
   const [form, setForm] = useState<CreatePayload>({
     pharmacy_name: "", owner_name: "", mobile: "", email: "", password: "",
-    address: "", district: "", trade_license: "", plan: "free", status: "pending",
+    address: "", district: "", trade_license: "", plan: "basic", status: "pending",
   });
   const set = <K extends keyof CreatePayload>(k: K, v: CreatePayload[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -288,10 +291,10 @@ function AddStoreDialog({
               <Select value={form.plan} onValueChange={(v) => set("plan", v as CreatePayload["plan"])}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="free">Free Trial</SelectItem>
-                  <SelectItem value="starter">Starter</SelectItem>
-                  <SelectItem value="pro">Professional</SelectItem>
-                  <SelectItem value="enterprise">Enterprise</SelectItem>
+                  <SelectItem value="basic">Basic (৳999/mo · 7d trial)</SelectItem>
+                  <SelectItem value="starter">Starter (৳1,499/mo · 7d trial)</SelectItem>
+                  <SelectItem value="business">Business (৳2,499/mo · 7d trial)</SelectItem>
+                  <SelectItem value="enterprise">Enterprise (Custom · 7d trial)</SelectItem>
                 </SelectContent>
               </Select>
             </Field>

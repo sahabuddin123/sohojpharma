@@ -83,7 +83,7 @@ const emptyFeatures = Object.fromEntries(FEATURE_KEYS.map(([k]) => [k, false])) 
 const emptyForm: FormState = {
   code: "", slug: "", name: "", description: "",
   billing_interval: "monthly",
-  price_bdt: 0, price_yearly_bdt: 0, trial_days: 14, sort_order: 100,
+  price_bdt: 0, price_yearly_bdt: 0, trial_days: 7, sort_order: 100,
   is_active: true, is_unlimited: false,
   max_products: null, max_users: null, max_branches: null, max_warehouses: null,
   max_storage_mb: null, max_api_requests_per_month: null,
