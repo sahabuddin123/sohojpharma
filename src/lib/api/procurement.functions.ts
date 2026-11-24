@@ -28,6 +28,8 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
   .inputValidator(TenantInput.extend({
     status: z.string().optional(),
     search: z.string().optional(),
+    from: z.string().optional(),
+    to: z.string().optional(),
     limit: z.number().int().positive().max(500).optional().default(100),
     offset: z.number().int().nonnegative().optional().default(0),
   }))
@@ -40,6 +42,8 @@ export const listPurchaseOrders = createServerFn({ method: "POST" })
       .range(data.offset, data.offset + data.limit - 1);
     if (data.status) q = q.eq("status", data.status as never);
     if (data.search) q = q.ilike("po_number", `%${data.search}%`);
+    if (data.from) q = q.gte("order_date", data.from);
+    if (data.to) q = q.lte("order_date", data.to);
     const { data: rows, error, count } = await q;
     if (error) throw new Error(error.message);
     return { rows: rows ?? [], count: count ?? 0 };

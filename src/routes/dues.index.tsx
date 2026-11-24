@@ -21,6 +21,7 @@ import { dueDashboard, recordPayment } from "@/lib/api/collections.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dues/")({
@@ -42,11 +43,27 @@ function DuesDashboard() {
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
   const dashFn = useServerFn(dueDashboard);
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("this_month");
 
   const { data, isLoading } = useQuery({
     queryKey: ["due-dashboard", tenantId],
     enabled: !!tenantId,
     queryFn: () => dashFn({ data: { tenantId } }),
+  });
+
+  const { data: periodCollected = 0 } = useQuery({
+    queryKey: ["dues-period-collected", tenantId, from, to],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      let q1 = supabase.from("customer_payments").select("amount").eq("tenant_id", tenantId);
+      let q2 = supabase.from("sale_payments").select("amount").eq("tenant_id", tenantId);
+      if (from) { q1 = q1.gte("payment_date", from); q2 = q2.gte("paid_at", `${from}T00:00:00`); }
+      if (to) { q1 = q1.lte("payment_date", `${to}T23:59:59`); q2 = q2.lte("paid_at", `${to}T23:59:59`); }
+      const [r1, r2] = await Promise.all([q1, q2]);
+      const sum1 = (r1.data ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0);
+      const sum2 = (r2.data ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0);
+      return sum1 + sum2;
+    },
   });
 
   const { data: suppliers = [] } = useQuery({
@@ -65,7 +82,13 @@ function DuesDashboard() {
 
   return (
     <AppShell variant="store" title={t("nav.dues")}>
-      <PageHeader title={t("sections.dues.title")} description={t("sections.dues.desc")} />
+      <PageHeader
+        title={t("sections.dues.title")}
+        description={t("sections.dues.desc")}
+        actions={
+          <ModernDateRangeFilter preset={preset} from={from} to={to} onPresetChange={setPreset} onCustomChange={setCustom} />
+        }
+      />
 
       {isLoading || !data ? (
         <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("common.loading")}</div>
@@ -75,7 +98,7 @@ function DuesDashboard() {
             <StatCard label={t("sections.dues.customerDue")} value={`৳ ${Math.round(data.totalDue).toLocaleString()}`} icon={Users} tone="warning" />
             <StatCard label={t("sections.dues.supplierDue")} value={`৳ ${Math.round(totalSupplierDue).toLocaleString()}`} icon={Building2} tone="secondary" />
             <StatCard label={t("sections.dues.collectedToday")} value={`৳ ${Math.round(data.collectedToday).toLocaleString()}`} icon={ArrowDownToLine} tone="success" />
-            <StatCard label={t("sections.dues.thisMonth")} value={`৳ ${Math.round(data.collectedThisMonth).toLocaleString()}`} icon={ArrowUpFromLine} tone="primary" />
+            <StatCard label={preset === "all" ? "মোট আদায়" : "নির্বাচিত সময়ে আদায়"} value={`৳ ${Math.round(periodCollected).toLocaleString()}`} icon={ArrowUpFromLine} tone="primary" />
           </div>
 
           <Card className="mt-6 shadow-card">

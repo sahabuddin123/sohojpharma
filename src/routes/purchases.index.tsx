@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Search, Eye } from "lucide-react";
 import { listPurchaseOrders } from "@/lib/api/procurement.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 export const Route = createFileRoute("/purchases/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -47,13 +48,16 @@ function PurchasesPage() {
   const [status, setStatus] = useState<(typeof STATUS_TABS)[number]>("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("all");
 
   const { data, isLoading } = useQuery({
-    queryKey: ["purchase-orders", tenantId, status, search, page],
+    queryKey: ["purchase-orders", tenantId, status, search, page, from, to],
     queryFn: () => listFn({ data: {
       tenantId,
       status: status === "all" ? undefined : status,
       search: search.trim() || undefined,
+      from,
+      to,
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
     } }),
@@ -71,9 +75,12 @@ function PurchasesPage() {
         title={t("pages.purchases.title")}
         description={t("pages.purchases.desc")}
         actions={
-          <Button asChild>
-            <Link to="/purchases/new"><Plus className="mr-1.5 h-4 w-4" /> {t("pages.purchases.newPurchase")}</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ModernDateRangeFilter preset={preset} from={from} to={to} onPresetChange={(p) => { setPreset(p); setPage(0); }} onCustomChange={(f, t) => { setCustom(f, t); setPage(0); }} />
+            <Button asChild>
+              <Link to="/purchases/new"><Plus className="mr-1.5 h-4 w-4" /> {t("pages.purchases.newPurchase")}</Link>
+            </Button>
+          </div>
         }
       />
 

@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { listInvoices, addInvoicePayment, cancelInvoice } from "@/lib/api/invoices.functions";
 import { useTranslation } from "react-i18next";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 export const Route = createFileRoute("/invoices/")({
   head: () => ({ meta: [{ title: "Invoices — SohojPharma" }] }),
@@ -64,7 +65,7 @@ function InvoiceListPage() {
   const [kind, setKind] = useState<"sale" | "purchase">("sale");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
-  const [range, setRange] = useState<"today" | "week" | "month" | "all">("month");
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("this_month");
 
   const [payFor, setPayFor] = useState<Row | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -74,24 +75,16 @@ function InvoiceListPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [reverseStock, setReverseStock] = useState(true);
 
-  const { from, to } = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now);
-    if (range === "today") start.setHours(0, 0, 0, 0);
-    else if (range === "week") start.setDate(now.getDate() - 7);
-    else if (range === "month") start.setDate(now.getDate() - 30);
-    else return { from: undefined, to: undefined };
-    return { from: start.toISOString(), to: now.toISOString() };
-  }, [range]);
-
-  const queryKey = ["invoices", currentTenantId, kind, search, status, range];
+  const queryKey = ["invoices", currentTenantId, kind, search, status, from, to];
   const { data: rawData, isLoading } = useQuery({
     queryKey,
     enabled: !!currentTenantId,
     queryFn: () => list({ data: {
       tenantId: currentTenantId!, kind, search: search || undefined,
       status: status === "all" ? undefined : (status as never),
-      from, to, limit: 100,
+      from: from ? `${from}T00:00:00` : undefined,
+      to: to ? `${to}T23:59:59` : undefined,
+      limit: 200,
     }}),
   });
   const data: Row[] = Array.isArray(rawData) ? (rawData as Row[]) : [];
@@ -129,9 +122,12 @@ function InvoiceListPage() {
         title={t("ipos.invoicesTitle")}
         description={t("ipos.invoicesDesc")}
         actions={
-          <Button asChild variant="outline">
-            <Link to="/invoices/settings"><Settings className="mr-1.5 h-4 w-4" /> {t("ipos.settings")}</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ModernDateRangeFilter preset={preset} from={from} to={to} onPresetChange={setPreset} onCustomChange={setCustom} />
+            <Button asChild variant="outline">
+              <Link to="/invoices/settings"><Settings className="mr-1.5 h-4 w-4" /> {t("ipos.settings")}</Link>
+            </Button>
+          </div>
         }
       />
 
@@ -143,7 +139,7 @@ function InvoiceListPage() {
       </Tabs>
 
       <Card className="mb-4">
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_180px_180px]">
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-[1fr_200px]">
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)}
@@ -153,15 +149,6 @@ function InvoiceListPage() {
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{t(`ipos.status${s.charAt(0).toUpperCase()}${s.slice(1)}`)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={range} onValueChange={(v) => setRange(v as typeof range)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="today">{t("ipos.rangeToday")}</SelectItem>
-              <SelectItem value="week">{t("ipos.rangeWeek")}</SelectItem>
-              <SelectItem value="month">{t("ipos.rangeMonth")}</SelectItem>
-              <SelectItem value="all">{t("ipos.rangeAll")}</SelectItem>
             </SelectContent>
           </Select>
         </CardContent>

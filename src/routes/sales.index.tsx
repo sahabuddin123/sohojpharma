@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { addInvoicePayment, cancelInvoice } from "@/lib/api/invoices.functions";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 const PAYMENT_METHODS = ["cash", "bkash", "nagad", "rocket", "bank", "card", "other"] as const;
 
@@ -69,6 +70,7 @@ function SalesPage() {
   const delFn = useServerFn(cancelInvoice);
   const tenantId = currentTenantId ?? "";
   const [search, setSearch] = useState("");
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("all");
 
   const [payFor, setPayFor] = useState<SaleRow | null>(null);
   const [payAmount, setPayAmount] = useState("");
@@ -79,15 +81,18 @@ function SalesPage() {
   const [reverseStock, setReverseStock] = useState(true);
 
   const { data: sales = [], isLoading } = useQuery({
-    queryKey: ["sales-list", tenantId],
+    queryKey: ["sales-list", tenantId, from, to],
     enabled: !!tenantId,
     queryFn: async (): Promise<SaleRow[]> => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("sales")
         .select("id,invoice_no,sale_date,total,paid,due,status,is_return,customer:customers(name),items:sale_items(id)")
         .eq("tenant_id", tenantId)
         .order("sale_date", { ascending: false })
-        .limit(200);
+        .limit(300);
+      if (from) q = q.gte("sale_date", from);
+      if (to) q = q.lte("sale_date", `${to}T23:59:59`);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as SaleRow[];
     },
@@ -145,9 +150,12 @@ function SalesPage() {
         title={t("pages.sales.title")}
         description={t("pages.sales.desc")}
         actions={
-          <Button asChild>
-            <Link to="/sales/pos" search={{ edit: undefined, recall: undefined, ref: undefined }}><ShoppingCart className="mr-1.5 h-4 w-4" /> {t("pages.sales.openPos")}</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <ModernDateRangeFilter preset={preset} from={from} to={to} onPresetChange={setPreset} onCustomChange={setCustom} />
+            <Button asChild>
+              <Link to="/sales/pos" search={{ edit: undefined, recall: undefined, ref: undefined }}><ShoppingCart className="mr-1.5 h-4 w-4" /> {t("pages.sales.openPos")}</Link>
+            </Button>
+          </div>
         }
       />
 

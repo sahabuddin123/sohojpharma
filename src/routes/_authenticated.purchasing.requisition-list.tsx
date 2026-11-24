@@ -31,6 +31,7 @@ import {
 import { getInvoiceSettings } from "@/lib/api/invoices.functions";
 import { printRequisition } from "@/components/purchase-requisition/requisition-print";
 import { getPrinterSettings, listPrinters } from "@/lib/api/printer-settings.functions";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 export const Route = createFileRoute("/_authenticated/purchasing/requisition-list")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -76,21 +77,19 @@ function RequisitionListPage() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<string>("all");
-  const [preset, setPreset] = useState<string>("all");
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("all");
   const [page, setPage] = useState(0);
   const pageSize = 50;
 
-  const range = useMemo(() => dateRange(preset), [preset]);
-
   const listFn = useServerFn(listPurchaseRequisitions);
   const { data, isLoading } = useQuery({
-    queryKey: ["pr-list", tenantId, search, status, preset, page],
+    queryKey: ["pr-list", tenantId, search, status, from, to, page],
     enabled: !!tenantId,
     queryFn: () => listFn({
       data: {
         tenantId, search: search || null,
         status: status === "all" ? null : status,
-        date_from: range.from, date_to: range.to,
+        date_from: from ?? null, date_to: to ?? null,
         limit: pageSize, offset: page * pageSize,
       },
     }),
@@ -197,16 +196,13 @@ function RequisitionListPage() {
               {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={preset} onValueChange={(v) => { setPreset(v); setPage(0); }}>
-            <SelectTrigger className="h-9 w-40"><SelectValue placeholder="Date range" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All time</SelectItem>
-              <SelectItem value="today">Today</SelectItem>
-              <SelectItem value="yesterday">Yesterday</SelectItem>
-              <SelectItem value="week">This Week</SelectItem>
-              <SelectItem value="month">This Month</SelectItem>
-            </SelectContent>
-          </Select>
+          <ModernDateRangeFilter
+            preset={preset}
+            from={from}
+            to={to}
+            onPresetChange={(p) => { setPreset(p); setPage(0); }}
+            onCustomChange={(f, t) => { setCustom(f, t); setPage(0); }}
+          />
           <div className="ml-auto text-xs text-muted-foreground">
             {total.toLocaleString()} requisitions
           </div>
