@@ -236,7 +236,7 @@ function InvoiceReceipt({
             <div className="flex justify-between font-bold"><span>Item</span><span>Total</span></div>
             {items.map((it, i) => (
               <div key={i} className="mt-1">
-                <div>{(it.name as string) ?? (it.product_name as string) ?? `Item ${i + 1}`}</div>
+                <div>{(it.name as string) ?? (it.product_name as string) ?? ((it.product as { name?: string } | null)?.name) ?? `Item ${i + 1}`}</div>
                 <div className="flex justify-between">
                   <span>{Number(it.qty ?? 0)} × ৳{Number(it.rate ?? it.unit_price ?? 0).toFixed(2)}</span>
                   <span>৳{(Number(it.qty ?? 0) * Number(it.rate ?? it.unit_price ?? 0)).toFixed(2)}</span>

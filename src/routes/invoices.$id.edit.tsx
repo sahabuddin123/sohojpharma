@@ -55,7 +55,7 @@ function EditInvoicePage() {
     setLines(items.map((it) => ({
       id: it.id as string,
       product_id: it.product_id as string,
-      name: (it.name as string) ?? (it.product_name as string) ?? "Item",
+      name: (it.name as string) ?? (it.product_name as string) ?? ((it.product as { name?: string } | null)?.name) ?? "Item",
       qty: Number(it.qty ?? 0),
       unit_price: Number(it.unit_price ?? 0),
       discount: Number(it.discount ?? 0),

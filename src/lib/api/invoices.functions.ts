@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireFeature } from "@/lib/api/middleware/require-feature";
 import { requireActiveSubscription } from "@/lib/api/middleware/require-active-subscription";
 import { assertBranchWrite } from "@/lib/api/branch-guard";
+import { buildProductDisplayName, type ProductDisplayInput } from "@/lib/product-display";
 
 const Kind = z.enum(["sale", "purchase"]);
 const Status = z.enum(["draft", "pending", "paid", "partial", "due", "cancelled", "returned"]);
@@ -122,20 +123,34 @@ export const getInvoice = createServerFn({ method: "POST" })
     id: z.string().uuid(),
   }))
   .handler(async ({ data, context }) => {
+    const enrichItems = (rawItems: unknown) => {
+      if (!Array.isArray(rawItems)) return [];
+      return rawItems.map((it) => {
+        const rec = it as Record<string, unknown>;
+        const prod = rec.product as (ProductDisplayInput & { sku?: string | null }) | null | undefined;
+        const displayName = prod?.name ? buildProductDisplayName(prod) : ((rec.name as string) ?? (rec.product_name as string) ?? null);
+        return {
+          ...rec,
+          ...(displayName ? { name: displayName, product_name: displayName } : {}),
+          ...(prod?.sku ? { sku: prod.sku } : {}),
+        };
+      });
+    };
+
     if (data.kind === "sale") {
       const { data: sale, error } = await context.supabase
         .from("sales")
-        .select("*, customer:customers(name,phone,address), items:sale_items(*), payments:sale_payments(*)")
+        .select("*, customer:customers(name,phone,address), items:sale_items(*, product:products(name,strength,medicine_type,volume,pack_size,sku)), payments:sale_payments(*)")
         .eq("tenant_id", data.tenantId).eq("id", data.id).maybeSingle();
       if (error || !sale) throw new Error(error?.message ?? "Invoice not found");
-      return { kind: "sale" as const, invoice: sale };
+      return { kind: "sale" as const, invoice: { ...sale, items: enrichItems((sale as Record<string, unknown>).items) } };
     }
     const { data: pur, error } = await context.supabase
       .from("purchases")
-      .select("*, supplier:suppliers(name,phone,address), items:purchase_items(*)")
+      .select("*, supplier:suppliers(name,phone,address), items:purchase_items(*, product:products(name,strength,medicine_type,volume,pack_size,sku))")
       .eq("tenant_id", data.tenantId).eq("id", data.id).maybeSingle();
     if (error || !pur) throw new Error(error?.message ?? "Invoice not found");
-    return { kind: "purchase" as const, invoice: pur };
+    return { kind: "purchase" as const, invoice: { ...pur, items: enrichItems((pur as Record<string, unknown>).items) } };
   });
 
 export const cancelInvoice = createServerFn({ method: "POST" })
