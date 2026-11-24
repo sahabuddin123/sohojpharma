@@ -36,6 +36,10 @@ db_backup/
 supabase/.temp/
 supabase/.branches/
 
+# Unnecessary metadata
+.lovable/
+.github/
+
 # Deploy directory exceptions
 !deploy/**
 
