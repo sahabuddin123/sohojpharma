@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { RouteErrorPanel } from "@/components/route-error";
-import { Pill, Loader2, ShieldAlert, Clock } from "lucide-react";
+import { Pill, Loader2, ShieldAlert, Clock, ArrowLeft, KeyRound, Mail } from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,11 +12,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useThemeInit } from "@/hooks/use-theme-init";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { useServerFn } from "@tanstack/react-start";
-import { seedDemoAccounts } from "@/lib/api/demo-seed.functions";
 import { checkLoginRateLimitFn, recordLoginAttemptFn } from "@/lib/api/auth-security.server";
+import { ManualCaptcha } from "@/components/auth/manual-captcha";
 
 // Security: Prevent open redirect vulnerabilities by strictly allowing only safe relative paths
 function sanitizeRedirect(url?: string): string {
@@ -55,9 +54,21 @@ function AuthPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const redirectTo = sanitizeRedirect(search.redirect);
+
+  const [activeTab, setActiveTab] = useState<"signin" | "signup" | "forgot">("signin");
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+
+  // Manual CAPTCHA state
+  const [captchaValue, setCaptchaValue] = useState("");
+  const [expectedCaptcha, setExpectedCaptcha] = useState("");
+  const [captchaError, setCaptchaError] = useState(false);
+
+  // Forgot password state
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotBusy, setForgotBusy] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
 
   const checkRateLimit = useServerFn(checkLoginRateLimitFn);
   const recordAttempt = useServerFn(recordLoginAttemptFn);
@@ -78,6 +89,20 @@ function AuthPage() {
       return;
     }
 
+    // 1. Validate Manual Security CAPTCHA
+    if (!captchaValue.trim()) {
+      setCaptchaError(true);
+      toast.error("অনুগ্রহ করে সিকিউরিটি ক্যাপচা সমাধান করুন।");
+      return;
+    }
+    if (captchaValue.trim() !== expectedCaptcha.trim()) {
+      setCaptchaError(true);
+      toast.error("ক্যাপচা উত্তর সঠিক নয়! আবার চেষ্টা করুন।");
+      setCaptchaValue("");
+      return;
+    }
+    setCaptchaError(false);
+
     const data = new FormData(e.currentTarget);
     const email = String(data.get("email") ?? "").trim().toLowerCase();
     const password = String(data.get("password") ?? "");
@@ -89,7 +114,7 @@ function AuthPage() {
     setBusy(true);
 
     try {
-      // 1. Check server-side rate limits (IP and email)
+      // 2. Check server-side rate limits (IP and email)
       const limitCheck = await checkRateLimit({ data: { email } });
       if (!limitCheck.allowed) {
         setCooldown(limitCheck.retryAfterSeconds || 60);
@@ -99,7 +124,7 @@ function AuthPage() {
         return;
       }
 
-      // 2. Perform authentication via Supabase
+      // 3. Perform authentication via Supabase
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -116,6 +141,8 @@ function AuthPage() {
           setRemainingAttempts(failRecord.remainingAttempts);
           toast.error(`${error.message} (অবশিষ্ট চেষ্টা: ${failRecord.remainingAttempts})`);
         }
+        // Reset captcha on failure for security
+        setCaptchaValue("");
         setBusy(false);
         return;
       }
@@ -196,18 +223,34 @@ function AuthPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    setBusy(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin + redirectTo,
-    });
-    if (result.error) {
-      setBusy(false);
-      toast.error(result.error.message ?? t("toast.googleSignInFailed"));
-      return;
+  const handleForgotPassword = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const email = String(data.get("email") ?? "").trim().toLowerCase();
+
+    if (!email) {
+      return toast.error("ইমেইল ঠিকানা প্রদান করুন");
     }
-    if (result.redirected) return;
-    navigate({ to: redirectTo, replace: true });
+
+    setForgotBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      setForgotEmail(email);
+      setForgotSuccess(true);
+      toast.success("পাসওয়ার্ড রিসেট লিংক সফলভাবে পাঠানো হয়েছে!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "পাসওয়ার্ড রিসেট লিংক পাঠানো সম্ভব হয়নি");
+    } finally {
+      setForgotBusy(false);
+    }
   };
 
   return (
@@ -261,160 +304,234 @@ function AuthPage() {
               </div>
             )}
 
-            <Tabs defaultValue="signin">
-              <TabsList className="grid h-12 w-full grid-cols-2 rounded-full bg-muted p-1">
-                <TabsTrigger value="signin" className="rounded-full text-sm font-semibold">{t("auth.signIn")}</TabsTrigger>
-                <TabsTrigger value="signup" className="rounded-full text-sm font-semibold">{t("auth.signUp")}</TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="signin" className="mt-6">
-                <form className="space-y-5" onSubmit={handleSignIn}>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">{t("auth.email")}</Label>
-                    <Input id="email" name="email" type="email" required placeholder="you@pharmacy.com" className="h-12 rounded-xl text-base" />
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password">{t("auth.password")}</Label>
-                      {remainingAttempts !== null && remainingAttempts < 5 && cooldown === 0 && (
-                        <span className="text-xs text-amber-600 font-medium">
-                          অবশিষ্ট চেষ্টা: {remainingAttempts}
-                        </span>
-                      )}
-                    </div>
-                    <Input id="password" name="password" type="password" required placeholder="••••••••" className="h-12 rounded-xl text-base" />
-                  </div>
-                  <Button
-                    type="submit"
-                    className="h-12 w-full rounded-xl text-base font-semibold active:scale-[0.99]"
-                    disabled={busy || cooldown > 0}
+            {/* Forgot Password View */}
+            {activeTab === "forgot" ? (
+              <div className="space-y-5">
+                <div className="mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab("signin");
+                      setForgotSuccess(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
                   >
-                    {busy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : cooldown > 0 ? (
-                      `লক করা হয়েছে (${cooldown}s)`
-                    ) : (
-                      t("auth.signIn")
-                    )}
-                  </Button>
-                </form>
+                    <ArrowLeft className="h-4 w-4" />
+                    {t("auth.signIn")} এ ফিরে যান
+                  </button>
+                </div>
 
-                {/* Only display demo credentials in development mode */}
-                {import.meta.env.DEV && <DemoCredentials />}
-              </TabsContent>
-
-              <TabsContent value="signup" className="mt-6">
-                <form className="space-y-4" onSubmit={handleSignUp}>
-                  <div className="space-y-2">
-                    <Label htmlFor="full_name">{t("auth.fullName")}</Label>
-                    <Input id="full_name" name="full_name" required placeholder="Dr. Rahim Khan" />
+                {forgotSuccess ? (
+                  <div className="space-y-4 py-4 text-center">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 ring-8 ring-emerald-50">
+                      <Mail className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">রিসেট লিংক পাঠানো হয়েছে!</h3>
+                      <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                        আমরা <strong className="font-semibold text-foreground">{forgotEmail}</strong> ঠিকানায় পাসওয়ার্ড রিসেট লিংক পাঠিয়েছি। আপনার ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।
+                      </p>
+                    </div>
+                    <div className="pt-2 flex flex-col gap-2">
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("signin");
+                          setForgotSuccess(false);
+                        }}
+                        className="h-11 rounded-xl font-semibold"
+                      >
+                        সাইন ইন পেজে যান
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setForgotSuccess(false)}
+                        className="text-xs text-muted-foreground"
+                      >
+                        অন্য ইমেইল দিয়ে আবার চেষ্টা করুন
+                      </Button>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone number</Label>
-                    <Input
-                      id="phone"
-                      name="phone"
-                      type="tel"
-                      required
-                      inputMode="tel"
-                      autoComplete="tel"
-                      pattern="^(?:\+?880|0)1[3-9]\d{8}$"
-                      placeholder="017XXXXXXXX"
-                      title="Bangladesh mobile, e.g. 017XXXXXXXX"
+                ) : (
+                  <div className="space-y-5">
+                    <div>
+                      <div className="flex items-center gap-2 text-primary font-bold text-lg">
+                        <KeyRound className="h-5 w-5" />
+                        পাসওয়ার্ড ভুলে গেছেন?
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                        আপনার অ্যাকাউন্টের নিবন্ধিত ইমেইল ঠিকানা দিন। আমরা আপনাকে পাসওয়ার্ড পরিবর্তনের নিরাপদ লিংক পাঠিয়ে দিব।
+                      </p>
+                    </div>
+
+                    <form className="space-y-4" onSubmit={handleForgotPassword}>
+                      <div className="space-y-2">
+                        <Label htmlFor="forgot-email">{t("auth.email")}</Label>
+                        <Input
+                          id="forgot-email"
+                          name="email"
+                          type="email"
+                          required
+                          defaultValue={forgotEmail}
+                          placeholder="you@pharmacy.com"
+                          className="h-12 rounded-xl text-base"
+                        />
+                      </div>
+
+                      <Button
+                        type="submit"
+                        className="h-12 w-full rounded-xl text-base font-semibold active:scale-[0.99]"
+                        disabled={forgotBusy}
+                      >
+                        {forgotBusy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          "রিসেট লিংক পাঠান"
+                        )}
+                      </Button>
+                    </form>
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Sign In / Sign Up Tabs */
+              <Tabs
+                value={activeTab}
+                onValueChange={(val) => setActiveTab(val as "signin" | "signup")}
+              >
+                <TabsList className="grid h-12 w-full grid-cols-2 rounded-full bg-muted p-1">
+                  <TabsTrigger value="signin" className="rounded-full text-sm font-semibold">{t("auth.signIn")}</TabsTrigger>
+                  <TabsTrigger value="signup" className="rounded-full text-sm font-semibold">{t("auth.signUp")}</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="signin" className="mt-6">
+                  <form className="space-y-4" onSubmit={handleSignIn}>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">{t("auth.email")}</Label>
+                      <Input
+                        id="email"
+                        name="email"
+                        type="email"
+                        required
+                        placeholder="you@pharmacy.com"
+                        className="h-12 rounded-xl text-base"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="password">{t("auth.password")}</Label>
+                        <div className="flex items-center gap-2">
+                          {remainingAttempts !== null && remainingAttempts < 5 && cooldown === 0 && (
+                            <span className="text-xs text-amber-600 font-medium">
+                              অবশিষ্ট: {remainingAttempts}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setForgotSuccess(false);
+                              setActiveTab("forgot");
+                            }}
+                            className="text-xs font-semibold text-primary hover:underline hover:text-primary/90"
+                          >
+                            {t("auth.forgot")}
+                          </button>
+                        </div>
+                      </div>
+                      <Input
+                        id="password"
+                        name="password"
+                        type="password"
+                        required
+                        placeholder="••••••••"
+                        className="h-12 rounded-xl text-base"
+                      />
+                    </div>
+
+                    {/* Manual Security CAPTCHA Challenge */}
+                    <ManualCaptcha
+                      value={captchaValue}
+                      onChange={setCaptchaValue}
+                      onExpectedChange={setExpectedCaptcha}
+                      error={captchaError}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pharmacy_name">{t("auth.pharmacyName")}</Label>
-                    <Input id="pharmacy_name" name="pharmacy_name" required placeholder="MedPlus Dhanmondi" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email2">{t("auth.email")}</Label>
-                    <Input id="email2" name="email" type="email" required placeholder="owner@pharmacy.com" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="address">Address</Label>
-                    <Input id="address" name="address" placeholder="Street, area" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="district">District</Label>
-                    <Input id="district" name="district" placeholder="Dhaka" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="trade_license">Trade License (optional)</Label>
-                    <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password2">{t("auth.password")}</Label>
-                    <Input id="password2" name="password" type="password" required minLength={8} placeholder="ন্যূনতম ৮ অক্ষর" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password_confirm">Confirm password</Label>
-                    <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} placeholder="পাসওয়ার্ড পুনরায় লিখুন" />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={busy}>
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.signUp")}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
-            
+
+                    <Button
+                      type="submit"
+                      className="h-12 w-full rounded-xl text-base font-semibold active:scale-[0.99]"
+                      disabled={busy || cooldown > 0}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : cooldown > 0 ? (
+                        `লক করা হয়েছে (${cooldown}s)`
+                      ) : (
+                        t("auth.signIn")
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="signup" className="mt-6">
+                  <form className="space-y-4" onSubmit={handleSignUp}>
+                    <div className="space-y-2">
+                      <Label htmlFor="full_name">{t("auth.fullName")}</Label>
+                      <Input id="full_name" name="full_name" required placeholder="Dr. Rahim Khan" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone number</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        required
+                        inputMode="tel"
+                        autoComplete="tel"
+                        pattern="^(?:\+?880|0)1[3-9]\d{8}$"
+                        placeholder="017XXXXXXXX"
+                        title="Bangladesh mobile, e.g. 017XXXXXXXX"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pharmacy_name">{t("auth.pharmacyName")}</Label>
+                      <Input id="pharmacy_name" name="pharmacy_name" required placeholder="MedPlus Dhanmondi" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email2">{t("auth.email")}</Label>
+                      <Input id="email2" name="email" type="email" required placeholder="owner@pharmacy.com" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Input id="address" name="address" placeholder="Street, area" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="district">District</Label>
+                      <Input id="district" name="district" placeholder="Dhaka" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="trade_license">Trade License (optional)</Label>
+                      <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password2">{t("auth.password")}</Label>
+                      <Input id="password2" name="password" type="password" required minLength={8} placeholder="ন্যূনতম ৮ অক্ষর" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password_confirm">Confirm password</Label>
+                      <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} placeholder="পাসওয়ার্ড পুনরায় লিখুন" />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={busy}>
+                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.signUp")}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            )}
           </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
-
-function DemoCredentials() {
-  const seed = useServerFn(seedDemoAccounts);
-  const [busy, setBusy] = useState(false);
-  const accounts = [
-    { role: "Super Admin", email: "superadmin@gmail.com", password: "123456" },
-    { role: "Admin (MedPlus Dhanmondi)", email: "admin@gmail.com", password: "123456" },
-  ];
-  const fill = (email: string, password: string) => {
-    const e = document.getElementById("email") as HTMLInputElement | null;
-    const p = document.getElementById("password") as HTMLInputElement | null;
-    if (e) e.value = email;
-    if (p) p.value = password;
-  };
-  const onSeed = async () => {
-    setBusy(true);
-    try {
-      const res = await seed();
-      toast.success(
-        res.results.map((r) => `${r.email}: ${r.status}`).join(" • "),
-      );
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Seeding failed");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <div className="mt-6 rounded-lg border border-dashed border-border bg-muted/40 p-4 text-xs">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="font-semibold text-muted-foreground">Demo accounts (dev only)</span>
-        <Button type="button" size="sm" variant="ghost" onClick={onSeed} disabled={busy}>
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Seed"}
-        </Button>
-      </div>
-      <ul className="space-y-1">
-        {accounts.map((a) => (
-          <li key={a.email} className="flex items-center justify-between gap-2">
-            <span className="text-muted-foreground">
-              <span className="font-medium text-foreground">{a.role}:</span> {a.email} / {a.password}
-            </span>
-            <button
-              type="button"
-              className="text-primary hover:underline"
-              onClick={() => fill(a.email, a.password)}
-            >
-              use
-            </button>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
@@ -438,24 +555,6 @@ function BlockedBanner() {
           <span className="ml-1 opacity-85">(চার্জ ১.৫% / ১৫ টাকা প্রতি হাজারে)</span>
         </div>
       )}
-    </div>
-  );
-}
-
-
-function GoogleBlock({
-  onClick, disabled, label, or,
-}: { onClick: () => void; disabled: boolean; label: string; or: string }) {
-  return (
-    <div className="mt-6">
-      <div className="relative my-4 text-center text-xs text-muted-foreground">
-        <span className="relative z-10 bg-card px-2">{or}</span>
-        <div className="absolute inset-x-0 top-1/2 -z-0 border-t border-border" />
-      </div>
-      <Button type="button" variant="outline" className="w-full" onClick={onClick} disabled={disabled}>
-        <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.99.66-2.26 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-        {label}
-      </Button>
     </div>
   );
 }

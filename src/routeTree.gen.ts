@@ -46,6 +46,7 @@ import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as QuotationsRouteImport } from './routes/quotations'
 import { Route as ReorderRouteImport } from './routes/reorder'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SalesRouteImport } from './routes/sales'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupRouteImport } from './routes/setup'
@@ -475,6 +476,11 @@ const ReorderRoute = ReorderRouteImport.update({
 const ReportsRoute = ReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SalesRoute = SalesRouteImport.update({
@@ -1772,6 +1778,7 @@ export interface FileRoutesByFullPath {
   '/quotations': typeof QuotationsRouteWithChildren
   '/reorder': typeof ReorderRoute
   '/reports': typeof ReportsRouteWithChildren
+  '/reset-password': typeof ResetPasswordRoute
   '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/setup': typeof SetupRoute
@@ -2038,6 +2045,7 @@ export interface FileRoutesByTo {
   '/patients': typeof PatientsRoute
   '/pricing': typeof PricingRoute
   '/reorder': typeof ReorderRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
   '/setup': typeof SetupRoute
   '/setup-store': typeof SetupStoreRoute
@@ -2321,6 +2329,7 @@ export interface FileRoutesById {
   '/quotations': typeof QuotationsRouteWithChildren
   '/reorder': typeof ReorderRoute
   '/reports': typeof ReportsRouteWithChildren
+  '/reset-password': typeof ResetPasswordRoute
   '/sales': typeof SalesRouteWithChildren
   '/settings': typeof SettingsRouteWithChildren
   '/setup': typeof SetupRoute
@@ -2607,6 +2616,7 @@ export interface FileRouteTypes {
     | '/quotations'
     | '/reorder'
     | '/reports'
+    | '/reset-password'
     | '/sales'
     | '/settings'
     | '/setup'
@@ -2873,6 +2883,7 @@ export interface FileRouteTypes {
     | '/patients'
     | '/pricing'
     | '/reorder'
+    | '/reset-password'
     | '/settings'
     | '/setup'
     | '/setup-store'
@@ -3155,6 +3166,7 @@ export interface FileRouteTypes {
     | '/quotations'
     | '/reorder'
     | '/reports'
+    | '/reset-password'
     | '/sales'
     | '/settings'
     | '/setup'
@@ -3441,6 +3453,7 @@ export interface RootRouteChildren {
   QuotationsRoute: typeof QuotationsRouteWithChildren
   ReorderRoute: typeof ReorderRoute
   ReportsRoute: typeof ReportsRouteWithChildren
+  ResetPasswordRoute: typeof ResetPasswordRoute
   SalesRoute: typeof SalesRouteWithChildren
   SettingsRoute: typeof SettingsRouteWithChildren
   SetupRoute: typeof SetupRoute
@@ -3747,6 +3760,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/reports'
       preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sales': {
@@ -6237,6 +6257,7 @@ const rootRouteChildren: RootRouteChildren = {
   QuotationsRoute: QuotationsRouteWithChildren,
   ReorderRoute: ReorderRoute,
   ReportsRoute: ReportsRouteWithChildren,
+  ResetPasswordRoute: ResetPasswordRoute,
   SalesRoute: SalesRouteWithChildren,
   SettingsRoute: SettingsRouteWithChildren,
   SetupRoute: SetupRoute,
