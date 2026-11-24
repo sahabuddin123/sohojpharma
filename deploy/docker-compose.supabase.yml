@@ -9,6 +9,7 @@ services:
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_RESOLVER: "127.0.0.11"
       KONG_DNS_ORDER: LAST,A,CNAME
       KONG_PLUGINS: request-transformer,cors,key-auth,acl
       SUPABASE_ANON_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY in .env}
@@ -18,6 +19,14 @@ services:
     depends_on:
       - supabase-auth
       - supabase-rest
+    links:
+      - supabase-auth:supabase-auth
+      - supabase-rest:supabase-rest
+    networks:
+      sohoj_net:
+        aliases:
+          - supabase-kong
+          - sohojpharma_kong
 
   # GoTrue Auth Service
   supabase-auth:
@@ -47,6 +56,13 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth"
     depends_on:
       - supabase-db
+    links:
+      - supabase-db:supabase-db
+    networks:
+      sohoj_net:
+        aliases:
+          - supabase-auth
+          - sohojpharma_auth
 
   # PostgREST REST API
   supabase-rest:
@@ -61,6 +77,13 @@ services:
       PGRST_DB_USE_LEGACY_GUCS: "false"
     depends_on:
       - supabase-db
+    links:
+      - supabase-db:supabase-db
+    networks:
+      sohoj_net:
+        aliases:
+          - supabase-rest
+          - sohojpharma_rest
 
   # PostgreSQL Database Engine
   supabase-db:
@@ -75,6 +98,15 @@ services:
     volumes:
       - sohojpharma_pgdata:/var/lib/postgresql/data
       - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      sohoj_net:
+        aliases:
+          - supabase-db
+          - sohojpharma_db
+
+networks:
+  sohoj_net:
+    driver: bridge
 
 volumes:
   sohojpharma_pgdata:
