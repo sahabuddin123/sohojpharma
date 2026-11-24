@@ -138,6 +138,9 @@ grep -q '^SMTP_ADMIN_EMAIL=' .env && sed -i 's|^SMTP_ADMIN_EMAIL=.*|SMTP_ADMIN_E
 grep -q '^SMTP_SENDER_NAME=' .env && sed -i 's|^SMTP_SENDER_NAME=.*|SMTP_SENDER_NAME="SohojPharma"|' .env || echo 'SMTP_SENDER_NAME="SohojPharma"' >> .env
 grep -q '^EMAIL_FROM=' .env && sed -i 's|^EMAIL_FROM=.*|EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"|' .env || echo 'EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"' >> .env
 
+# Security: Restrict .env permissions so only root/owner can read
+chmod 600 .env 2>/dev/null || true
+
 echo -e "${GREEN}✓ Production .env is ready with domain https://sohojpharma.cloud and SMTP mail support@sohojpharma.cloud${NC}"
 
 # ------------------------------------------------------------------------------

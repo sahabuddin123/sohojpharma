@@ -134,6 +134,7 @@ CREATE OR REPLACE FUNCTION public.bootstrap_trial_subscription()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_plan public.plans;
@@ -163,6 +164,7 @@ CREATE OR REPLACE FUNCTION public.auto_trial_on_tenant_insert()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_plan_id uuid;
@@ -201,6 +203,7 @@ CREATE OR REPLACE FUNCTION public.admin_approve_store_with_plan(
 RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_plan public.plans;
