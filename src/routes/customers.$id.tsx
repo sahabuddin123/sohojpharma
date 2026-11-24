@@ -89,15 +89,60 @@ function CustomerDetailsPage() {
     queryKey: ["customer-payments", tenantId, id],
     enabled,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customer_payments")
-        .select("id,payment_date,amount,method,reference,notes,collected_by,sale_id")
-        .eq("tenant_id", tenantId)
-        .eq("customer_id", id)
-        .order("payment_date", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return data ?? [];
+      const [cpRes, spRes] = await Promise.all([
+        supabase
+          .from("customer_payments")
+          .select("id,payment_date,amount,method,reference,notes,collected_by,sale_id")
+          .eq("tenant_id", tenantId)
+          .eq("customer_id", id)
+          .order("payment_date", { ascending: false })
+          .limit(500),
+        supabase
+          .from("sale_payments")
+          .select("id,paid_at,amount,method,reference,sale_id,sales!inner(customer_id,invoice_no,status)")
+          .eq("tenant_id", tenantId)
+          .eq("sales.customer_id", id)
+          .order("paid_at", { ascending: false })
+          .limit(500),
+      ]);
+      if (cpRes.error) throw cpRes.error;
+      if (spRes.error) throw spRes.error;
+
+      const cpRows = (cpRes.data ?? []).map((p) => ({
+        ...p,
+        source: "customer_payment" as const,
+      }));
+      const cpKeys = new Set(
+        cpRows
+          .filter((p) => p.sale_id)
+          .map((p) => `${p.sale_id}:${Number(p.amount ?? 0).toFixed(2)}`),
+      );
+
+      const spRows = (spRes.data ?? [])
+        .filter((sp) => {
+          const sale = sp.sales as { status?: string | null } | null;
+          if (sale?.status === "void" || sale?.status === "draft") return false;
+          const key = `${sp.sale_id}:${Number(sp.amount ?? 0).toFixed(2)}`;
+          return !cpKeys.has(key);
+        })
+        .map((sp) => {
+          const sale = sp.sales as { invoice_no?: string | null } | null;
+          return {
+            id: sp.id,
+            payment_date: sp.paid_at,
+            amount: sp.amount,
+            method: sp.method,
+            reference: sp.reference ?? sale?.invoice_no ?? null,
+            notes: sale?.invoice_no ? `Invoice ${sale.invoice_no}` : null,
+            collected_by: null as string | null,
+            sale_id: sp.sale_id,
+            source: "sale_payment" as const,
+          };
+        });
+
+      return [...cpRows, ...spRows].sort(
+        (a, b) => new Date(b.payment_date).getTime() - new Date(a.payment_date).getTime(),
+      );
     },
   });
 
