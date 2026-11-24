@@ -109,6 +109,8 @@ sed -i 's|^VITE_APP_URL=.*|VITE_APP_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^APP_PUBLIC_URL=.*|APP_PUBLIC_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=https://sohojpharma.cloud|' .env
 sed -i 's|^SUPABASE_URL=.*|SUPABASE_URL=http://127.0.0.1:54321|' .env
+sed -i 's|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=postgres|' .env
+grep -q '^POSTGRES_PASSWORD=' .env || echo "POSTGRES_PASSWORD=postgres" >> .env
 sed -i 's|^BKASH_MERCHANT_NUMBER=.*|BKASH_MERCHANT_NUMBER=01951413828|' .env
 
 # Ensure SMTP WebMail settings (support@sohojpharma.cloud)
