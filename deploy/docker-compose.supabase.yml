@@ -1,3 +1,5 @@
+name: sohojpharma
+
 services:
   # Kong API Gateway (Unified endpoint on 54321)
   supabase-kong:
@@ -16,13 +18,10 @@ services:
     volumes:
       - ./kong.yml:/var/lib/kong/kong.yml:ro
     depends_on:
-      - supabase-auth
-      - supabase-rest
-    links:
-      - supabase-auth:supabase-auth
-      - supabase-rest:supabase-rest
-      - supabase-auth:sohojpharma_auth
-      - supabase-rest:sohojpharma_rest
+      supabase-auth:
+        condition: service_started
+      supabase-rest:
+        condition: service_started
     networks:
       sohoj_net:
         aliases:
@@ -56,10 +55,8 @@ services:
       GOTRUE_MAILER_URLPATHS_RECOVERY: "/reset-password"
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: "/auth"
     depends_on:
-      - supabase-db
-    links:
-      - supabase-db:supabase-db
-      - supabase-db:sohojpharma_db
+      supabase-db:
+        condition: service_healthy
     networks:
       sohoj_net:
         aliases:
@@ -78,10 +75,8 @@ services:
       PGRST_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
       PGRST_DB_USE_LEGACY_GUCS: "false"
     depends_on:
-      - supabase-db
-    links:
-      - supabase-db:supabase-db
-      - supabase-db:sohojpharma_db
+      supabase-db:
+        condition: service_healthy
     networks:
       sohoj_net:
         aliases:
@@ -99,9 +94,16 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - sohojpharma_pgdata:/var/lib/postgresql/data
-      - ../supabase/migrations:/docker-entrypoint-initdb.d:ro
+      - ../supabase/migrations/00000000000000_init_supabase_core.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres || pg_isready -U supabase_admin -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
     networks:
       sohoj_net:
         aliases:
@@ -110,7 +112,9 @@ services:
 
 networks:
   sohoj_net:
+    name: sohoj_net
     driver: bridge
 
 volumes:
   sohojpharma_pgdata:
+    name: sohojpharma_pgdata
