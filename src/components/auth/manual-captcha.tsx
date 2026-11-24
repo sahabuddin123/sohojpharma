@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { RefreshCw, ShieldCheck } from "lucide-react";
+import { RefreshCw, ShieldCheck, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ interface ManualCaptchaProps {
   onRefresh?: () => void;
   onExpectedChange?: (expected: string) => void;
   error?: boolean;
+  errorMessage?: string;
 }
 
 interface Challenge {
@@ -22,10 +23,19 @@ export function ManualCaptcha({
   onChange,
   onExpectedChange,
   error,
+  errorMessage,
 }: ManualCaptchaProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [challenge, setChallenge] = useState<Challenge>({ text: "", answer: "" });
   const [isSpinning, setIsSpinning] = useState(false);
+
+  useEffect(() => {
+    if (error && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [error]);
 
   const generateChallenge = useCallback((): Challenge => {
     // Generate simple arithmetic challenge (e.g. 7 + 8 or 23 - 9)
@@ -176,6 +186,7 @@ export function ManualCaptcha({
         </Button>
 
         <Input
+          ref={inputRef}
           id="captcha-input"
           name="captcha_answer"
           type="text"
@@ -184,12 +195,21 @@ export function ManualCaptcha({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="উত্তর লিখুন"
-          className={`h-10 flex-1 rounded-lg text-center font-mono text-base font-bold tracking-wider ${
-            error ? "border-destructive focus-visible:ring-destructive" : ""
+          className={`h-10 flex-1 rounded-lg text-center font-mono text-base font-bold tracking-wider transition-colors ${
+            error
+              ? "border-destructive ring-2 ring-destructive/20 bg-destructive/5 focus-visible:ring-destructive"
+              : ""
           }`}
           required
         />
       </div>
+
+      {errorMessage && (
+        <div className="flex items-center gap-1.5 pt-1 text-xs font-semibold text-destructive animate-in fade-in slide-in-from-top-1">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      )}
     </div>
   );
 }

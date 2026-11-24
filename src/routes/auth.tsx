@@ -64,6 +64,7 @@ function AuthPage() {
   const [captchaValue, setCaptchaValue] = useState("");
   const [expectedCaptcha, setExpectedCaptcha] = useState("");
   const [captchaError, setCaptchaError] = useState(false);
+  const [captchaErrorMessage, setCaptchaErrorMessage] = useState("");
 
   // Forgot password state
   const [forgotEmail, setForgotEmail] = useState("");
@@ -92,16 +93,19 @@ function AuthPage() {
     // 1. Validate Manual Security CAPTCHA
     if (!captchaValue.trim()) {
       setCaptchaError(true);
+      setCaptchaErrorMessage("ক্যাপচার ঘরে সঠিক যোগ/বিয়োগফল লিখুন (যেমন: ৫ + ৯ = ১৪)");
       toast.error("অনুগ্রহ করে সিকিউরিটি ক্যাপচা সমাধান করুন।");
       return;
     }
     if (captchaValue.trim() !== expectedCaptcha.trim()) {
       setCaptchaError(true);
+      setCaptchaErrorMessage("ক্যাপচার উত্তর ভুল হয়েছে! সঠিক যোগ/বিয়োগফল লিখুন।");
       toast.error("ক্যাপচা উত্তর সঠিক নয়! আবার চেষ্টা করুন।");
       setCaptchaValue("");
       return;
     }
     setCaptchaError(false);
+    setCaptchaErrorMessage("");
 
     const data = new FormData(e.currentTarget);
     const email = String(data.get("email") ?? "").trim().toLowerCase();
@@ -133,10 +137,18 @@ function AuthPage() {
       if (error) {
         // Record failure
         const failRecord = await recordAttempt({ data: { email, success: false } });
+        const isNetworkErr = error.message?.includes("Failed to fetch") || (error as any).status === 0;
+        const isInvalidCreds = error.message?.includes("Invalid login credentials");
+
         if (!failRecord.allowed) {
           setCooldown(failRecord.retryAfterSeconds || 60);
           setRemainingAttempts(0);
           toast.error(`অ্যাকাউন্ট সাময়িকভাবে লক করা হয়েছে। ${failRecord.retryAfterSeconds || 60} সেকেন্ড পর আবার চেষ্টা করুন।`);
+        } else if (isNetworkErr) {
+          toast.error("ডাটাবেজ সার্ভারে সংযোগ করা সম্ভব হয়নি। লোকাল Docker Desktop চালু আছে কিনা দেখুন।");
+        } else if (isInvalidCreds) {
+          setRemainingAttempts(failRecord.remainingAttempts);
+          toast.error(`ভুল ইমেইল বা পাসওয়ার্ড প্রদান করা হয়েছে। (অবশিষ্ট চেষ্টা: ${failRecord.remainingAttempts})`);
         } else {
           setRemainingAttempts(failRecord.remainingAttempts);
           toast.error(`${error.message} (অবশিষ্ট চেষ্টা: ${failRecord.remainingAttempts})`);
@@ -154,7 +166,12 @@ function AuthPage() {
       toast.success(t("toast.welcomeBack"));
       navigate({ to: redirectTo, replace: true });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Authentication error");
+      const msg = err instanceof Error ? err.message : "Authentication error";
+      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("CONNECTION_REFUSED")) {
+        toast.error("ডাটাবেজ সার্ভারে সংযোগ করা সম্ভব হয়নি। লোকাল Docker Desktop চালু আছে কিনা নিশ্চিত করুন।");
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setBusy(false);
     }
@@ -453,9 +470,16 @@ function AuthPage() {
                     {/* Manual Security CAPTCHA Challenge */}
                     <ManualCaptcha
                       value={captchaValue}
-                      onChange={setCaptchaValue}
+                      onChange={(val) => {
+                        setCaptchaValue(val);
+                        if (captchaError) {
+                          setCaptchaError(false);
+                          setCaptchaErrorMessage("");
+                        }
+                      }}
                       onExpectedChange={setExpectedCaptcha}
                       error={captchaError}
+                      errorMessage={captchaErrorMessage}
                     />
 
                     <Button
