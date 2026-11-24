@@ -41,6 +41,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
         replace: true,
       });
     } else if (session && pathname === "/auth") {
+      // Don't auto-redirect while registration and pending signout is in-flight
+      if (typeof window !== "undefined" && (sessionStorage.getItem("just_registered") || window.location.search.includes("blocked"))) {
+        return;
+      }
       navigate({ to: searchRedirect ?? "/dashboard", replace: true });
     }
   }, [effectiveLoading, session, isPublic, pathname, searchRedirect, navigate]);

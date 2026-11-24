@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { RouteErrorPanel } from "@/components/route-error";
-import { Pill, Loader2, ShieldAlert, Clock, ArrowLeft, KeyRound, Mail } from "lucide-react";
+import { Pill, Loader2, ShieldAlert, Clock, ArrowLeft, KeyRound, Mail, CheckCircle2, PhoneCall } from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -59,6 +59,15 @@ function AuthPage() {
   const [busy, setBusy] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+
+  // Post-registration notice state
+  const [regNotice, setRegNotice] = useState<null | {
+    pharmacyName: string;
+    ownerName: string;
+    email: string;
+    phone: string;
+  }>(null);
+  const [pendingNoticeOpen, setPendingNoticeOpen] = useState(false);
 
   // Manual CAPTCHA state
   const [captchaValue, setCaptchaValue] = useState("");
@@ -168,6 +177,40 @@ function AuthPage() {
         return;
       }
 
+      // 4. Check store status before redirecting to dashboard
+      const { data: userRes } = await supabase.auth.getUser();
+      const authUser = userRes?.user;
+      if (authUser) {
+        const { data: isAdmin } = await supabase.rpc("is_app_admin", { _user_id: authUser.id });
+        if (!isAdmin) {
+          const { data: memberships } = await supabase
+            .from("tenant_members")
+            .select("tenant_id, tenants(id, name, status)")
+            .eq("user_id", authUser.id);
+
+          const tenantsList = (memberships ?? []).map((m: any) => m.tenants).filter(Boolean);
+          const anyActive = tenantsList.some((t: any) => t.status === "active");
+
+          if (!anyActive) {
+            const firstStatus = tenantsList[0]?.status ?? "pending";
+            await supabase.auth.signOut();
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("pc_tenant");
+            }
+            if (firstStatus === "pending") {
+              setPendingNoticeOpen(true);
+              toast.error("আপনার ফার্মেসি অ্যাকাউন্টটি এখনও অনুমোদিত হয়নি। ট্রায়াল সক্রিয় করতে SohojPharma কর্তৃপক্ষের সাথে যোগাযোগ করুন।", { duration: 7000 });
+            } else if (firstStatus === "rejected") {
+              toast.error("আপনার অ্যাকাউন্টটি বাতিল করা হয়েছে। কর্তৃপক্ষের সাথে যোগাযোগ করুন।");
+            } else {
+              toast.error(`অ্যাকাউন্ট স্ট্যাটাস: ${firstStatus}। কর্তৃপক্ষের সাথে যোগাযোগ করুন।`);
+            }
+            setBusy(false);
+            return;
+          }
+        }
+      }
+
       // Record success & clear failed attempts
       await recordAttempt({ data: { email, success: true } });
       setRemainingAttempts(5);
@@ -206,6 +249,9 @@ function AuthPage() {
       return toast.error(t("toast.passwordsMismatch"));
     }
     setBusy(true);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem("just_registered", "true");
+    }
     try {
       const { data: signUpData, error } = await supabase.auth.signUp({
         email,
@@ -216,12 +262,18 @@ function AuthPage() {
         },
       });
       if (error) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("just_registered");
+        }
         const msg = /duplicate|unique|already/i.test(error.message)
           ? t("toast.phoneEmailTaken")
           : error.message;
         return toast.error(msg);
       }
       if (!signUpData.session) {
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("just_registered");
+        }
         toast.success(t("Account created"), {
           description: t("We sent a verification link to your email. Please verify your email to activate your account, then sign in."),
         });
@@ -237,15 +289,40 @@ function AuthPage() {
         _trade_license: tradeLicense,
       });
       if (regErr) {
+        await supabase.auth.signOut();
+        if (typeof window !== "undefined") {
+          sessionStorage.removeItem("just_registered");
+          localStorage.removeItem("pc_tenant");
+        }
         const m = regErr.message;
         if (/duplicate_email/.test(m)) return toast.error("This email is already registered.");
         if (/duplicate_mobile/.test(m)) return toast.error("This mobile number is already registered.");
         if (/duplicate_pharmacy_name/.test(m)) return toast.error("A pharmacy with this name already exists.");
         return toast.error(m);
       }
-      toast.success("Store registered. Awaiting SaaS Admin approval.");
+
+      // Explicitly sign out: store is pending approval so user must NOT enter dashboard yet
+      await supabase.auth.signOut();
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("pc_tenant");
+        sessionStorage.removeItem("just_registered");
+      }
+
+      setRegNotice({
+        pharmacyName,
+        ownerName,
+        email,
+        phone,
+      });
+      setActiveTab("signin");
+      toast.success("নিবন্ধন সফল হয়েছে! অ্যাকাউন্ট সক্রিয় করতে SohojPharma কর্তৃপক্ষের সাথে যোগাযোগ করুন।", {
+        duration: 8000,
+      });
     } finally {
       setBusy(false);
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("just_registered");
+      }
     }
   };
 
@@ -315,7 +392,61 @@ function AuthPage() {
               <div className="ml-auto"><LanguageSwitcher /></div>
             </div>
 
-            <BlockedBanner />
+            {/* Post-Registration Success Card */}
+            {regNotice && (
+              <div className="mb-5 rounded-2xl border border-emerald-500/30 bg-emerald-50 dark:bg-emerald-950/30 p-4 text-emerald-950 dark:text-emerald-100 space-y-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-emerald-600 text-white p-1.5 shrink-0 mt-0.5">
+                    <CheckCircle2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-emerald-900 dark:text-emerald-100">
+                      নিবন্ধন সফল হয়েছে!
+                    </h3>
+                    <p className="mt-0.5 text-xs text-emerald-800 dark:text-emerald-300">
+                      আপনার ফার্মেসি <strong>{regNotice.pharmacyName}</strong> এর নিবন্ধন সফলভাবে সম্পন্ন হয়েছে।
+                    </p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl bg-white/90 dark:bg-black/40 p-3 border border-emerald-500/20 text-xs space-y-2">
+                  <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400 font-semibold">
+                    <Clock className="h-4 w-4 shrink-0" />
+                    <span>অ্যাকাউন্টটি বর্তমানে অনুমোদনের অপেক্ষায় রয়েছে (Pending Approval)</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">
+                    আপনার ৭ দিনের ফ্রি ট্রায়াল দ্রুত সক্রিয় করতে SohojPharma কর্তৃপক্ষের সাথে যোগাযোগ করুন অথবা আপনার ইমেইল চেক করুন।
+                  </p>
+                  <div className="pt-2 border-t border-border/60 flex flex-col sm:flex-row gap-2 font-medium">
+                    <div className="flex items-center gap-1 text-foreground">
+                      <PhoneCall className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>কর্তৃপক্ষ হেল্পলাইন: <strong className="font-mono text-sm text-pink-700 dark:text-pink-400 bg-emerald-50 dark:bg-emerald-950 px-1.5 py-0.5 rounded">01951413828</strong></span>
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground">
+                      <Mail className="h-3.5 w-3.5 text-emerald-600" />
+                      <span>support@sohojpharma.cloud</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setRegNotice(null)}
+                    className="text-xs h-7 border-emerald-600 text-emerald-700 hover:bg-emerald-500/10"
+                  >
+                    বিজ্ঞপ্তি বন্ধ করুন
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <BlockedBanner
+              pendingNoticeOpen={pendingNoticeOpen}
+              onDismiss={() => setPendingNoticeOpen(false)}
+            />
 
             {/* Security Alert Banner when temporarily locked out */}
             {cooldown > 0 && (
@@ -569,22 +700,76 @@ function AuthPage() {
   );
 }
 
-function BlockedBanner() {
+function BlockedBanner({
+  pendingNoticeOpen,
+  onDismiss,
+}: {
+  pendingNoticeOpen?: boolean;
+  onDismiss?: () => void;
+}) {
   const { t } = useTranslation();
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const reason = params.get("blocked");
-  if (!reason) return null;
-  const key = ["pending", "rejected", "suspended", "expired"].includes(reason)
-    ? `saas.approval.blocked.${reason}`
-    : "saas.approval.blocked.pending";
+  if (!reason && !pendingNoticeOpen) return null;
+  const effectiveReason = reason || "pending";
+  const isPending = effectiveReason === "pending";
+
   return (
-    <div className="mb-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-sm text-amber-900 dark:text-amber-200 space-y-1.5">
-      <p className="font-semibold">{t(key)}</p>
-      {(reason === "expired" || reason === "suspended") && (
+    <div
+      className={`mb-4 rounded-xl border p-4 text-sm space-y-2 ${
+        isPending
+          ? "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100"
+          : "border-destructive/40 bg-destructive/10 text-destructive"
+      }`}
+    >
+      <div className="flex items-start gap-2.5">
+        <Clock className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
+        <div className="flex-1">
+          <p className="font-bold text-sm">
+            {isPending
+              ? "ফার্মেসি অ্যাকাউন্টটি অনুমোদনের অপেক্ষায় রয়েছে"
+              : t(`saas.approval.blocked.${effectiveReason}`)}
+          </p>
+          <p className="text-xs font-normal mt-1 opacity-90 leading-relaxed">
+            {isPending
+              ? "আপনার ৭ দিনের ফ্রি ট্রায়াল অ্যাকাউন্ট সক্রিয় করতে অনুগ্রহ করে SohojPharma কর্তৃপক্ষের সাথে যোগাযোগ করুন অথবা আপনার ইমেইল ইনবক্স চেক করুন।"
+              : null}
+          </p>
+        </div>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            ✕
+          </button>
+        )}
+      </div>
+
+      <div className="text-xs pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row gap-2 font-medium">
+        <div className="flex items-center gap-1">
+          <PhoneCall className="h-3.5 w-3.5 text-amber-600" />
+          <span>
+            কর্তৃপক্ষ হেল্পলাইন:{" "}
+            <strong className="font-mono text-sm text-pink-700 dark:text-pink-400 bg-white/80 dark:bg-black/40 px-1.5 py-0.5 rounded">
+              01951413828
+            </strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Mail className="h-3.5 w-3.5 text-amber-600" />
+          <span>support@sohojpharma.cloud</span>
+        </div>
+      </div>
+
+      {(effectiveReason === "expired" || effectiveReason === "suspended") && (
         <div className="text-xs pt-1 border-t border-amber-500/20 text-amber-800 dark:text-amber-300">
-          রিনিউয়াল বা একাউন্ট সক্রিয় করতে যোগাযোগ করুন অথবা সরাসরি বিকাশ করুন:{" "}
-          <strong className="font-mono text-sm font-bold text-pink-700 bg-white/70 px-1.5 py-0.5 rounded">01951413828</strong>
+          রিনিউয়াল বা একাউন্ট সক্রিয় করতে সরাসরি বিকাশ করুন:{" "}
+          <strong className="font-mono text-sm font-bold text-pink-700 bg-white/70 px-1.5 py-0.5 rounded">
+            01951413828
+          </strong>
           <span className="ml-1 opacity-85">(চার্জ ১.৫% / ১৫ টাকা প্রতি হাজারে)</span>
         </div>
       )}

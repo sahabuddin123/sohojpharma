@@ -180,7 +180,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           (pool as Array<{ tenant_id: string; is_default?: boolean }>).find((m) => m.is_default)?.tenant_id ??
           pool[0]?.tenant_id ??
           null;
-        setCurrent(fromStorage ?? def);
+        const resolvedTenantId = fromStorage ?? def;
+        setCurrent(resolvedTenantId);
+        if (resolvedTenantId && typeof window !== "undefined" && !stored) {
+          localStorage.setItem(TENANT_KEY, resolvedTenantId);
+        }
       } catch (err) {
         console.error("[Auth] Error fetching tenant context:", err);
       }
