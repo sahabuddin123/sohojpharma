@@ -206,7 +206,7 @@ function InvoiceReceipt({
   paperClass, settings, inv, items, party, payments, date, kind,
 }: {
   paperClass: string;
-  settings: { showLogo: boolean; logoUrl: string; pharmacyName: string; address: string; mobile: string; header: string; thankYou: string; terms: string; footer: string };
+  settings: { showLogo: boolean; logoUrl: string; pharmacyName: string; ownerName?: string; address: string; mobile: string; header: string; thankYou: string; terms: string; footer: string };
   inv: AnyRec; items: AnyRec[]; party: AnyRec | null; payments: AnyRec[]; date: string; kind: "sale" | "purchase";
 }) {
   return (
@@ -218,6 +218,7 @@ function InvoiceReceipt({
               <img src={settings.logoUrl} alt="" className="mx-auto mb-1 h-12 object-contain" />
             )}
             <div className="text-sm font-bold">{settings.pharmacyName}</div>
+            {settings.ownerName && <div>Owner: {settings.ownerName}</div>}
             {settings.address && <div>{settings.address}</div>}
             {settings.mobile && <div>Mobile: {settings.mobile}</div>}
             {settings.header && <div className="mt-1">{settings.header}</div>}

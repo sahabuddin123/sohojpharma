@@ -309,7 +309,7 @@ export const getInvoiceSettings = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { data: t, error } = await context.supabase
       .from("tenants")
-      .select("invoice_settings,name,address_line,area,district,division,country,postal_code,phone,mobile,logo_url,receipt_logo_url")
+      .select("invoice_settings,name,owner_name,address_line,area,district,division,country,postal_code,phone,mobile,logo_url,receipt_logo_url")
       .eq("id", data.tenantId).maybeSingle();
     if (error || !t) throw new Error(error?.message ?? "Tenant not found");
     const parsed = InvoiceSettingsSchema.safeParse(t.invoice_settings ?? {});
@@ -342,6 +342,7 @@ export const getInvoiceSettings = createServerFn({ method: "POST" })
     return {
       ...base,
       pharmacyName: (r.company_name as string) || base.pharmacyName || t.name,
+      ownerName: (t.owner_name as string) || "",
       address: (r.address as string) || base.address || tenantAddress,
       mobile: (r.phone as string) || base.mobile || tenantPhone,
       logoUrl: (r.logo_url as string) || base.logoUrl || tenantLogo,
