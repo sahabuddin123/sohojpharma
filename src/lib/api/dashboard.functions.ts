@@ -23,7 +23,7 @@ type NotificationRow = {
 export interface StoreDashboardData {
   kpi: {
     todaySales: number; todayPurchase: number; todayProfit: number;
-    cashInHand: number; dueCollection: number;
+    cashInHand: number; bankBalance: number; dueCollection: number;
     totalCustomers: number; totalSuppliers: number; totalProducts: number;
     lowStock: number; expired: number; nearExpiry: number;
     cancelledCount: number; cancelledAmount: number;
@@ -50,7 +50,7 @@ export interface StoreDashboardData {
 const EMPTY: StoreDashboardData = {
   kpi: {
     todaySales: 0, todayPurchase: 0, todayProfit: 0,
-    cashInHand: 0, dueCollection: 0,
+    cashInHand: 0, bankBalance: 0, dueCollection: 0,
     totalCustomers: 0, totalSuppliers: 0, totalProducts: 0,
     lowStock: 0, expired: 0, nearExpiry: 0,
     cancelledCount: 0, cancelledAmount: 0,
@@ -92,6 +92,7 @@ function coerce(raw: unknown): StoreDashboardData {
       todayPurchase: num(kpiRaw.todayPurchase),
       todayProfit: num(kpiRaw.todayProfit),
       cashInHand: num(kpiRaw.cashInHand),
+      bankBalance: num(kpiRaw.bankBalance),
       dueCollection: num(kpiRaw.dueCollection),
       totalCustomers: num(kpiRaw.totalCustomers),
       totalSuppliers: num(kpiRaw.totalSuppliers),
@@ -169,5 +170,35 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         result.sales.mtd.amount = num(row.sales_this_month);
       }
     }
+
+    // Sync live Cash in Hand (1000) & Bank/Mobile Balances (1010..1099) from journal_lines
+    const { data: cashAccs } = await context.supabase
+      .from("chart_of_accounts")
+      .select("id, code")
+      .eq("tenant_id", data.tenant_id)
+      .eq("type", "asset")
+      .eq("is_active", true);
+    const cashLike = (cashAccs ?? []).filter((a) => /^10\d{2}$/.test(a.code));
+    if (cashLike.length > 0) {
+      const { data: jLines } = await context.supabase
+        .from("journal_lines")
+        .select("account_id, debit, credit")
+        .eq("tenant_id", data.tenant_id)
+        .in("account_id", cashLike.map((a) => a.id));
+      const balByAcc = new Map<string, number>();
+      for (const l of jLines ?? []) {
+        balByAcc.set(l.account_id, (balByAcc.get(l.account_id) ?? 0) + Number(l.debit ?? 0) - Number(l.credit ?? 0));
+      }
+      let cashBal = 0;
+      let bankBal = 0;
+      for (const a of cashLike) {
+        const b = balByAcc.get(a.id) ?? 0;
+        if (a.code === "1000") cashBal += b;
+        else bankBal += b;
+      }
+      result.kpi.cashInHand = Number(cashBal.toFixed(2));
+      result.kpi.bankBalance = Number(bankBal.toFixed(2));
+    }
+
     return result;
   });

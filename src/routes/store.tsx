@@ -311,8 +311,8 @@ function StoreDashboard() {
         <section>
           <SectionTitle title={t("dashboard.sectionFinancial")} hint={t("dashboard.sectionFinancialHint")} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label={t("dashboard.kpiCashInHand")} value={bdt(k.cashInHand)} sub={t("dashboard.subTodayLower")} icon={Banknote} tone="success" />
-            <KpiTile label={t("dashboard.kpiBankBalance")} value={<span className="text-muted-foreground">{t("dashboard.noData")}</span>} icon={Building2} tone="muted" />
+            <KpiTile label={t("dashboard.kpiCashInHand")} value={bdt(k.cashInHand)} sub={t("dashboard.subTodayLower")} icon={Banknote} tone="success" to="/accounts/cashbook" />
+            <KpiTile label={t("dashboard.kpiBankBalance")} value={bdt(k.bankBalance)} icon={Building2} tone="secondary" to="/accounts/banks" />
             <KpiTile label={t("dashboard.kpiReceivable")} value={bdt(k.customerDueTotal)} icon={ArrowUpRight} tone="warning" />
             <KpiTile label={t("dashboard.kpiPayable")} value={bdt(k.supplierDueTotal)} icon={ArrowUpRight} tone="warning" />
             <KpiTile label={t("dashboard.kpiInventoryValue")} value={bdt(k.inventoryValue)} sub={t("dashboard.subAtCost")} icon={Boxes} tone="primary" to="/inventory" />
