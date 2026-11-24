@@ -215,6 +215,36 @@ export const addInvoicePayment = createServerFn({ method: "POST" })
       .update({ paid: newPaid, due: newDue, status: newDue <= 0 ? "completed" : "partial" })
       .eq("tenant_id", data.tenantId).eq("id", data.id);
     if (uErr) throw new Error(uErr.message);
+
+    const payCode =
+      data.method === "bank" ? "1010" :
+      data.method === "bkash" ? "1020" :
+      data.method === "nagad" ? "1030" :
+      data.method === "rocket" ? "1040" :
+      data.method === "card" ? "1050" : "1000";
+    try {
+      const { data: je } = await context.supabase.rpc("post_journal", {
+        _tenant_id: data.tenantId,
+        _entry_no: `PAY-${Date.now().toString().slice(-6)}`,
+        _entry_date: new Date().toISOString().slice(0, 10),
+        _notes: `Invoice payment (${data.method})`,
+        _ref_table: "sale_payments",
+        _ref_id: inserted?.id ?? data.id,
+        _ref_no: data.reference ?? null,
+        _lines: [
+          { account_code: payCode, debit: data.amount, credit: 0, description: `Invoice payment (${data.method})` },
+          { account_code: "1100", debit: 0, credit: data.amount, description: "Accounts Receivable collection" },
+        ],
+      } as never);
+      const jId = (je as { id?: string } | null)?.id;
+      if (jId && data.branchId) {
+        await context.supabase.from("journal_entries").update({ branch_id: data.branchId }).eq("id", jId);
+        await context.supabase.from("journal_lines").update({ branch_id: data.branchId }).eq("journal_id", jId);
+      }
+    } catch {
+      // Do not fail invoice payment if accounting chart is not initialized
+    }
+
     await context.supabase.rpc("audit_log_event", {
       _action: "invoice.payment_added",
       _entity_type: "sale_payments",

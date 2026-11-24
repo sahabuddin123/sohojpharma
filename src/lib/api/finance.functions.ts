@@ -640,3 +640,92 @@ export const getTrialBalance = createServerFn({ method: "POST" })
     }
     return Array.from(map.values()).sort((a, b) => a.code.localeCompare(b.code));
   });
+
+export const getPaymentAccountBalances = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) => TenantOnly.parse(i))
+  .handler(async ({ data, context }) => {
+    const { data: accounts, error: e1 } = await context.supabase
+      .from("chart_of_accounts")
+      .select("id, code, name, type")
+      .eq("tenant_id", data.tenant_id)
+      .eq("type", "asset")
+      .eq("is_active", true)
+      .order("code");
+    if (e1) throw new Error(e1.message);
+
+    const cashLike = (accounts ?? []).filter((a) => /^10\d{2}$/.test(a.code));
+    if (cashLike.length === 0) return [];
+
+    const ids = cashLike.map((a) => a.id);
+    const { data: lines, error: e2 } = await context.supabase
+      .from("journal_lines")
+      .select("account_id, debit, credit")
+      .eq("tenant_id", data.tenant_id)
+      .in("account_id", ids);
+    if (e2) throw new Error(e2.message);
+
+    const balMap = new Map<string, number>();
+    for (const l of lines ?? []) {
+      const prev = balMap.get(l.account_id) ?? 0;
+      balMap.set(l.account_id, prev + Number(l.debit ?? 0) - Number(l.credit ?? 0));
+    }
+
+    return cashLike.map((a) => ({
+      id: a.id,
+      code: a.code,
+      name: a.name,
+      balance: Number((balMap.get(a.id) ?? 0).toFixed(2)),
+    }));
+  });
+
+export const addBankDeposit = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) =>
+    z.object({
+      tenant_id: z.string().uuid(),
+      branch_id: z.string().uuid().optional(),
+      account_code: z.string().min(1),
+      amount: z.number().positive(),
+      deposit_date: z.string().optional(),
+      notes: z.string().max(400).optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.branch_id) await assertBranchWrite(context.supabase, data.tenant_id, data.branch_id);
+
+    const { data: acc, error: e0 } = await context.supabase
+      .from("chart_of_accounts").select("id, name").eq("tenant_id", data.tenant_id).eq("code", data.account_code).single();
+    if (e0 || !acc) throw new Error("Account not found: " + data.account_code);
+
+    const entryNo = `DEP-${Date.now().toString().slice(-6)}`;
+    const dateStr = data.deposit_date || new Date().toISOString().slice(0, 10);
+    const desc = data.notes?.trim() || `Balance deposit to ${acc.name}`;
+
+    const { data: je, error: eJ } = await context.supabase.rpc("post_journal", {
+      _tenant_id: data.tenant_id,
+      _entry_no: entryNo,
+      _entry_date: dateStr,
+      _notes: desc,
+      _ref_table: "chart_of_accounts",
+      _ref_id: acc.id,
+      _ref_no: entryNo,
+      _lines: [
+        { account_code: data.account_code, debit: data.amount, credit: 0, description: desc },
+        { account_code: "3000", debit: 0, credit: data.amount, description: desc },
+      ],
+    } as never);
+    if (eJ) throw new Error(eJ.message);
+
+    const journalId = (je as { id: string }).id;
+    if (data.branch_id) {
+      await context.supabase.from("journal_entries").update({ branch_id: data.branch_id }).eq("id", journalId);
+      await context.supabase.from("journal_lines").update({ branch_id: data.branch_id }).eq("journal_id", journalId);
+      await context.supabase.from("audit_log").insert({
+        tenant_id: data.tenant_id, branch_id: data.branch_id, user_id: context.userId,
+        action: "bank.deposit", entity_table: "chart_of_accounts", entity_id: acc.id,
+        after_data: { account_code: data.account_code, amount: data.amount, notes: desc },
+      });
+    }
+    return { ok: true, journalId };
+  });

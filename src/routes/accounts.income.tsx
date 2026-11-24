@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, ArrowDownCircle, TrendingUp, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
-import { listIncomes, createIncome, updateIncome, deleteIncome, listAccounts, upsertAccount } from "@/lib/api/finance.functions";
+import { listIncomes, createIncome, updateIncome, deleteIncome, listAccounts, upsertAccount, getPaymentAccountBalances } from "@/lib/api/finance.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { toast } from "sonner";
@@ -269,6 +269,7 @@ function IncomeDialog({
   }, [open, editing]);
 
   const listAccFn = useServerFn(listAccounts);
+  const payBalFn = useServerFn(getPaymentAccountBalances);
   const upsertAccFn = useServerFn(upsertAccount);
   const createFn = useServerFn(createIncome);
   const updateFn = useServerFn(updateIncome);
@@ -279,16 +280,11 @@ function IncomeDialog({
     queryFn: () => listAccFn({ data: { tenant_id: tenantId, type: "income" } }),
   });
 
-  const { data: assetAccounts = [] } = useQuery({
-    queryKey: ["accounts", tenantId, "asset"],
+  const { data: paymentAccounts = [] } = useQuery({
+    queryKey: ["payment-account-balances", tenantId],
     enabled: !!tenantId && open,
-    queryFn: () => listAccFn({ data: { tenant_id: tenantId, type: "asset" } }),
+    queryFn: () => payBalFn({ data: { tenant_id: tenantId } }),
   });
-
-  const paymentAccounts = useMemo(() => {
-    const filtered = assetAccounts.filter((a) => a.code.startsWith("10"));
-    return filtered.length > 0 ? filtered : assetAccounts;
-  }, [assetAccounts]);
 
   const addHeadMutation = useMutation({
     mutationFn: async () => {
@@ -343,17 +339,19 @@ function IncomeDialog({
     onSuccess: () => {
       toast.success(editing ? "আয় আপডেট হয়েছে" : t("acct.income.recorded"));
       qc.invalidateQueries({ queryKey: ["incomes", tenantId] });
+      qc.invalidateQueries({ queryKey: ["payment-account-balances", tenantId] });
       onOpenChange(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const labelForPaymentAcc = (a: { code: string; name: string }) => {
-    if (a.code === "1000") return `${a.code} · দোকানের ক্যাশ (${a.name})`;
-    if (a.code === "1010") return `${a.code} · ব্যাংক (${a.name})`;
-    if (a.code === "1020") return `${a.code} · বিকাশ (${a.name})`;
-    if (a.code === "1030") return `${a.code} · নগদ (${a.name})`;
-    return `${a.code} · ${a.name}`;
+  const labelForPaymentAcc = (a: { code: string; name: string; balance: number }) => {
+    const bal = `৳ ${Number(a.balance ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+    if (a.code === "1000") return `দোকানের ক্যাশ (${a.name}) — ${bal}`;
+    if (a.code === "1010") return `ব্যাংক (${a.name}) — ${bal}`;
+    if (a.code === "1020") return `বিকাশ (${a.name}) — ${bal}`;
+    if (a.code === "1030") return `নগদ (${a.name}) — ${bal}`;
+    return `${a.name} — ${bal}`;
   };
 
   return (
