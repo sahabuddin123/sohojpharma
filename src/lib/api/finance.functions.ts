@@ -742,3 +742,230 @@ export const addBankDeposit = createServerFn({ method: "POST" })
     }
     return { ok: true, journalId };
   });
+
+/* ---------------- Day Closing & Cash Reconciliation ---------------- */
+
+const AllocationItem = z.object({
+  type: z.enum(["bank_transfer", "owner_drawing", "cash_expense", "owner_injection", "other_income"]),
+  account_code: z.string().optional(),
+  account_name: z.string().optional(),
+  amount: z.number().positive(),
+  note: z.string().max(250).optional(),
+});
+
+export const getDayClosingSummary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) =>
+    TenantOnly.extend({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { tenant_id, date } = data;
+
+    // 1. Live Cash on Hand (1000) up to date
+    const { data: cashAcc } = await context.supabase
+      .from("chart_of_accounts")
+      .select("id")
+      .eq("tenant_id", tenant_id)
+      .eq("code", "1000")
+      .maybeSingle();
+
+    let expectedCash = 0;
+    if (cashAcc?.id) {
+      const { data: jLines } = await context.supabase
+        .from("journal_lines")
+        .select("debit, credit, journal_entries!inner(entry_date)")
+        .eq("tenant_id", tenant_id)
+        .eq("account_id", cashAcc.id)
+        .lte("journal_entries.entry_date", date);
+      for (const l of jLines ?? []) {
+        expectedCash += Number(l.debit ?? 0) - Number(l.credit ?? 0);
+      }
+    }
+
+    // 2. Previous day closing & current day closing record
+    const [prevRes, curRes, histRes] = await Promise.all([
+      context.supabase
+        .from("day_closings" as never)
+        .select("closing_date, counted_cash, expected_cash, difference")
+        .eq("tenant_id", tenant_id)
+        .lt("closing_date", date)
+        .order("closing_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      context.supabase
+        .from("day_closings" as never)
+        .select("*")
+        .eq("tenant_id", tenant_id)
+        .eq("closing_date", date)
+        .maybeSingle(),
+      context.supabase
+        .from("day_closings" as never)
+        .select("id, closing_date, opening_cash, expected_cash, counted_cash, difference, allocations, notes, created_at")
+        .eq("tenant_id", tenant_id)
+        .order("closing_date", { ascending: false })
+        .limit(30),
+    ]);
+
+    const prevClosing = (prevRes.data ?? null) as { closing_date: string; counted_cash: number; expected_cash: number; difference: number } | null;
+
+    return {
+      expectedCash: Number(expectedCash.toFixed(2)),
+      prevClosing,
+      currentClosing: curRes.data ?? null,
+      history: (histRes.data ?? []) as Array<{
+        id: string;
+        closing_date: string;
+        opening_cash: number;
+        expected_cash: number;
+        counted_cash: number;
+        difference: number;
+        allocations: Array<{ type: string; account_code?: string; account_name?: string; amount: number; note?: string }>;
+        notes: string | null;
+        created_at: string;
+      }>,
+    };
+  });
+
+export const closeDayWithReconciliation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) =>
+    z.object({
+      tenant_id: z.string().uuid(),
+      branch_id: z.string().uuid().optional(),
+      closing_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      opening_cash: z.number().min(0).default(0),
+      expected_cash: z.number(),
+      counted_cash: z.number().min(0),
+      allocations: z.array(AllocationItem).default([]),
+      notes: z.string().max(500).optional(),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.branch_id) await assertBranchWrite(context.supabase, data.tenant_id, data.branch_id);
+
+    const diff = Number((data.counted_cash - data.expected_cash).toFixed(2));
+    const absDiff = Math.abs(diff);
+
+    if (absDiff > 0.009) {
+      const allocSum = Number(data.allocations.reduce((s, a) => s + Number(a.amount), 0).toFixed(2));
+      if (Math.abs(allocSum - absDiff) > 0.01) {
+        throw new Error(`হিসাবের গরমিল! পার্থক্য ৳ ${absDiff.toLocaleString("en-IN")} কিন্তু দেওয়া হয়েছে ৳ ${allocSum.toLocaleString("en-IN")}। ১ পয়সাও বাদ না রেখে সম্পূর্ণ হিসাব দিন।`);
+      }
+    }
+
+    let journalId: string | null = null;
+    if (absDiff > 0.009 && data.allocations.length > 0) {
+      const lines: Array<{ account_code: string; debit: number; credit: number; description: string }> = [];
+
+      if (diff < 0) {
+        // Cash decreased from expected -> Credit 1000, Debit target accounts
+        lines.push({
+          account_code: "1000",
+          debit: 0,
+          credit: absDiff,
+          description: `Day close cash reconciliation (${data.closing_date})`,
+        });
+        for (const a of data.allocations) {
+          const targetCode =
+            a.type === "bank_transfer" ? (a.account_code || "1010") :
+            a.type === "cash_expense" ? (a.account_code || "6900") : "3000";
+          const desc =
+            a.type === "bank_transfer" ? `Cash deposited to ${a.account_name || targetCode}${a.note ? `: ${a.note}` : ""}` :
+            a.type === "cash_expense" ? `Day-close expense: ${a.note || a.account_name || targetCode}` :
+            `Owner personal withdrawal / drawing${a.note ? `: ${a.note}` : ""}`;
+          lines.push({ account_code: targetCode, debit: a.amount, credit: 0, description: desc });
+
+          if (a.type === "cash_expense" && data.branch_id) {
+            const { data: expAcc } = await context.supabase
+              .from("chart_of_accounts").select("id").eq("tenant_id", data.tenant_id).eq("code", targetCode).maybeSingle();
+            if (expAcc?.id) {
+              await context.supabase.from("expenses").insert({
+                tenant_id: data.tenant_id,
+                branch_id: data.branch_id,
+                expense_no: `DCL-${data.closing_date.replace(/-/g, "")}-${Math.floor(Math.random() * 900 + 100)}`,
+                expense_date: data.closing_date,
+                account_id: expAcc.id,
+                amount: a.amount,
+                payment_method: "cash",
+                vendor: "Day Close Reconciliation",
+                notes: a.note || "Day-close cash expense",
+                created_by: context.userId,
+              });
+            }
+          }
+        }
+      } else {
+        // Cash increased above expected -> Debit 1000, Credit Equity / Income
+        lines.push({
+          account_code: "1000",
+          debit: absDiff,
+          credit: 0,
+          description: `Day close cash surplus (${data.closing_date})`,
+        });
+        for (const a of data.allocations) {
+          const targetCode = a.type === "other_income" ? (a.account_code || "4100") : "3000";
+          const desc = a.type === "other_income" ? `Day-close other income: ${a.note || ""}` : `Owner cash injection: ${a.note || ""}`;
+          lines.push({ account_code: targetCode, debit: 0, credit: a.amount, description: desc });
+        }
+      }
+
+      const entryNo = `DCL-${data.closing_date.replace(/-/g, "")}-${Date.now().toString().slice(-4)}`;
+      const { data: je, error: eJ } = await context.supabase.rpc("post_journal", {
+        _tenant_id: data.tenant_id,
+        _entry_no: entryNo,
+        _entry_date: data.closing_date,
+        _notes: data.notes?.trim() || `Day closing reconciliation (${data.closing_date})`,
+        _ref_table: "day_closings",
+        _ref_id: null,
+        _ref_no: entryNo,
+        _lines: lines,
+      } as never);
+      if (eJ) throw new Error(eJ.message);
+      journalId = (je as { id: string }).id;
+      if (data.branch_id) {
+        await context.supabase.from("journal_entries").update({ branch_id: data.branch_id }).eq("id", journalId);
+        await context.supabase.from("journal_lines").update({ branch_id: data.branch_id }).eq("journal_id", journalId);
+      }
+    }
+
+    const { data: saved, error: eUp } = await context.supabase
+      .from("day_closings" as never)
+      .upsert(
+        {
+          tenant_id: data.tenant_id,
+          branch_id: data.branch_id ?? null,
+          closing_date: data.closing_date,
+          opening_cash: data.opening_cash,
+          expected_cash: data.expected_cash,
+          counted_cash: data.counted_cash,
+          difference: diff,
+          allocations: data.allocations,
+          notes: data.notes?.trim() || null,
+          journal_id: journalId,
+          closed_by: context.userId,
+        } as never,
+        { onConflict: "tenant_id,closing_date" },
+      )
+      .select()
+      .single();
+    if (eUp) throw new Error(eUp.message);
+
+    if (data.branch_id) {
+      await context.supabase.from("audit_log").insert({
+        tenant_id: data.tenant_id,
+        branch_id: data.branch_id,
+        user_id: context.userId,
+        action: "day_closing.reconcile",
+        entity_table: "day_closings",
+        entity_id: (saved as { id: string }).id,
+        after_data: {
+          closing_date: data.closing_date,
+          expected_cash: data.expected_cash,
+          counted_cash: data.counted_cash,
+          difference: diff,
+          allocations: data.allocations,
+        },
+      });
+    }
+    return saved;
+  });
