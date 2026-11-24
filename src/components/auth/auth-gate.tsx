@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 
@@ -16,8 +16,24 @@ export function AuthGate({ children }: { children: ReactNode }) {
   });
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || (p !== "/" && pathname.startsWith(p + "/")));
 
+  // Failsafe timeout to prevent any infinite spinner if auth state is delayed
+  const [timedOut, setTimedOut] = useState(false);
+
   useEffect(() => {
-    if (loading) return;
+    if (!loading) {
+      setTimedOut(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setTimedOut(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [loading]);
+
+  const effectiveLoading = loading && !timedOut;
+
+  useEffect(() => {
+    if (effectiveLoading) return;
     if (!session && !isPublic) {
       navigate({
         to: "/auth",
@@ -27,9 +43,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
     } else if (session && pathname === "/auth") {
       navigate({ to: searchRedirect ?? "/dashboard", replace: true });
     }
-  }, [loading, session, isPublic, pathname, searchRedirect, navigate]);
+  }, [effectiveLoading, session, isPublic, pathname, searchRedirect, navigate]);
 
-  if (loading && !isPublic) {
+  if (effectiveLoading && !isPublic) {
     return (
       <div className="grid min-h-screen place-items-center bg-background">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
