@@ -3,7 +3,7 @@ _transform: true
 
 services:
   - name: auth-v1
-    url: http://supabase-auth:9999/
+    url: http://sohojpharma_auth:9999/
     routes:
       - name: auth-v1-route
         strip_path: true
@@ -11,7 +11,7 @@ services:
           - /auth/v1/
 
   - name: rest-v1
-    url: http://supabase-rest:3000/
+    url: http://sohojpharma_rest:3000/
     routes:
       - name: rest-v1-route
         strip_path: true

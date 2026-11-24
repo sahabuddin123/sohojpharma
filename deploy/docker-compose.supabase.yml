@@ -22,6 +22,8 @@ services:
     links:
       - supabase-auth:supabase-auth
       - supabase-rest:supabase-rest
+      - supabase-auth:sohojpharma_auth
+      - supabase-rest:sohojpharma_rest
     networks:
       sohoj_net:
         aliases:
@@ -38,7 +40,7 @@ services:
       GOTRUE_API_PORT: 9999
       API_EXTERNAL_URL: ${APP_PUBLIC_URL:-https://sohojpharma.cloud}
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres?sslmode=disable
+      GOTRUE_DB_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@sohojpharma_db:5432/postgres?sslmode=disable
       GOTRUE_SITE_URL: ${APP_PUBLIC_URL:-https://sohojpharma.cloud}
       GOTRUE_URI_ALLOW_LIST: "${APP_PUBLIC_URL:-https://sohojpharma.cloud}/*"
       GOTRUE_DISABLE_SIGNUP: "false"
@@ -58,6 +60,7 @@ services:
       - supabase-db
     links:
       - supabase-db:supabase-db
+      - supabase-db:sohojpharma_db
     networks:
       sohoj_net:
         aliases:
@@ -70,7 +73,7 @@ services:
     container_name: sohojpharma_rest
     restart: unless-stopped
     environment:
-      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres?sslmode=disable
+      PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@sohojpharma_db:5432/postgres?sslmode=disable
       PGRST_DB_SCHEMAS: public,storage
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
@@ -79,6 +82,7 @@ services:
       - supabase-db
     links:
       - supabase-db:supabase-db
+      - supabase-db:sohojpharma_db
     networks:
       sohoj_net:
         aliases:
