@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { RouteErrorPanel } from "@/components/route-error";
-import { ArrowLeft, Wallet, Phone, MapPin, Mail, ShoppingCart, Loader2, Pencil } from "lucide-react";
+import { ArrowLeft, Wallet, Phone, MapPin, Mail, ShoppingCart, Loader2, Pencil, Printer } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/layout/app-shell";
@@ -82,6 +82,19 @@ function CustomerDetailsPage() {
         .limit(500);
       if (error) throw error;
       return data ?? [];
+    },
+  });
+
+  const tenantQ = useQuery({
+    queryKey: ["tenant-print-header", tenantId],
+    enabled: !!tenantId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tenants")
+        .select("name,owner_name,address_line,area,district,phone,mobile")
+        .eq("id", tenantId)
+        .maybeSingle();
+      return data;
     },
   });
 
@@ -185,6 +198,129 @@ function CustomerDetailsPage() {
 
   const typeLower = (customer.type ?? "retail").toLowerCase();
 
+  const printLedgerA4 = () => {
+    const shop = tenantQ.data;
+    const shopAddr = [shop?.address_line, shop?.area, shop?.district].filter(Boolean).join(", ");
+    const shopPhone = shop?.phone || shop?.mobile || "";
+    const custAddr = [customer.address, customer.area, customer.district, customer.division, customer.postal_code, customer.country].filter(Boolean).join(", ");
+    const totalDebit = ledgerRows.reduce((s, r) => s + Number(r.debit ?? 0), 0);
+    const totalCredit = ledgerRows.reduce((s, r) => s + Number(r.credit ?? 0), 0);
+    const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const fmtNum = (n: number) => `৳ ${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    const rowsHtml = ledgerRows.length === 0
+      ? `<tr><td colspan="6" style="text-align:center;padding:16px;color:#666;">No ledger entries.</td></tr>`
+      : ledgerRows.map((l) => `
+        <tr>
+          <td>${esc(dateOnly(l.entry_date))}</td>
+          <td style="font-family:monospace;">${esc(l.ref_no ?? "—")}</td>
+          <td style="text-transform:capitalize;">${esc(l.entry_type)}</td>
+          <td style="text-align:right;">${Number(l.debit) ? fmtNum(l.debit) : "—"}</td>
+          <td style="text-align:right;color:#15803d;">${Number(l.credit) ? fmtNum(l.credit) : "—"}</td>
+          <td style="text-align:right;font-weight:600;">${fmtNum(l.balance)}</td>
+        </tr>
+      `).join("");
+
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Customer Ledger — ${esc(customer.name)}</title>
+  <style>
+    @page { size: A4 portrait; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #111; margin: 0; font-size: 12px; line-height: 1.45; }
+    .header { text-align: center; border-bottom: 2px solid #0f766e; padding-bottom: 10px; margin-bottom: 14px; }
+    .shop-name { font-size: 20px; font-weight: 700; color: #0f766e; }
+    .shop-meta { font-size: 11px; color: #444; margin-top: 2px; }
+    .doc-title { font-size: 15px; font-weight: 700; margin-top: 8px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .info-grid { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 14px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; }
+    .info-col p { margin: 2px 0; }
+    .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+    .sum-box { border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; }
+    .sum-lbl { font-size: 10px; color: #64748b; text-transform: uppercase; }
+    .sum-val { font-size: 14px; font-weight: 700; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+    th { background: #f1f5f9; font-weight: 600; font-size: 11px; text-transform: uppercase; }
+    tfoot td { background: #f8fafc; font-weight: 700; }
+    .footer { margin-top: 28px; display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+    .sig { border-top: 1px solid #94a3b8; padding-top: 4px; width: 160px; text-align: center; color: #334155; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="shop-name">${esc(shop?.name ?? "SohojPharma")}</div>
+    ${shop?.owner_name ? `<div class="shop-meta">Owner: ${esc(shop.owner_name)}</div>` : ""}
+    ${shopAddr ? `<div class="shop-meta">${esc(shopAddr)}</div>` : ""}
+    ${shopPhone ? `<div class="shop-meta">Mobile: ${esc(shopPhone)}</div>` : ""}
+    <div class="doc-title">Customer Ledger Statement</div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-col">
+      <p><strong>Customer:</strong> ${esc(customer.name)}</p>
+      <p><strong>Code:</strong> ${esc(customer.customer_code ?? "—")}</p>
+      <p><strong>Mobile:</strong> ${esc(customer.phone ?? "—")}</p>
+      ${custAddr ? `<p><strong>Address:</strong> ${esc(custAddr)}</p>` : ""}
+    </div>
+    <div class="info-col" style="text-align:right;">
+      <p><strong>Print Date:</strong> ${esc(new Date().toLocaleDateString())}</p>
+      <p><strong>Total Orders:</strong> ${totalOrders}</p>
+      <p><strong>Current Due:</strong> <span style="color:${Number(customer.due_balance) > 0 ? "#dc2626" : "#15803d"};font-weight:700;">${fmtNum(Number(customer.due_balance ?? 0))}</span></p>
+    </div>
+  </div>
+
+  <div class="summary">
+    <div class="sum-box"><div class="sum-lbl">Opening Balance</div><div class="sum-val">${fmtNum(Number(customer.opening_balance ?? 0))}</div></div>
+    <div class="sum-box"><div class="sum-lbl">Total Debit (Sales)</div><div class="sum-val">${fmtNum(totalDebit)}</div></div>
+    <div class="sum-box"><div class="sum-lbl">Total Credit (Paid)</div><div class="sum-val" style="color:#15803d;">${fmtNum(totalCredit)}</div></div>
+    <div class="sum-box"><div class="sum-lbl">Closing Due</div><div class="sum-val" style="color:${Number(customer.due_balance) > 0 ? "#dc2626" : "#15803d"};">${fmtNum(Number(customer.due_balance ?? 0))}</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Reference</th>
+        <th>Type</th>
+        <th style="text-align:right;">Debit</th>
+        <th style="text-align:right;">Credit</th>
+        <th style="text-align:right;">Balance</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3" style="text-align:right;">Total</td>
+        <td style="text-align:right;">${fmtNum(totalDebit)}</td>
+        <td style="text-align:right;color:#15803d;">${fmtNum(totalCredit)}</td>
+        <td style="text-align:right;">${fmtNum(Number(customer.due_balance ?? 0))}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div class="footer">
+    <div>Generated by SohojPharma · ${esc(new Date().toLocaleString())}</div>
+    <div class="sig">Authorized Signature</div>
+  </div>
+</body>
+</html>`;
+
+    const frame = document.createElement("iframe");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+    document.body.appendChild(frame);
+    const doc = frame.contentDocument!;
+    doc.open();
+    doc.write(html);
+    doc.close();
+    frame.contentWindow?.addEventListener("afterprint", () => frame.remove(), { once: true });
+    setTimeout(() => {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    }, 150);
+  };
+
   return (
     <AppShell variant="store" title={t("cust.customer.shellTitle")}>
       <PageHeader
@@ -194,6 +330,9 @@ function CustomerDetailsPage() {
           <>
             <Button variant="outline" asChild>
               <Link to="/customers"><ArrowLeft className="mr-1.5 h-4 w-4" /> {t("cust.back")}</Link>
+            </Button>
+            <Button variant="outline" onClick={printLedgerA4}>
+              <Printer className="mr-1.5 h-4 w-4" /> Print Ledger (A4)
             </Button>
             <Button variant="outline" onClick={() => setEditOpen(true)}>
               <Pencil className="mr-1.5 h-4 w-4" /> Edit
