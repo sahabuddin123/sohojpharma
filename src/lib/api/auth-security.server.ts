@@ -82,22 +82,35 @@ export const recordLoginAttemptFn = createServerFn({ method: "POST" })
     const normalizedEmail = (data.email || "").trim().toLowerCase();
 
     // Record on IP
-    const { data: ipResult } = await supabaseAdmin.rpc("record_auth_attempt", {
+    const { data: ipResult, error: ipErr } = await supabaseAdmin.rpc("record_auth_attempt", {
       p_key: `ip:${ip}`,
       p_success: data.success,
     });
 
     // Record on Email
     let emailResult = null;
+    let emailErr = null;
     if (normalizedEmail) {
-      const { data: res } = await supabaseAdmin.rpc("record_auth_attempt", {
+      const { data: res, error: err } = await supabaseAdmin.rpc("record_auth_attempt", {
         p_key: `email:${normalizedEmail}`,
         p_success: data.success,
       });
       emailResult = res;
+      emailErr = err;
     }
 
-    const locked = (!ipResult?.allowed) || (emailResult && !emailResult.allowed);
+    // If RPC fails (e.g. database down), do not falsely lock out user
+    if (ipErr || emailErr || (!ipResult && !emailResult)) {
+      return {
+        allowed: true,
+        remainingAttempts: 5,
+        retryAfterSeconds: 0,
+      };
+    }
+
+    const ipLocked = ipResult ? ipResult.allowed === false : false;
+    const emailLocked = emailResult ? emailResult.allowed === false : false;
+    const locked = ipLocked || emailLocked;
     const retryAfter = Math.max(ipResult?.retry_after_seconds || 0, emailResult?.retry_after_seconds || 0);
     const remaining = Math.min(ipResult?.remaining_attempts ?? 5, emailResult?.remaining_attempts ?? 5);
 

@@ -135,17 +135,26 @@ function AuthPage() {
       });
 
       if (error) {
-        // Record failure
+        const isNetworkErr =
+          error.message?.includes("Failed to fetch") ||
+          error.message?.includes("NetworkError") ||
+          (error as any).status === 0 ||
+          (error as any).name === "AuthRetryableFetchError";
+
+        if (isNetworkErr) {
+          toast.error("ডাটাবেজ বা সার্ভারে সংযোগ করা সম্ভব হয়নি। Docker Desktop চালু আছে কিনা নিশ্চিত করুন।", { duration: 6000 });
+          setBusy(false);
+          return;
+        }
+
+        // Record failure only for auth errors, not network drops
         const failRecord = await recordAttempt({ data: { email, success: false } });
-        const isNetworkErr = error.message?.includes("Failed to fetch") || (error as any).status === 0;
         const isInvalidCreds = error.message?.includes("Invalid login credentials");
 
         if (!failRecord.allowed) {
           setCooldown(failRecord.retryAfterSeconds || 60);
           setRemainingAttempts(0);
           toast.error(`অ্যাকাউন্ট সাময়িকভাবে লক করা হয়েছে। ${failRecord.retryAfterSeconds || 60} সেকেন্ড পর আবার চেষ্টা করুন।`);
-        } else if (isNetworkErr) {
-          toast.error("ডাটাবেজ সার্ভারে সংযোগ করা সম্ভব হয়নি। লোকাল Docker Desktop চালু আছে কিনা দেখুন।");
         } else if (isInvalidCreds) {
           setRemainingAttempts(failRecord.remainingAttempts);
           toast.error(`ভুল ইমেইল বা পাসওয়ার্ড প্রদান করা হয়েছে। (অবশিষ্ট চেষ্টা: ${failRecord.remainingAttempts})`);
