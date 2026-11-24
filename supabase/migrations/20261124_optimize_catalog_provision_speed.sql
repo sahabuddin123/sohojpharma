@@ -97,3 +97,43 @@ BEGIN
   RETURN NEW;
 END;
 $$;
+
+-- Increase statement_timeout for web clients to prevent premature timeout during setup
+DO $$
+BEGIN
+  ALTER ROLE authenticated SET statement_timeout = '30s';
+  ALTER ROLE authenticator SET statement_timeout = '30s';
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
+-- Optimize branch creation catalog trigger (200 medicines initially, background cron drains the rest)
+CREATE OR REPLACE FUNCTION public.auto_provision_tenant_catalog_via_branch()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  v_job_name text := 'catalog-provision-' || NEW.id::text;
+BEGIN
+  IF NEW.is_main = true THEN
+    PERFORM public.provision_catalog_for_tenant(NEW.tenant_id, NEW.id, 200);
+
+    BEGIN
+      PERFORM cron.unschedule(v_job_name);
+    EXCEPTION WHEN OTHERS THEN NULL;
+    END;
+
+    BEGIN
+      PERFORM cron.schedule(
+        v_job_name,
+        '* * * * *',
+        format('SELECT public.process_catalog_provision_job(%L, %L, %L)', NEW.tenant_id, NEW.id, v_job_name)
+      );
+    EXCEPTION WHEN OTHERS THEN
+      NULL;
+    END;
+  END IF;
+  RETURN NEW;
+END;
+$$;
