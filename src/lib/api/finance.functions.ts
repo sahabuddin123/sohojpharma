@@ -153,6 +153,7 @@ const ExpenseInput = z.object({
   expense_no: z.string().min(1),
   expense_date: z.string().optional(),
   account_code: z.string().min(1),
+  payment_account_code: z.string().min(1).optional(),
   amount: z.number().positive(),
   payment_method: PayMethod.default("cash"),
   vendor: z.string().max(120).optional(),
@@ -190,7 +191,7 @@ export const createExpense = createServerFn({ method: "POST" })
       _ref_no: data.expense_no,
       _lines: [
         { account_code: data.account_code, debit: data.amount, credit: 0, description: data.vendor ?? data.notes },
-        { account_code: cashAccountFor(data.payment_method), debit: 0, credit: data.amount, description: "Payment" },
+        { account_code: data.payment_account_code || cashAccountFor(data.payment_method), debit: 0, credit: data.amount, description: "Payment" },
       ],
     } as never);
     if (eJ) throw new Error(eJ.message);
@@ -225,6 +226,120 @@ export const createExpense = createServerFn({ method: "POST" })
       });
     }
     return row;
+  });
+
+export const updateExpense = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) => ExpenseInput.extend({ id: z.string().uuid() }).parse(i))
+  .handler(async ({ data, context }) => {
+    if (data.branch_id) await assertBranchWrite(context.supabase, data.tenant_id, data.branch_id);
+    const { data: existing, error: eFind } = await context.supabase
+      .from("expenses")
+      .select("id, journal_id")
+      .eq("tenant_id", data.tenant_id)
+      .eq("id", data.id)
+      .single();
+    if (eFind || !existing) throw new Error("Expense not found");
+
+    const { data: acc, error: e0 } = await context.supabase
+      .from("chart_of_accounts").select("id").eq("tenant_id", data.tenant_id).eq("code", data.account_code).single();
+    if (e0 || !acc) throw new Error("Account not found: " + data.account_code);
+
+    const creditCode = data.payment_account_code || cashAccountFor(data.payment_method);
+    const { data: payAcc } = await context.supabase
+      .from("chart_of_accounts").select("id").eq("tenant_id", data.tenant_id).eq("code", creditCode).maybeSingle();
+
+    const { data: row, error } = await context.supabase
+      .from("expenses")
+      .update({
+        expense_no: data.expense_no,
+        expense_date: data.expense_date ?? new Date().toISOString().slice(0, 10),
+        account_id: acc.id,
+        amount: data.amount,
+        payment_method: data.payment_method,
+        vendor: data.vendor ?? null,
+        reference_no: data.reference_no ?? null,
+        notes: data.notes ?? null,
+      })
+      .eq("tenant_id", data.tenant_id)
+      .eq("id", data.id)
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+
+    if (existing.journal_id) {
+      await context.supabase
+        .from("journal_entries")
+        .update({ entry_date: data.expense_date, notes: data.notes ?? null })
+        .eq("id", existing.journal_id)
+        .eq("tenant_id", data.tenant_id);
+
+      const { data: jLines } = await context.supabase
+        .from("journal_lines")
+        .select("id, debit, credit")
+        .eq("journal_id", existing.journal_id);
+
+      for (const jl of jLines ?? []) {
+        if (Number(jl.debit) > 0) {
+          await context.supabase.from("journal_lines").update({
+            account_id: acc.id,
+            debit: data.amount,
+            description: data.vendor ?? data.notes ?? null,
+          }).eq("id", jl.id);
+        } else if (Number(jl.credit) > 0) {
+          await context.supabase.from("journal_lines").update({
+            ...(payAcc?.id ? { account_id: payAcc.id } : {}),
+            credit: data.amount,
+          }).eq("id", jl.id);
+        }
+      }
+    }
+
+    if (data.branch_id) {
+      await context.supabase.from("audit_log").insert({
+        tenant_id: data.tenant_id, branch_id: data.branch_id, user_id: context.userId,
+        action: "expense.update", entity_table: "expenses", entity_id: data.id,
+        after_data: { expense_no: data.expense_no, amount: data.amount },
+      });
+    }
+    return row;
+  });
+
+export const deleteExpense = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("accounting")])
+  .inputValidator((i: unknown) =>
+    TenantOnly.extend({ id: z.string().uuid(), branch_id: z.string().uuid().optional() }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.branch_id) await assertBranchWrite(context.supabase, data.tenant_id, data.branch_id);
+    const { data: existing, error: eFind } = await context.supabase
+      .from("expenses")
+      .select("id, journal_id, expense_no, amount")
+      .eq("tenant_id", data.tenant_id)
+      .eq("id", data.id)
+      .single();
+    if (eFind || !existing) throw new Error("Expense not found");
+
+    const { error } = await context.supabase
+      .from("expenses")
+      .delete()
+      .eq("tenant_id", data.tenant_id)
+      .eq("id", data.id);
+    if (error) throw new Error(error.message);
+
+    if (existing.journal_id) {
+      await context.supabase.from("journal_lines").delete().eq("journal_id", existing.journal_id);
+      await context.supabase.from("journal_entries").delete().eq("id", existing.journal_id).eq("tenant_id", data.tenant_id);
+    }
+
+    if (data.branch_id) {
+      await context.supabase.from("audit_log").insert({
+        tenant_id: data.tenant_id, branch_id: data.branch_id, user_id: context.userId,
+        action: "expense.delete", entity_table: "expenses", entity_id: data.id,
+        before_data: { expense_no: existing.expense_no, amount: existing.amount },
+      });
+    }
+    return { ok: true };
   });
 
 export const listExpenses = createServerFn({ method: "POST" })
