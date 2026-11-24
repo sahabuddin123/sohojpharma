@@ -235,55 +235,19 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
           ))}
         </nav>
 
-        {/* PWA install / update — store only */}
-        {variant === "store" && (
-          <div className={cn("border-t border-sidebar-border", collapsed ? "p-2" : "p-3")}>
-            {collapsed ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    onClick={() => window.open("/m", "_blank")}
-                    className="flex h-10 w-10 items-center justify-center rounded-xl text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-                    aria-label={t("nav.openMobileApp")}
-                  >
-                    <Download className="h-[18px] w-[18px]" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>
-                  {t("nav.openMobileApp")}
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <div className="space-y-2">
-                <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                  {t("nav.mobileApp")}
-                </p>
-                <PwaInstallButton className="[&_button]:w-full [&_button]:justify-center" />
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Footer portal switch — hidden for SaaS admins to enforce isolation */}
-        {!isAppAdmin && (
+        {/* Footer portal switch — only for SaaS admins when in admin portal */}
+        {isAppAdmin && variant === "admin" && (
           <div className="border-t border-sidebar-border p-3">
             <Link
-              to={variant === "admin" ? "/store" : "/admin"}
+              to="/store"
               className={cn(
                 "flex items-center rounded-xl bg-primary-soft text-sm font-medium text-primary transition-colors hover:bg-accent",
                 collapsed ? "h-10 justify-center" : "gap-3 px-3 py-2",
               )}
             >
-              {variant === "admin" ? (
-                <Store className="h-4 w-4 shrink-0" />
-              ) : (
-                <ShieldCheck className="h-4 w-4 shrink-0" />
-              )}
+              <Store className="h-4 w-4 shrink-0" />
               {!collapsed && (
-                <span className="truncate">
-                  {variant === "admin" ? t("nav.switchToStore") : t("nav.switchToAdmin")}
-                </span>
+                <span className="truncate">{t("nav.switchToStore")}</span>
               )}
             </Link>
           </div>

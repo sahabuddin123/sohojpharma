@@ -18,7 +18,6 @@ function AccountsLayout() {
     { to: "/accounts/ledger", k: "sections.tabs.ledger" },
     { to: "/accounts/banks", k: "sections.tabs.banks" },
     { to: "/accounts/chart", k: "sections.tabs.chart" },
-    { to: "/accounts/reports", k: "acct.tabs.glReports" },
     { to: "/accounts/day-closing", k: "sections.tabs.dayClose" },
     { to: "/accounts/audit", k: "sections.tabs.audit" },
   ] as const;
