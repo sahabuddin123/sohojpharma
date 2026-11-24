@@ -36,6 +36,8 @@ echo -e "${BLUE}[STEP 1/11] Checking system dependencies & installing core packa
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y -q
 apt-get install -y -q \
+  -o Dpkg::Options::="--force-confdef" \
+  -o Dpkg::Options::="--force-confold" \
   ca-certificates \
   curl \
   gnupg \
