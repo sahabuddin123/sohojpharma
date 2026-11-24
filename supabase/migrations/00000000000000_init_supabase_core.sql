@@ -69,6 +69,23 @@ GRANT USAGE ON SCHEMA public, auth, storage, extensions TO anon, authenticated, 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions;
 CREATE EXTENSION IF NOT EXISTS pgcrypto SCHEMA extensions;
 
+-- 5.1 Auth Schema Pre-requisite Enums for GoTrue
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'auth' AND t.typname = 'factor_type') THEN
+    CREATE TYPE auth.factor_type AS ENUM ('totp', 'webauthn', 'phone');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'auth' AND t.typname = 'factor_status') THEN
+    CREATE TYPE auth.factor_status AS ENUM ('unverified', 'verified');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'auth' AND t.typname = 'aal_level') THEN
+    CREATE TYPE auth.aal_level AS ENUM ('aal1', 'aal2', 'aal3');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'auth' AND t.typname = 'code_challenge_method') THEN
+    CREATE TYPE auth.code_challenge_method AS ENUM ('s256', 'plain');
+  END IF;
+END $$;
+
 -- 6. Set Search Paths
 ALTER ROLE postgres SET search_path = public, extensions, auth;
 ALTER ROLE supabase_admin SET search_path = public, extensions, auth;

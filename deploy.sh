@@ -210,59 +210,69 @@ docker exec -e PGPASSWORD=postgres sohojpharma_db bash -c '
 
 # Ensure Superadmin (superadmin@gmail.com / 123456) and Demo Store Admin exist in auth.users & app_admins
 echo -e "Ensuring superadmin credentials (superadmin@gmail.com / 123456) are active..."
+python3 - << 'PYEOF'
+import hmac, hashlib, base64, json, urllib.request, urllib.error, os
+
+jwt_secret = os.getenv("JWT_SECRET", "CHANGE_ME_JWT_SECRET").encode('utf-8')
+
+def b64url(b):
+    return base64.urlsafe_b64encode(b).rstrip(b'=').decode('ascii')
+
+header = {"alg": "HS256", "typ": "JWT"}
+payload = {"iss": "supabase", "role": "supabase_admin", "iat": 1600000000, "exp": 2100000000}
+msg = f"{b64url(json.dumps(header).encode())}.{b64url(json.dumps(payload).encode())}".encode()
+sig = hmac.new(jwt_secret, msg, hashlib.sha256).digest()
+admin_jwt = f"{msg.decode()}.{b64url(sig)}"
+
+headers = {
+    "Authorization": f"Bearer {admin_jwt}",
+    "apikey": admin_jwt,
+    "Content-Type": "application/json"
+}
+
+def api_call(url, data=None, method="GET"):
+    req = urllib.request.Request(url, data=json.dumps(data).encode() if data else None, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req) as resp:
+            return json.loads(resp.read().decode())
+    except Exception as e:
+        return {}
+
+users_res = api_call("http://127.0.0.1:54321/auth/v1/admin/users")
+existing_users = {u["email"]: u["id"] for u in users_res.get("users", [])}
+
+for email, pwd, name in [
+    ("superadmin@gmail.com", "123456", "SaaS Super Admin"),
+    ("storeadmin@gmail.com", "123456", "Demo Store Admin")
+]:
+    if email in existing_users:
+        api_call(f"http://127.0.0.1:54321/auth/v1/admin/users/{existing_users[email]}", {"password": pwd, "email_confirm": True}, method="PUT")
+    else:
+        api_call("http://127.0.0.1:54321/auth/v1/admin/users", {"email": email, "password": pwd, "email_confirm": True, "user_metadata": {"name": name}}, method="POST")
+PYEOF
+
 docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U postgres -d postgres -c "
-DO \$\$
-DECLARE
-  v_super_id uuid := '00000000-0000-0000-0000-000000000001'::uuid;
-  v_store_id uuid := '00000000-0000-0000-0000-000000000002'::uuid;
-BEGIN
-  -- Super Admin: superadmin@gmail.com / 123456
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'superadmin@gmail.com') THEN
-    INSERT INTO auth.users (
-      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-      created_at, updated_at, raw_app_meta_data, raw_user_meta_data
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000', v_super_id, 'authenticated', 'authenticated',
-      'superadmin@gmail.com', crypt('123456', gen_salt('bf')), now(),
-      now(), now(), '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb,
-      '{\"name\":\"SaaS Super Admin\"}'::jsonb
-    );
+  -- Ensure GoTrue aud is empty for password login
+  UPDATE auth.users SET aud = '' WHERE email IN ('superadmin@gmail.com', 'storeadmin@gmail.com');
 
-    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
-    VALUES (gen_random_uuid(), v_super_id, jsonb_build_object('sub', v_super_id::text, 'email', 'superadmin@gmail.com'), 'email', v_super_id::text, now(), now(), now())
-    ON CONFLICT DO NOTHING;
-  ELSE
-    UPDATE auth.users SET encrypted_password = crypt('123456', gen_salt('bf')), email_confirmed_at = now() WHERE email = 'superadmin@gmail.com';
-  END IF;
+  -- Ensure app_admins table contains superadmin
+  INSERT INTO public.app_admins (user_id, created_at)
+  SELECT id, now() FROM auth.users WHERE email = 'superadmin@gmail.com'
+  ON CONFLICT (user_id) DO NOTHING;
 
-  -- Ensure app_admins table has the superadmin if table exists
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'app_admins') THEN
-    INSERT INTO public.app_admins (user_id, created_at)
-    VALUES (v_super_id, now())
-    ON CONFLICT (user_id) DO NOTHING;
-  END IF;
-
-  -- Demo Store Admin: storeadmin@gmail.com / 123456
-  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'storeadmin@gmail.com') THEN
-    INSERT INTO auth.users (
-      instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-      created_at, updated_at, raw_app_meta_data, raw_user_meta_data
-    ) VALUES (
-      '00000000-0000-0000-0000-000000000000', v_store_id, 'authenticated', 'authenticated',
-      'storeadmin@gmail.com', crypt('123456', gen_salt('bf')), now(),
-      now(), now(), '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb,
-      '{\"name\":\"Demo Store Admin\",\"pharmacy_name\":\"MedPlus Dhanmondi\"}'::jsonb
-    );
-
-    INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
-    VALUES (gen_random_uuid(), v_store_id, jsonb_build_object('sub', v_store_id::text, 'email', 'storeadmin@gmail.com'), 'email', v_store_id::text, now(), now(), now())
-    ON CONFLICT DO NOTHING;
-  ELSE
-    UPDATE auth.users SET encrypted_password = crypt('123456', gen_salt('bf')), email_confirmed_at = now() WHERE email = 'storeadmin@gmail.com';
-  END IF;
-END \$\$;
+  -- Activate tenants if any exist
+  DO \$\$
+  BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'tenants') THEN
+      ALTER TABLE public.tenants DISABLE TRIGGER trg_tenant_status_guard;
+      UPDATE public.tenants SET status = 'active';
+      ALTER TABLE public.tenants ENABLE TRIGGER trg_tenant_status_guard;
+    END IF;
+  END \$\$;
 "
 
+# Restart PostgREST so schema cache detects all tables and functions
+docker restart sohojpharma_rest >/dev/null 2>&1 || true
 # Restart Kong so routes and DNS reload cleanly
 docker restart sohojpharma_kong >/dev/null 2>&1 || true
 sleep 3
@@ -370,6 +380,9 @@ if [ -d "/etc/nginx/sites-enabled" ]; then
 fi
 
 # Reload Nginx (supports standalone nginx or aaPanel nginx)
+if [ -x "/www/server/nginx/sbin/nginx" ]; then
+  /www/server/nginx/sbin/nginx -t 2>/dev/null && /www/server/nginx/sbin/nginx -s reload 2>/dev/null || true
+fi
 nginx -t 2>/dev/null && {
   systemctl reload nginx 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || nginx -s reload 2>/dev/null || true
   echo -e "${GREEN}✓ Nginx configuration active!${NC}"
