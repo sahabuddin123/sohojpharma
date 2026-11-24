@@ -152,28 +152,30 @@ docker rm -f sohojpharma_kong sohojpharma_auth sohojpharma_rest sohojpharma_db 2
 # Start database container first
 docker compose -p sohojpharma -f deploy/docker-compose.supabase.yml up -d supabase-db
 
-echo -e "Waiting for PostgreSQL database to be healthy..."
+echo -e "Waiting for PostgreSQL database to accept socket connections..."
 RETRIES=40
-until docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "SELECT 1;" >/dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
+until docker exec sohojpharma_db pg_isready -q 2>/dev/null || [ $RETRIES -eq 0 ]; do
   echo -n "."
   sleep 2
   RETRIES=$((RETRIES-1))
 done
 echo ""
 
+# Configure pg_hba trust inside the database container BEFORE executing SQL
+echo -e "Configuring database trust authentication for internal services..."
+docker exec sohojpharma_db bash -c '
+  for hba in $(find /var/lib/postgresql /etc/postgresql -name pg_hba.conf 2>/dev/null); do
+    sed -i "1i local all all trust\nhost all all 0.0.0.0/0 trust\nhost all all all trust" "$hba"
+  done
+'
+docker restart sohojpharma_db
+sleep 3
+until docker exec sohojpharma_db pg_isready -q 2>/dev/null; do sleep 1; done
+
 # Copy and apply Core Supabase roles, schemas, and extensions
 echo -e "Applying Core Supabase roles, schemas and extensions..."
 docker cp supabase/migrations/00000000000000_init_supabase_core.sql sohojpharma_db:/tmp/00-init.sql
-docker exec sohojpharma_db psql -U supabase_admin -d postgres -f /tmp/00-init.sql
-
-# Configure pg_hba trust inside the database container
-docker exec sohojpharma_db bash -c '
-  HBA=$(find /var/lib/postgresql /etc/postgresql -name pg_hba.conf 2>/dev/null | head -1)
-  if [ -n "$HBA" ]; then
-    grep -q "host all all all trust" "$HBA" || sed -i "1i local all all trust\nhost all all 0.0.0.0/0 trust\nhost all all all trust" "$HBA"
-  fi
-'
-docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f /tmp/00-init.sql
 
 # Start remaining backend services (GoTrue Auth, PostgREST, Kong)
 echo -e "Starting GoTrue Auth, PostgREST, and Kong API Gateway..."
@@ -196,7 +198,7 @@ echo -e "${GREEN}✓ Database & API services active and healthy!${NC}"
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[STEP 6/11] Applying database migrations, catalog triggers & superadmin seed...${NC}"
 docker cp supabase/migrations sohojpharma_db:/tmp/
-docker exec sohojpharma_db bash -c '
+docker exec -e PGPASSWORD=postgres sohojpharma_db bash -c '
   for f in $(ls /tmp/migrations/*.sql | sort); do
     echo "  Applying: $(basename $f)"
     psql -U supabase_admin -d postgres -f "$f" >/dev/null 2>&1 || true
@@ -205,7 +207,7 @@ docker exec sohojpharma_db bash -c '
 
 # Ensure Superadmin (superadmin@gmail.com / 123456) and Demo Store Admin exist in auth.users & app_admins
 echo -e "Ensuring superadmin credentials (superadmin@gmail.com / 123456) are active..."
-docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "
+docker exec -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -c "
 DO \$\$
 DECLARE
   v_super_id uuid := '00000000-0000-0000-0000-000000000001'::uuid;
