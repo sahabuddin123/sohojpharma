@@ -51,8 +51,8 @@ function applySecurityHeaders(response: Response): Response {
   // Control referrer information
   headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
-  // Restrict browser permissions
-  headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)");
+  // Restrict browser permissions (allow camera for barcode & blister scanning)
+  headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=(self)");
 
   // Legacy XSS filter protection
   headers.set("X-XSS-Protection", "1; mode=block");
