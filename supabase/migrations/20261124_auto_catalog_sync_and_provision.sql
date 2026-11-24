@@ -558,6 +558,7 @@ BEGIN
     barcode,
     retail_price,
     purchase_price,
+    mrp,
     unit,
     pack_size,
     qty_per_box
@@ -568,6 +569,7 @@ BEGIN
     gm.brand_name,
     gm.strength,
     gm.dosage_form,
+    cat.id,
     lm.id,
     lg.id,
     gm.id,
@@ -575,9 +577,10 @@ BEGIN
     true,
     'GM-' || gm.id || '-' || substr(_tenant_id::text, 1, 4),
     gb.barcode,
-    0,
-    0,
-    'Pcs',
+    COALESCE(gm.retail_price, 0),
+    COALESCE(gm.purchase_price, 0),
+    COALESCE(gm.mrp, gm.retail_price, 0),
+    COALESCE(gm.unit, 'Box'),
     1,
     1
   FROM public.global_medicines gm
@@ -585,6 +588,7 @@ BEGIN
   LEFT JOIN public.global_generics gm_gen ON gm_gen.id = gm.generic_id
   LEFT JOIN public.manufacturers lm ON lm.tenant_id = _tenant_id AND lower(btrim(lm.name)) = lower(btrim(gm_mfr.name)) AND lm.deleted_at IS NULL
   LEFT JOIN public.generics lg ON lg.tenant_id = _tenant_id AND lower(btrim(lg.name)) = lower(btrim(gm_gen.name)) AND lg.deleted_at IS NULL
+  LEFT JOIN public.categories cat ON cat.tenant_id = _tenant_id AND lower(btrim(cat.name)) = lower(btrim(gm.dosage_form)) AND cat.deleted_at IS NULL
   LEFT JOIN LATERAL (
     SELECT barcode FROM public.global_barcodes gb WHERE gb.global_medicine_id = gm.id LIMIT 1
   ) gb ON true
