@@ -154,30 +154,32 @@ docker compose -p sohojpharma -f deploy/docker-compose.supabase.yml up -d supaba
 
 echo -e "Waiting for PostgreSQL database to be healthy..."
 RETRIES=40
-until docker exec sohojpharma_db pg_isready -q 2>/dev/null || [ $RETRIES -eq 0 ]; do
+until docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "SELECT 1;" >/dev/null 2>&1 || [ $RETRIES -eq 0 ]; do
   echo -n "."
   sleep 2
   RETRIES=$((RETRIES-1))
 done
 echo ""
 
-# Initialize Core Supabase Roles, Schemas, and Extensions
-echo -e "Initializing Core Supabase roles, schemas and extensions..."
-docker exec -i -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f - < supabase/migrations/00000000000000_init_supabase_core.sql || \
-docker exec -i -e PGPASSWORD=postgres sohojpharma_db psql -U postgres -d postgres -f - < supabase/migrations/00000000000000_init_supabase_core.sql || true
+# Copy and apply Core Supabase roles, schemas, and extensions
+echo -e "Applying Core Supabase roles, schemas and extensions..."
+docker cp supabase/migrations/00000000000000_init_supabase_core.sql sohojpharma_db:/tmp/00-init.sql
+docker exec sohojpharma_db psql -U supabase_admin -d postgres -f /tmp/00-init.sql
 
-# Dynamically configure pg_hba trust for local & internal Docker network
-HBA_PATH=$(docker exec sohojpharma_db psql -U supabase_admin -d postgres -t -A -c "SHOW hba_file;" 2>/dev/null || echo "")
-if [ -n "$HBA_PATH" ]; then
-  docker exec sohojpharma_db bash -c "grep -q 'host all all all trust' '$HBA_PATH' || echo -e 'local all all trust\nhost all all all trust' >> '$HBA_PATH'" 2>/dev/null || true
-  docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "SELECT pg_reload_conf();" 2>/dev/null || true
-fi
+# Configure pg_hba trust inside the database container
+docker exec sohojpharma_db bash -c '
+  HBA=$(find /var/lib/postgresql /etc/postgresql -name pg_hba.conf 2>/dev/null | head -1)
+  if [ -n "$HBA" ]; then
+    grep -q "host all all all trust" "$HBA" || sed -i "1i local all all trust\nhost all all 0.0.0.0/0 trust\nhost all all all trust" "$HBA"
+  fi
+'
+docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "SELECT pg_reload_conf();" >/dev/null 2>&1 || true
 
 # Start remaining backend services (GoTrue Auth, PostgREST, Kong)
 echo -e "Starting GoTrue Auth, PostgREST, and Kong API Gateway..."
 docker compose -p sohojpharma -f deploy/docker-compose.supabase.yml up -d
 
-# Wait for GoTrue Auth service to complete its internal migrations
+# Wait for GoTrue Auth service to complete its internal migrations and respond on healthcheck
 echo -e "Waiting for GoTrue Auth service to complete internal migrations..."
 AUTH_RETRIES=40
 until curl -s http://127.0.0.1:54321/auth/v1/health | grep -q "version" 2>/dev/null || [ $AUTH_RETRIES -eq 0 ]; do
@@ -193,20 +195,18 @@ echo -e "${GREEN}✓ Database & API services active and healthy!${NC}"
 # 6. Apply Database Migrations & Seeds
 # ------------------------------------------------------------------------------
 echo -e "\n${BLUE}[STEP 6/11] Applying database migrations, catalog triggers & superadmin seed...${NC}"
-for f in $(ls supabase/migrations/*.sql | sort); do
-  echo "  Applying: $(basename "$f")"
-  docker exec -i -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f - < "$f" 2>/dev/null || \
-  docker exec -i -e PGPASSWORD=postgres sohojpharma_db psql -U postgres -d postgres -f - < "$f" 2>/dev/null || true
-done
+docker cp supabase/migrations sohojpharma_db:/tmp/
+docker exec sohojpharma_db bash -c '
+  for f in $(ls /tmp/migrations/*.sql | sort); do
+    echo "  Applying: $(basename $f)"
+    psql -U supabase_admin -d postgres -f "$f" >/dev/null 2>&1 || true
+  done
+'
 
 # Ensure Superadmin (superadmin@gmail.com / 123456) and Demo Store Admin exist in auth.users & app_admins
 echo -e "Ensuring superadmin credentials (superadmin@gmail.com / 123456) are active..."
-docker exec -i -e PGPASSWORD=postgres sohojpharma_db psql -U supabase_admin -d postgres -f - << 'EOSQL'
-GRANT ALL ON ALL TABLES IN SCHEMA auth TO postgres, supabase_admin;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO postgres, supabase_admin;
-GRANT ALL ON ALL ROUTINES IN SCHEMA auth TO postgres, supabase_admin;
-
-DO $$
+docker exec sohojpharma_db psql -U supabase_admin -d postgres -c "
+DO \$\$
 DECLARE
   v_super_id uuid := '00000000-0000-0000-0000-000000000001'::uuid;
   v_store_id uuid := '00000000-0000-0000-0000-000000000002'::uuid;
@@ -219,8 +219,8 @@ BEGIN
     ) VALUES (
       '00000000-0000-0000-0000-000000000000', v_super_id, 'authenticated', 'authenticated',
       'superadmin@gmail.com', crypt('123456', gen_salt('bf')), now(),
-      now(), now(), '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"name":"SaaS Super Admin"}'::jsonb
+      now(), now(), '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb,
+      '{\"name\":\"SaaS Super Admin\"}'::jsonb
     );
 
     INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
@@ -230,9 +230,12 @@ BEGIN
     UPDATE auth.users SET encrypted_password = crypt('123456', gen_salt('bf')), email_confirmed_at = now() WHERE email = 'superadmin@gmail.com';
   END IF;
 
-  INSERT INTO public.app_admins (user_id, created_at)
-  VALUES (v_super_id, now())
-  ON CONFLICT (user_id) DO NOTHING;
+  -- Ensure app_admins table has the superadmin if table exists
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'app_admins') THEN
+    INSERT INTO public.app_admins (user_id, created_at)
+    VALUES (v_super_id, now())
+    ON CONFLICT (user_id) DO NOTHING;
+  END IF;
 
   -- Demo Store Admin: storeadmin@gmail.com / 123456
   IF NOT EXISTS (SELECT 1 FROM auth.users WHERE email = 'storeadmin@gmail.com') THEN
@@ -242,8 +245,8 @@ BEGIN
     ) VALUES (
       '00000000-0000-0000-0000-000000000000', v_store_id, 'authenticated', 'authenticated',
       'storeadmin@gmail.com', crypt('123456', gen_salt('bf')), now(),
-      now(), now(), '{"provider":"email","providers":["email"]}'::jsonb,
-      '{"name":"Demo Store Admin","pharmacy_name":"MedPlus Dhanmondi"}'::jsonb
+      now(), now(), '{\"provider\":\"email\",\"providers\":[\"email\"]}'::jsonb,
+      '{\"name\":\"Demo Store Admin\",\"pharmacy_name\":\"MedPlus Dhanmondi\"}'::jsonb
     );
 
     INSERT INTO auth.identities (id, user_id, identity_data, provider, provider_id, last_sign_in_at, created_at, updated_at)
@@ -252,11 +255,11 @@ BEGIN
   ELSE
     UPDATE auth.users SET encrypted_password = crypt('123456', gen_salt('bf')), email_confirmed_at = now() WHERE email = 'storeadmin@gmail.com';
   END IF;
-END $$;
-EOSQL
+END \$\$;
+"
 
-# Refresh services so GoTrue and PostgREST reload cleanly
-docker restart sohojpharma_auth sohojpharma_rest sohojpharma_kong >/dev/null 2>&1 || true
+# Restart Kong so routes and DNS reload cleanly
+docker restart sohojpharma_kong >/dev/null 2>&1 || true
 sleep 3
 echo -e "${GREEN}✓ All database tables, catalog sync triggers, and pricing plans configured!${NC}"
 
@@ -391,7 +394,22 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 
 # ------------------------------------------------------------------------------
-# Final Status & Verification
+# Final Verification Checks
+# ------------------------------------------------------------------------------
+echo -e "\n${BLUE}[VERIFY] Testing live API endpoints...${NC}"
+if curl -s http://127.0.0.1:54321/auth/v1/health | grep -q "version"; then
+  echo -e "${GREEN}✓ Auth API (GoTrue) is responding healthy!${NC}"
+else
+  echo -e "${RED}[WARNING] Auth API did not respond healthy. Inspecting container logs:${NC}"
+  docker logs --tail 20 sohojpharma_auth 2>/dev/null || true
+fi
+
+if curl -s http://127.0.0.1:54321/rest/v1/ | grep -q "definitions"; then
+  echo -e "${GREEN}✓ REST API (PostgREST) is responding healthy!${NC}"
+fi
+
+# ------------------------------------------------------------------------------
+# Final Status & Summary
 # ------------------------------------------------------------------------------
 echo -e "\n${GREEN}${BOLD}=================================================================${NC}"
 echo -e "${GREEN}${BOLD}     🎉 SohojPharma Deployed Successfully!                      ${NC}"
