@@ -282,6 +282,17 @@ function PhoneHome() {
             {formatMoney(Math.abs(Number(data?.kpi.dailyCashInHand ?? 0)))}
           </span>
         </div>
+
+        {/* Row 4: Inventory Value */}
+        <Link
+          to={"/m/products" as never}
+          className="flex items-center justify-between rounded-xl border border-sky-200/70 bg-sky-50/50 px-3.5 py-2.5 transition hover:border-sky-300"
+        >
+          <span className="text-xs font-semibold text-slate-700">ইনভেন্টোরি মূল্য</span>
+          <span className="text-base font-extrabold text-sky-700">
+            ৳{formatMoney(data?.kpi.inventoryValue)}
+          </span>
+        </Link>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-2.5">
