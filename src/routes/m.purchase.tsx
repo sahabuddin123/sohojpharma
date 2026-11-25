@@ -294,7 +294,12 @@ function MobilePurchase() {
       setCompanyBulkLoaded(true);
       toast.success(tr(`${fetched.length}টি পণ্য লোড হয়েছে — পরিমাণ দিন`, `${fetched.length} products loaded — enter qty`));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : tr("পণ্য লোড করা যায়নি", "Failed to load products"));
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(
+        msg.trimStart().startsWith("<")
+          ? tr("সার্ভার আপডেট হয়েছে — পেজ রিফ্রেশ করে আবার চেষ্টা করুন", "App updated — please refresh and try again")
+          : msg || tr("পণ্য লোড করা যায়নি", "Failed to load products"),
+      );
     } finally {
       setLoadingCompanyAll(false);
     }
@@ -502,7 +507,16 @@ function MobilePurchase() {
       if (draftKey) localStorage.removeItem(draftKey);
       navigate({ to: "/m/purchases" });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Save failed");
+      const msg = err instanceof Error ? err.message : "";
+      const isHtml = msg.trimStart().startsWith("<") || /<!doctype\s+html/i.test(msg);
+      toast.error(
+        isHtml
+          ? tr(
+              "সার্ভার আপডেট হয়েছে — অনুগ্রহ করে পেজটি রিফ্রেশ করে আবার সেভ করুন (আপনার ডাটা সেভ করা আছে)",
+              "App was updated — please refresh the page and save again (your draft is saved)",
+            )
+          : msg || "Save failed",
+      );
     } finally {
       setSaving(false);
     }
