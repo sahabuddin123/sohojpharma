@@ -240,7 +240,7 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         .lte("payment_date", toDate),
       context.supabase
         .from("sales_returns")
-        .select("total_refund, net_refund")
+        .select("refunded_amount, total")
         .eq("tenant_id", data.tenant_id)
         .gte("created_at", `${fromDate}T00:00:00+06:00`)
         .lte("created_at", `${toDate}T23:59:59.999+06:00`),
@@ -258,7 +258,7 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
       (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
     );
     const todayReturn = Number(
-      (returnRows ?? []).reduce((sum, r) => sum + Number(r.net_refund ?? r.total_refund ?? 0), 0).toFixed(2),
+      (returnRows ?? []).reduce((sum, r) => sum + Number(r.refunded_amount ?? r.total ?? 0), 0).toFixed(2),
     );
     result.kpi.todaySales = Number(rangeTotalSales.toFixed(2));
     result.kpi.todayCashSale = Number(todayCashSale.toFixed(2));
