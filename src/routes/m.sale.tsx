@@ -78,6 +78,7 @@ type Line = {
   strength: string | null;
   cost: number;
   price: number; // always per-piece price
+  discount: number; // per-line absolute discount (Tk)
   vat_rate: number;
   stock: number; // in pieces
   qty: number; // quantity in active unitMode
@@ -146,6 +147,7 @@ function MobileSale() {
           strength: p.strength,
           cost: Number(p.purchase_price ?? 0),
           price: Number(p.effective_price ?? p.retail_price ?? 0),
+          discount: 0,
           vat_rate: Number(p.vat_rate ?? 0),
           stock: Number(p.qty_on_hand ?? 0),
           qty: 0,
@@ -179,6 +181,7 @@ function MobileSale() {
       return [
         {
           ...item,
+          discount: "discount" in item ? item.discount : 0,
           qty: addQty,
           unitMode: "unitMode" in item ? item.unitMode : "pc",
           hasStrip: cfg.hasStrip,
@@ -213,9 +216,34 @@ function MobileSale() {
     );
   }
 
+  function updateCartDiscount(productId: string, discount: number) {
+    const safeDisc = Math.max(0, Number.isFinite(discount) ? discount : 0);
+    setCart((prev) =>
+      prev.map((l) => (l.product_id === productId ? { ...l, discount: safeDisc } : l)),
+    );
+  }
+
+  function updateCartLineTotal(productId: string, enteredTotal: number) {
+    const target = Math.max(0, Number.isFinite(enteredTotal) ? enteredTotal : 0);
+    setCart((prev) =>
+      prev.map((l) => {
+        if (l.product_id !== productId) return l;
+        const pcs = Math.max(1, l.qty * lineMult(l));
+        const gross = pcs * l.price;
+        if (target <= gross) {
+          return { ...l, discount: Math.round((gross - target) * 100) / 100 };
+        }
+        return { ...l, discount: 0, price: Math.round((target / pcs) * 10000) / 10000 };
+      }),
+    );
+  }
+
   const lineMult = (l: Line) => getUnitMultiplier(l.unitMode, l.pcsPerStrip, l.pcsPerBox);
   const totalQty = cart.reduce((s, l) => s + l.qty * lineMult(l), 0);
-  const totalPrice = cart.reduce((s, l) => s + l.qty * lineMult(l) * l.price, 0);
+  const totalPrice = cart.reduce(
+    (s, l) => s + Math.max(0, l.qty * lineMult(l) * l.price - (l.discount || 0)),
+    0,
+  );
   const totalCost = cart.reduce((s, l) => s + l.qty * lineMult(l) * l.cost, 0);
 
   return (
@@ -418,11 +446,19 @@ function MobileSale() {
           const mult = lineMult(r);
           const totalPcs = r.qty * mult;
           const unitPriceDisplay = Math.round(r.price * mult * 100) / 100;
+          const lineNet = Math.max(0, totalPcs * r.price - (r.discount || 0));
+          const lineCost = totalPcs * r.cost;
+          const lineProfit = lineNet - lineCost;
           const units = getAvailableUnits(r.hasStrip, r.pcsPerBox);
           return (
           <div
             key={r.product_id}
-            className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-2.5"
+            className={cn(
+              "rounded-2xl border p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-2.5",
+              lineProfit < 0
+                ? "border-rose-400 bg-rose-50/40"
+                : "border-slate-200/90 bg-white",
+            )}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -434,20 +470,40 @@ function MobileSale() {
                     স্টক: {r.stock} পিস
                   </span>
                 </p>
-                {showCost && (
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    ক্রয়মূল্য: ৳{r.cost.toFixed(2)}/পিস · লাভ:{" "}
-                    <span className="font-semibold text-emerald-700">
-                      ৳{((r.price - r.cost) * totalPcs).toFixed(2)}
-                    </span>
-                  </p>
-                )}
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                  {showCost && (
+                    <span className="text-slate-500">ক্রয়: ৳{lineCost.toFixed(2)}</span>
+                  )}
+                  <span
+                    className={cn(
+                      "rounded-md px-1.5 py-0.5 font-bold",
+                      lineProfit < 0
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-emerald-50 text-emerald-700",
+                    )}
+                  >
+                    {lineProfit < 0
+                      ? `লস: -৳${Math.abs(lineProfit).toFixed(2)}`
+                      : `লাভ: +৳${lineProfit.toFixed(2)}`}
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-sm font-extrabold text-slate-900">
-                  ৳{(totalPcs * r.price).toFixed(2)}
-                </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="text-xs font-bold text-slate-500">৳</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={Number(lineNet.toFixed(2))}
+                  onChange={(e) => updateCartLineTotal(r.product_id, Number(e.target.value))}
+                  inputMode="decimal"
+                  className={cn(
+                    "h-8 w-20 rounded-lg text-right text-sm font-extrabold",
+                    lineProfit < 0 ? "border-rose-300 text-rose-600" : "border-slate-200 text-slate-900",
+                  )}
+                  aria-label="Line total"
+                />
                 <button
                   type="button"
                   onClick={() => updateCartQty(r.product_id, 0)}
@@ -459,9 +515,9 @@ function MobileSale() {
               </div>
             </div>
 
-            {/* Unit Selector (Pc / Strip / Box) */}
-            {units.length > 1 && (
-              <div className="flex items-center justify-between gap-2">
+            {/* Unit Selector (Pc / Strip / Box) + Per-item Discount */}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              {units.length > 1 ? (
                 <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
                   {units.map((u) => {
                     const active = r.unitMode === u;
@@ -480,13 +536,27 @@ function MobileSale() {
                     );
                   })}
                 </div>
-                {mult > 1 && (
-                  <span className="text-[11px] font-medium text-slate-500">
-                    {r.qty} {unitLabelBn(r.unitMode)} = {totalPcs} পিস
-                  </span>
-                )}
+              ) : (
+                <span className="text-[11px] font-medium text-slate-500">
+                  {r.qty} পিস
+                </span>
+              )}
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-medium text-slate-500">ছাড় ৳</span>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={r.discount || ""}
+                  placeholder="0"
+                  onChange={(e) => updateCartDiscount(r.product_id, Number(e.target.value))}
+                  inputMode="decimal"
+                  className="h-8 w-16 rounded-lg border-slate-200 bg-slate-50 text-right text-xs font-bold text-slate-900 focus:bg-white"
+                  aria-label="Item discount"
+                />
               </div>
-            )}
+            </div>
 
             {/* Qty + Editable Sale Price Row */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
@@ -517,6 +587,11 @@ function MobileSale() {
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
+                {mult > 1 && (
+                  <span className="text-[11px] font-medium text-slate-500">
+                    ({totalPcs} পিস)
+                  </span>
+                )}
               </div>
 
               {/* Editable Sale Price (in active unit!) */}
@@ -744,8 +819,8 @@ function BillingSheet({
           product_id: l.product_id,
           qty: pcsQty,
           unit_price: l.price,
-          discount: 0,
-          vat: Math.round(pcsQty * l.price * (l.vat_rate / 100) * 100) / 100,
+          discount: l.discount || 0,
+          vat: Math.round(Math.max(0, pcsQty * l.price - (l.discount || 0)) * (l.vat_rate / 100) * 100) / 100,
           allow_stock_override: true,
         };
       });
@@ -958,9 +1033,11 @@ function BillingSheet({
                 <span className="text-lg font-extrabold text-[#0d5c46]">{money(finalPrice)}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-500">আনুমানিক লাভ</span>
+                <span className="text-slate-500">
+                  {profit < 0 ? "আনুমানিক লস" : "আনুমানিক লাভ"}
+                </span>
                 <span className={cn("font-bold", profit >= 0 ? "text-emerald-700" : "text-rose-600")}>
-                  {money(profit)}
+                  {profit < 0 ? `-৳${Math.abs(profit).toFixed(2)}` : `+৳${profit.toFixed(2)}`}
                 </span>
               </div>
             </div>

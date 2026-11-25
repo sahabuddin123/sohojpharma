@@ -1496,8 +1496,10 @@ function POSPage() {
                   <span />
                 </div>
                 {cart.map((l) => {
-                  const lineTotal = l.unit_price * l.qty - l.discount;
                   const mult = l.unit_type === "box" ? (l.pcsPerBox ?? 100) : l.unit_type === "pata" ? (l.pcsPerStrip ?? 10) : 1;
+                  const lineTotal = Math.max(0, l.unit_price * l.qty - l.discount);
+                  const lineCost = l.cost * l.qty * mult;
+                  const lineProfit = lineTotal - lineCost;
                   const lowStock = l.stock < l.qty * mult;
                   const unitLabel = l.unit_type === "box" ? "বক্স" : l.unit_type === "pata" ? "পাতা" : "পিস";
                   const showStrip = l.hasStrip ?? supportsStripUnit(undefined, l.name);
@@ -1510,7 +1512,11 @@ function POSPage() {
                   return (
                     <div key={l.product_id} className={cn(
                       "flex flex-col gap-2 rounded-xl border bg-card p-3 shadow-2xs transition-all",
-                      lowStock ? "border-destructive/40" : "border-border hover:border-emerald-500/40",
+                      lineProfit < 0
+                        ? "border-rose-400 bg-rose-50/30 dark:bg-rose-950/10"
+                        : lowStock
+                          ? "border-destructive/40"
+                          : "border-border hover:border-emerald-500/40",
                     )}>
                       {/* Top row: Medicine name, price, speaker, remove */}
                       <div className="flex items-start justify-between gap-2">
@@ -1552,8 +1558,33 @@ function POSPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">৳{lineTotal.toFixed(2)}</span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-muted-foreground">৳</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={Number(lineTotal.toFixed(2))}
+                            onChange={(e) => {
+                              const target = Math.max(0, Number(e.target.value) || 0);
+                              const gross = l.unit_price * l.qty;
+                              if (target <= gross) {
+                                updateLine(l.product_id, { discount: Math.round((gross - target) * 100) / 100 });
+                              } else {
+                                updateLine(l.product_id, {
+                                  discount: 0,
+                                  unit_price: l.qty > 0 ? Math.round((target / l.qty) * 10000) / 10000 : target,
+                                });
+                              }
+                            }}
+                            className={cn(
+                              "h-8 w-24 text-right text-sm font-black rounded-lg",
+                              lineProfit < 0
+                                ? "text-rose-600 border-rose-300"
+                                : "text-emerald-600 dark:text-emerald-400",
+                            )}
+                            title="সরাসরি মোট দাম এডিট করুন"
+                          />
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeLine(l.product_id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
@@ -1590,8 +1621,33 @@ function POSPage() {
                           </span>
                         </div>
 
-                        {/* Quantity Stepper */}
-                        <div className="flex items-center gap-1.5">
+                        {/* Quantity Stepper + Line Discount */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                            <span>ছাড় ৳</span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={l.discount || ""}
+                              placeholder="0"
+                              onChange={(e) => updateLine(l.product_id, { discount: Math.max(0, Number(e.target.value) || 0) })}
+                              className="h-8 w-16 px-1.5 text-right text-xs font-semibold rounded-lg"
+                            />
+                          </label>
+                          <span
+                            className={cn(
+                              "rounded-md px-2 py-0.5 text-[11px] font-bold",
+                              lineProfit < 0
+                                ? "bg-rose-100 text-rose-700"
+                                : "bg-emerald-50 text-emerald-700",
+                            )}
+                          >
+                            {lineProfit < 0
+                              ? `লস: -৳${Math.abs(lineProfit).toFixed(2)}`
+                              : `লাভ: +৳${lineProfit.toFixed(2)}`}
+                          </span>
+                          <div className="flex items-center gap-1.5">
                           <Button
                             variant="outline"
                             size="icon"
@@ -1615,6 +1671,7 @@ function POSPage() {
                           >
                             <Plus className="h-3.5 w-3.5" />
                           </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
