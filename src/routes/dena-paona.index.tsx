@@ -1,20 +1,16 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { RouteErrorPanel } from "@/components/route-error";
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Search,
   Printer,
+  Trash2,
+  AlertTriangle,
+  FastForward,
   User,
-  X,
-  Calendar,
-  Phone,
-  MapPin,
-  FileText,
-  AlertCircle,
   Loader2,
-  CheckCircle2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Button } from "@/components/ui/button";
@@ -40,7 +36,9 @@ import { toast } from "sonner";
 import {
   getDenaPaonaList,
   createDenaPaonaEntry,
+  deleteDenaPaona,
 } from "@/lib/api/dena-paona.functions";
+import { printDenaPaonaSlip } from "@/lib/print/dena-paona-print";
 
 export const Route = createFileRoute("/dena-paona/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -66,7 +64,9 @@ function DenaPaonaListPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [printItem, setPrintItem] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
+  const [deletePhase, setDeletePhase] = useState<"confirm" | "countdown">("confirm");
+  const [countdown, setCountdown] = useState(10);
 
   // Form State
   const initialForm = {
@@ -85,6 +85,7 @@ function DenaPaonaListPage() {
 
   const listFn = useServerFn(getDenaPaonaList);
   const createFn = useServerFn(createDenaPaonaEntry);
+  const deleteFn = useServerFn(deleteDenaPaona);
 
   const { data, isLoading } = useQuery({
     queryKey: ["dena-paona-list", tenantId, searchTerm],
@@ -131,12 +132,56 @@ function DenaPaonaListPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await deleteFn({ data: { tenantId, id } });
+    },
+    onSuccess: () => {
+      toast.success("হিসাব সফলভাবে ডিলিট হয়েছে!");
+      queryClient.invalidateQueries({ queryKey: ["dena-paona-list"] });
+      setDeleteTarget(null);
+      setDeletePhase("confirm");
+      setCountdown(10);
+    },
+    onError: (err: any) => {
+      toast.error(err.message || "ডিলিট করতে সমস্যা হয়েছে");
+      setDeleteTarget(null);
+      setDeletePhase("confirm");
+      setCountdown(10);
+    },
+  });
+
+  useEffect(() => {
+    if (!deleteTarget || deletePhase !== "countdown") return;
+    if (countdown <= 0) {
+      if (!deleteMutation.isPending) {
+        deleteMutation.mutate(deleteTarget.id);
+      }
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [deleteTarget, deletePhase, countdown, deleteMutation.isPending]);
+
   const handlePrint = (item: any, e: React.MouseEvent) => {
     e.stopPropagation();
-    setPrintItem(item);
-    setTimeout(() => {
-      window.print();
-    }, 200);
+    printDenaPaonaSlip(item);
+  };
+
+  const handleDeleteClick = (item: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteTarget(item);
+    setDeletePhase("confirm");
+    setCountdown(10);
+  };
+
+  const closeDeleteDialog = () => {
+    if (deleteMutation.isPending) return;
+    setDeleteTarget(null);
+    setDeletePhase("confirm");
+    setCountdown(10);
   };
 
   const givingList = data?.givingList || [];
@@ -190,7 +235,7 @@ function DenaPaonaListPage() {
                     <th className="px-4 py-3">নাম, ঠিকানা</th>
                     <th className="px-4 py-3 text-right">টাকা দিয়েছি</th>
                     <th className="px-4 py-3 text-right">বর্তমান বাকি</th>
-                    <th className="px-4 py-3 text-center w-16">প্রিন্ট</th>
+                    <th className="px-4 py-3 text-center w-24">অ্যাকশন</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -234,14 +279,24 @@ function DenaPaonaListPage() {
                           ৳ {formatCurrency(item.remaining_amount)}
                         </td>
                         <td className="px-4 py-3.5 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => handlePrint(item, e)}
-                            className="p-1.5 rounded hover:bg-slate-100 text-[#007953] transition"
-                            title="প্রিন্ট স্লিপ"
-                          >
-                            <Printer className="h-4 w-4" />
-                          </button>
+                          <div className="inline-flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handlePrint(item, e)}
+                              className="p-1.5 rounded hover:bg-slate-100 text-[#007953] transition"
+                              title="প্রিন্ট স্লিপ"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteClick(item, e)}
+                              className="p-1.5 rounded hover:bg-rose-50 text-rose-600 transition"
+                              title="হিসাব ডিলিট করুন"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -270,7 +325,7 @@ function DenaPaonaListPage() {
                     <th className="px-4 py-3">নাম, ঠিকানা</th>
                     <th className="px-4 py-3 text-right">টাকা নিয়েছি</th>
                     <th className="px-4 py-3 text-right">বর্তমান বাকি</th>
-                    <th className="px-4 py-3 text-center w-16">প্রিন্ট</th>
+                    <th className="px-4 py-3 text-center w-24">অ্যাকশন</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -314,14 +369,24 @@ function DenaPaonaListPage() {
                           ৳ {formatCurrency(item.remaining_amount)}
                         </td>
                         <td className="px-4 py-3.5 text-center">
-                          <button
-                            type="button"
-                            onClick={(e) => handlePrint(item, e)}
-                            className="p-1.5 rounded hover:bg-slate-100 text-[#007953] transition"
-                            title="প্রিন্ট স্লিপ"
-                          >
-                            <Printer className="h-4 w-4" />
-                          </button>
+                          <div className="inline-flex items-center justify-center gap-1">
+                            <button
+                              type="button"
+                              onClick={(e) => handlePrint(item, e)}
+                              className="p-1.5 rounded hover:bg-slate-100 text-[#007953] transition"
+                              title="প্রিন্ট স্লিপ"
+                            >
+                              <Printer className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteClick(item, e)}
+                              className="p-1.5 rounded hover:bg-rose-50 text-rose-600 transition"
+                              title="হিসাব ডিলিট করুন"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -515,77 +580,120 @@ function DenaPaonaListPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Printable Slip (Thermal / A4) */}
-      {printItem && (
-        <div className="hidden print:block fixed inset-0 bg-white p-8 text-black z-50">
-          <div className="text-center pb-4 border-b border-black">
-            <h1 className="text-2xl font-bold">SohojPharma</h1>
-            <p className="text-sm font-semibold mt-1">দেনা-পাওনা খতিয়ান রসিদ</p>
-            <p className="text-xs text-gray-500">তারিখ: {new Date().toLocaleDateString("bn-BD")}</p>
-          </div>
+      {/* Modal: ডিলিট কনফার্মেশন ও ১০ সেকেন্ড ডিলে */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) closeDeleteDialog(); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-rose-600">
+              <AlertTriangle className="h-5 w-5" />
+              হিসাব ডিলিট নিশ্চিতকরণ
+            </DialogTitle>
+          </DialogHeader>
 
-          <div className="my-6 space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="font-semibold">লেনদেনের ধরন:</span>
-              <span>{printItem.type === "give" ? "টাকা দেওয়া (আমার দেওয়া ঋণ)" : "টাকা নেওয়া (আমার নেওয়া ঋণ)"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">ব্যক্তির নাম:</span>
-              <span>{printItem.person_name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="font-semibold">ফোন নম্বর:</span>
-              <span>{printItem.phone}</span>
-            </div>
-            {printItem.address && (
-              <div className="flex justify-between">
-                <span className="font-semibold">ঠিকানা:</span>
-                <span>{printItem.address}</span>
+          {deleteTarget && deletePhase === "confirm" && (
+            <div className="space-y-3 py-2 text-sm text-slate-700">
+              <p>
+                আপনি কি নিশ্চিত যে{" "}
+                <span className="font-bold text-slate-900">{deleteTarget.person_name}</span>-এর
+                দেনা-পাওনা হিসাবটি ডিলিট করতে চান?
+              </p>
+              <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">ধরন:</span>
+                  <span className="font-medium">
+                    {deleteTarget.type === "give" ? "টাকা দেওয়া" : "টাকা নেওয়া"}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">মোট পরিমাণ:</span>
+                  <span className="font-semibold">৳ {formatCurrency(deleteTarget.total_amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">বর্তমান বাকি:</span>
+                  <span className="font-bold text-rose-600">৳ {formatCurrency(deleteTarget.remaining_amount)}</span>
+                </div>
               </div>
-            )}
-            <div className="flex justify-between">
-              <span className="font-semibold">লেনদেনের তারিখ:</span>
-              <span>{printItem.transaction_date}</span>
+              <p className="text-xs text-slate-500">
+                নিশ্চিত করার পর ১০ সেকেন্ড সময় দেওয়া হবে (চাইলে স্কিপ করতে পারবেন)।
+              </p>
             </div>
-            {printItem.repayment_date && (
-              <div className="flex justify-between">
-                <span className="font-semibold">পরিশোধের সম্ভাব্য তারিখ:</span>
-                <span>{printItem.repayment_date}</span>
+          )}
+
+          {deleteTarget && deletePhase === "countdown" && (
+            <div className="space-y-4 py-3 text-center">
+              <div className="mx-auto h-16 w-16 rounded-full bg-rose-50 border-2 border-rose-500 flex items-center justify-center">
+                <span className="text-2xl font-bold text-rose-600 tabular-nums">
+                  {countdown}
+                </span>
               </div>
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-slate-900">
+                  {deleteMutation.isPending
+                    ? "হিসাব ডিলিট হচ্ছে..."
+                    : `${countdown} সেকেন্ড পর "${deleteTarget.person_name}"-এর হিসাব ডিলিট হবে`}
+                </p>
+                <p className="text-xs text-slate-500">
+                  ভুল হলে এখনই বাতিল করতে পারেন অথবা অপেক্ষা না করে স্কিপ করে ডিলিট করতে পারেন।
+                </p>
+              </div>
+              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-rose-500 h-full transition-all duration-1000 ease-linear"
+                  style={{ width: `${((10 - countdown) / 10) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex items-center justify-between sm:justify-between gap-2 pt-3 border-t border-slate-100">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeDeleteDialog}
+              disabled={deleteMutation.isPending}
+              className="text-slate-600 border-slate-200"
+            >
+              বাতিল করুন
+            </Button>
+
+            {deletePhase === "confirm" ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setCountdown(10);
+                  setDeletePhase("countdown");
+                }}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-medium"
+              >
+                হ্যাঁ, ডিলিট করুন
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (deleteTarget && !deleteMutation.isPending) {
+                    deleteMutation.mutate(deleteTarget.id);
+                  }
+                }}
+                disabled={deleteMutation.isPending}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-medium flex items-center gap-1.5"
+              >
+                {deleteMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    ডিলিট হচ্ছে...
+                  </>
+                ) : (
+                  <>
+                    <FastForward className="h-4 w-4" />
+                    স্কিপ করে এখনই ডিলিট করুন
+                  </>
+                )}
+              </Button>
             )}
-          </div>
-
-          <div className="border border-black p-4 rounded my-6 space-y-2">
-            <div className="flex justify-between font-semibold">
-              <span>মোট ঋণ/পরিমাণ:</span>
-              <span>৳ {formatCurrency(printItem.total_amount)}</span>
-            </div>
-            <div className="flex justify-between text-gray-700">
-              <span>পরিশোধিত:</span>
-              <span>৳ {formatCurrency(printItem.paid_amount)}</span>
-            </div>
-            <div className="flex justify-between text-lg font-bold border-t border-black pt-2">
-              <span>বর্তমান অবশিষ্ট বাকি:</span>
-              <span>৳ {formatCurrency(printItem.remaining_amount)}</span>
-            </div>
-          </div>
-
-          <div className="text-xs text-gray-600 space-y-1">
-            <p>সাক্ষী ১: {printItem.witness_1 || "-"}</p>
-            <p>সাক্ষী ২: {printItem.witness_2 || "-"}</p>
-            {printItem.reason && <p>কারণ/বিবরণ: {printItem.reason}</p>}
-          </div>
-
-          <div className="mt-16 flex justify-between pt-8 text-xs font-semibold">
-            <div className="text-center border-t border-black pt-1 w-32">
-              দাতার স্বাক্ষর
-            </div>
-            <div className="text-center border-t border-black pt-1 w-32">
-              গ্রহীতার স্বাক্ষর
-            </div>
-          </div>
-        </div>
-      )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }

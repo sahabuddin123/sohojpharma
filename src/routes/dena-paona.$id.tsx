@@ -40,6 +40,7 @@ import {
   getDenaPaonaDetails,
   addDenaPaonaTransaction,
 } from "@/lib/api/dena-paona.functions";
+import { printDenaPaonaStatement } from "@/lib/print/dena-paona-print";
 
 export const Route = createFileRoute("/dena-paona/$id")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -218,7 +219,8 @@ function DenaPaonaDetailsPage() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => window.print()}
+              type="button"
+              onClick={() => printDenaPaonaStatement(loan, transactions)}
               className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[#007953] transition"
               title="স্টেটমেন্ট প্রিন্ট করুন"
             >
@@ -633,74 +635,6 @@ function DenaPaonaDetailsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Printable Statement */}
-      <div className="hidden print:block fixed inset-0 bg-white p-8 text-black z-50">
-        <div className="text-center pb-4 border-b border-black">
-          <h1 className="text-2xl font-bold">SohojPharma</h1>
-          <p className="text-sm font-semibold mt-1">দেনা-পাওনা লেজার স্টেটমেন্ট</p>
-          <p className="text-xs text-gray-500">তারিখ: {new Date().toLocaleDateString("bn-BD")}</p>
-        </div>
-
-        <div className="my-6 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p><span className="font-semibold">ব্যক্তির নাম:</span> {loan.person_name}</p>
-            <p><span className="font-semibold">ফোন নম্বর:</span> {loan.phone}</p>
-            <p><span className="font-semibold">ঠিকানা:</span> {loan.address || "-"}</p>
-          </div>
-          <div>
-            <p><span className="font-semibold">লেনদেনের ধরন:</span> {isGive ? "আমার দেওয়া ঋণ" : "আমার নেওয়া ঋণ"}</p>
-            <p><span className="font-semibold">ঋণের তারিখ:</span> {formatDate(loan.transaction_date)}</p>
-            <p><span className="font-semibold">পরিশোধের তারিখ:</span> {formatDate(loan.repayment_date)}</p>
-          </div>
-        </div>
-
-        <div className="border border-black p-4 rounded mb-6 flex justify-around text-sm font-semibold">
-          <div>মোট ঋণ: ৳ {formatCurrency(total)}</div>
-          <div>পরিশোধিত: ৳ {formatCurrency(paid)}</div>
-          <div>অবশিষ্ট বাকি: ৳ {formatCurrency(remaining)}</div>
-        </div>
-
-        <h3 className="font-bold text-sm mb-2">লেনদেনের বিস্তারিত ইতিহাস:</h3>
-        <table className="w-full text-xs text-left border border-black mb-8">
-          <thead className="border-b border-black bg-gray-100">
-            <tr>
-              <th className="p-2 border-r border-black">তারিখ</th>
-              <th className="p-2 border-r border-black">বিবরণ</th>
-              <th className="p-2 border-r border-black text-right">দেওয়া</th>
-              <th className="p-2 border-r border-black text-right">নেওয়া</th>
-              <th className="p-2 border-r border-black text-right">পরিশোধ</th>
-              <th className="p-2 text-right">বাকি</th>
-            </tr>
-          </thead>
-          <tbody>
-            {transactions.map((tx) => (
-              <tr key={tx.id} className="border-b border-black">
-                <td className="p-2 border-r border-black">{formatDate(tx.transaction_date)}</td>
-                <td className="p-2 border-r border-black">{tx.description || "-"}</td>
-                <td className="p-2 border-r border-black text-right">
-                  {Number(tx.given_amount) > 0 ? `৳ ${formatCurrency(tx.given_amount)}` : "-"}
-                </td>
-                <td className="p-2 border-r border-black text-right">
-                  {Number(tx.taken_amount) > 0 ? `৳ ${formatCurrency(tx.taken_amount)}` : "-"}
-                </td>
-                <td className="p-2 border-r border-black text-right">
-                  {Number(tx.paid_amount) > 0 ? `৳ ${formatCurrency(tx.paid_amount)}` : "-"}
-                </td>
-                <td className="p-2 text-right">৳ {formatCurrency(tx.remaining_amount)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="mt-16 flex justify-between pt-8 text-xs font-semibold">
-          <div className="text-center border-t border-black pt-1 w-36">
-            দাতার স্বাক্ষর
-          </div>
-          <div className="text-center border-t border-black pt-1 w-36">
-            গ্রহীতার স্বাক্ষর
-          </div>
-        </div>
-      </div>
     </AppShell>
   );
 }
