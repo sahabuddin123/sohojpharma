@@ -201,14 +201,43 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const { data: expRows } = await context.supabase
-      .from("expenses")
-      .select("amount")
-      .eq("tenant_id", data.tenant_id)
-      .eq("expense_date", todayStr);
-    result.kpi.todayExpense = Number(
+    const [{ data: expRows }, { data: todaySaleItems }] = await Promise.all([
+      context.supabase
+        .from("expenses")
+        .select("amount")
+        .eq("tenant_id", data.tenant_id)
+        .eq("expense_date", todayStr),
+      context.supabase
+        .from("sale_items")
+        .select("qty, returned_qty, unit_cost, line_total, product:products(purchase_price), sale:sales!inner(status)")
+        .eq("tenant_id", data.tenant_id)
+        .gte("created_at", `${todayStr}T00:00:00`)
+        .neq("sale.status", "void"),
+    ]);
+
+    const todayExpense = Number(
       (expRows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2),
     );
+    result.kpi.todayExpense = todayExpense;
+
+    // Recompute today's profit accurately:
+    // use sale_items.unit_cost when > 0, otherwise fall back to products.purchase_price,
+    // then subtract today's operating expenses for true net profit.
+    let todayRev = 0;
+    let todayCogs = 0;
+    for (const item of (todaySaleItems ?? []) as any[]) {
+      const netQty = Math.max(0, Number(item.qty ?? 0) - Number(item.returned_qty ?? 0));
+      const unitCost =
+        Number(item.unit_cost ?? 0) > 0
+          ? Number(item.unit_cost)
+          : Number(item.product?.purchase_price ?? 0);
+      todayRev += Number(item.line_total ?? 0);
+      todayCogs += netQty * unitCost;
+    }
+    const grossProfitToday = todaySaleItems && todaySaleItems.length > 0
+      ? todayRev - todayCogs
+      : result.kpi.todayProfit;
+    result.kpi.todayProfit = Number((grossProfitToday - todayExpense).toFixed(2));
 
     return result;
   });

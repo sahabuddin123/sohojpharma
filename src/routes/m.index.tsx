@@ -138,9 +138,15 @@ function PhoneHome() {
             </p>
           </div>
           <div className="rounded-xl bg-emerald-50/60 px-2 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">আজকের লাভ</p>
-            <p className="mt-0.5 text-base font-extrabold text-[#0d6e4e]">
-              ৳{formatMoney(data?.kpi.todayProfit)}
+            <p className="text-[11px] font-medium text-slate-500">আজকের নিট লাভ</p>
+            <p
+              className={cn(
+                "mt-0.5 text-base font-extrabold",
+                Number(data?.kpi.todayProfit ?? 0) < 0 ? "text-rose-600" : "text-[#0d6e4e]",
+              )}
+            >
+              {Number(data?.kpi.todayProfit ?? 0) < 0 ? "-" : ""}৳
+              {formatMoney(Math.abs(Number(data?.kpi.todayProfit ?? 0)))}
             </p>
           </div>
           <div className="rounded-xl bg-slate-50/80 px-2 py-2.5">
