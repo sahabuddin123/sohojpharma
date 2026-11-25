@@ -218,6 +218,37 @@ export const createExpense = createServerFn({ method: "POST" })
         created_by: context.userId,
       }).select().single();
     if (error) throw new Error(error.message);
+
+    // Mirror cash expenses into the cashier's currently open register drawer
+    const payMethod = (data.payment_method || "cash").toLowerCase();
+    const isCashDrawer = payMethod === "cash" && (!data.payment_account_code || data.payment_account_code === "1000");
+    if (isCashDrawer) {
+      const { data: openReg } = await context.supabase
+        .from("cash_registers")
+        .select("id")
+        .eq("tenant_id", data.tenant_id)
+        .eq("user_id", context.userId)
+        .eq("status", "open")
+        .order("opened_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (openReg?.id) {
+        await context.supabase.from("cash_register_transactions").insert({
+          tenant_id: data.tenant_id,
+          register_id: openReg.id,
+          branch_id: data.branch_id ?? null,
+          transaction_type: "expense",
+          reference_table: "expenses",
+          reference_id: row.id,
+          reference_no: data.expense_no,
+          amount: data.amount,
+          payment_method: "cash",
+          notes: data.notes ?? data.vendor ?? data.expense_no,
+          created_by: context.userId,
+        });
+      }
+    }
+
     if (data.branch_id) {
       await context.supabase.from("audit_log").insert({
         tenant_id: data.tenant_id, branch_id: data.branch_id, user_id: context.userId,
