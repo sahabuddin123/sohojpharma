@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { Search, Undo2, Loader2, Printer, ArrowLeft, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { processSaleReturn } from "@/lib/api/sale-returns.functions";
 
 export const Route = createFileRoute("/sales/returns")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -36,6 +38,8 @@ type SaleHit = {
   id: string;
   invoice_no: string;
   sale_date: string;
+  subtotal: number;
+  discount: number;
   total: number;
   status: string;
   customer_id: string | null;
@@ -90,7 +94,9 @@ function ReturnSalePage() {
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
   const [reason, setReason] = useState("");
+  const [returnDeduction, setReturnDeduction] = useState("");
   const [refundMethod, setRefundMethod] = useState("cash");
+  const processReturnFn = useServerFn(processSaleReturn);
   const [receipt, setReceipt] = useState<null | { return_no: string; total: number; refund: number; method: string }>(null);
 
   useEffect(() => {
@@ -119,7 +125,7 @@ function ReturnSalePage() {
     queryFn: async () => {
       let qb = supabase
         .from("sales")
-        .select("id,invoice_no,sale_date,total,status,customer_id,customer:customers(name,phone)")
+        .select("id,invoice_no,sale_date,subtotal,discount,total,status,customer_id,customer:customers(name,phone)")
         .eq("tenant_id", tenantId)
         .neq("status", "void")
         .order("sale_date", { ascending: false })
@@ -169,6 +175,7 @@ function ReturnSalePage() {
     items.forEach((it) => { init[it.id] = 0; });
     setReturnQty(init);
     setReason("");
+    setReturnDeduction("");
     setRefundMethod("cash");
     setReturnOpen(true);
   }
@@ -189,8 +196,22 @@ function ReturnSalePage() {
       sub += lineValue;
       vat += lineVat;
     });
-    return { sub: Math.round(sub * 100) / 100, vat: Math.round(vat * 100) / 100, total: Math.round((sub + vat) * 100) / 100 };
-  }, [items, returnQty]);
+    const invDisc = Number(sale?.discount ?? 0);
+    const invSub = Number(sale?.subtotal ?? 0);
+    const invDiscShare =
+      invDisc > 0 && invSub > 0
+        ? Math.round(sub * Math.min(1, invDisc / invSub) * 100) / 100
+        : 0;
+    const extraDed = Math.max(0, Number(returnDeduction) || 0);
+    const total = Math.max(0, Math.round((sub + vat - invDiscShare - extraDed) * 100) / 100);
+    return {
+      sub: Math.round(sub * 100) / 100,
+      vat: Math.round(vat * 100) / 100,
+      invDiscShare,
+      extraDed,
+      total,
+    };
+  }, [items, returnQty, sale, returnDeduction]);
 
   const doReturn = useMutation({
     mutationFn: async () => {
@@ -199,22 +220,21 @@ function ReturnSalePage() {
         .filter(([, q]) => q > 0)
         .map(([sale_item_id, q]) => ({ sale_item_id, qty: q }));
       if (!payload.length) throw new Error(t("toast.enterReturnQty"));
-      // P1-A: idempotent — one client_op_id per return attempt, persisted via mutation key
       const clientOpId =
         typeof crypto !== "undefined" && "randomUUID" in crypto
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random()}`;
-      const { data, error } = await supabase.rpc("pos_return", {
-        _tenant_id: tenantId,
-        _sale_id: selectedSaleId,
-        _items: payload as never,
-        _reason: reason || undefined,
-        _refund_method: refundMethod,
-        _refund_amount: refundPreview.total,
-        _client_op_id: clientOpId,
-      } as never);
-      if (error) throw new Error(error.message);
-      return data as { return_no: string; total: number; refunded_amount: number; refund_method: string };
+      return await processReturnFn({
+        data: {
+          tenantId,
+          saleId: selectedSaleId,
+          items: payload,
+          reason: reason || undefined,
+          refundMethod,
+          refundAmount: refundPreview.total,
+          clientOpId,
+        },
+      });
     },
     onSuccess: (r) => {
       toast.success(t("toast.returnProcessed", { no: r.return_no }));
@@ -407,7 +427,7 @@ function ReturnSalePage() {
               </tbody>
             </table>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">{t("ipos.refundMethod")}</label>
               <Select value={refundMethod} onValueChange={setRefundMethod}>
@@ -418,6 +438,10 @@ function ReturnSalePage() {
               </Select>
             </div>
             <div>
+              <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">রিটার্ন বাদ / ডিসকাউন্ট (৳)</label>
+              <Input type="number" min={0} step="0.01" value={returnDeduction} onChange={(e) => setReturnDeduction(e.target.value)} placeholder="0" />
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">{t("ipos.reasonLbl2")}</label>
               <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={t("ipos.reasonPhReturn")} />
             </div>
@@ -426,7 +450,16 @@ function ReturnSalePage() {
           <div className="space-y-1 text-sm">
             <div className="flex justify-between text-muted-foreground"><span>{t("ipos.subtotalLbl")}</span><span>৳ {refundPreview.sub.toFixed(2)}</span></div>
             <div className="flex justify-between text-muted-foreground"><span>{t("ipos.vatLbl")}</span><span>৳ {refundPreview.vat.toFixed(2)}</span></div>
+            {refundPreview.invDiscShare > 0 && (
+              <div className="flex justify-between text-amber-700"><span>পূর্বের ইনভয়েস ডিসকাউন্ট সমন্বয়</span><span>− ৳ {refundPreview.invDiscShare.toFixed(2)}</span></div>
+            )}
+            {refundPreview.extraDed > 0 && (
+              <div className="flex justify-between text-rose-600"><span>রিটার্ন বাদ / ডিসকাউন্ট</span><span>− ৳ {refundPreview.extraDed.toFixed(2)}</span></div>
+            )}
             <div className="flex justify-between text-base font-bold"><span>{t("ipos.refundTotal")}</span><span className="text-primary">৳ {refundPreview.total.toFixed(2)}</span></div>
+            {refundMethod !== "due" && refundMethod !== "store_credit" && refundPreview.total > 0 && (
+              <p className="text-[11px] text-muted-foreground">* রিটার্ন সম্পন্ন হলে ৳ {refundPreview.total.toFixed(2)} অটোমেটিক খরচে (Expense) যোগ হবে।</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setReturnOpen(false)}><X className="mr-1 h-3.5 w-3.5" /> {t("ipos.cancelBtn")}</Button>

@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { Loader2, Minus, Plus, Search, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
@@ -14,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { processSaleReturn } from "@/lib/api/sale-returns.functions";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/sale-returns")({
@@ -31,6 +33,8 @@ type SaleHit = {
   id: string;
   invoice_no: string;
   sale_date: string;
+  subtotal: number;
+  discount: number;
   total: number;
   status: string;
   customer?: { name: string; phone: string | null } | null;
@@ -75,8 +79,10 @@ function MobileSaleReturns() {
   const [debounced, setDebounced] = useState("");
   const [selectedSale, setSelectedSale] = useState<SaleHit | null>(null);
   const [returnQty, setReturnQty] = useState<Record<string, number>>({});
+  const [returnDeduction, setReturnDeduction] = useState("");
   const [reason, setReason] = useState("");
   const [refundMethod, setRefundMethod] = useState("cash");
+  const processReturnFn = useServerFn(processSaleReturn);
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 250);
@@ -89,7 +95,7 @@ function MobileSaleReturns() {
     queryFn: async () => {
       let qb = supabase
         .from("sales")
-        .select("id,invoice_no,sale_date,total,status,customer:customers(name,phone)")
+        .select("id,invoice_no,sale_date,subtotal,discount,total,status,customer:customers(name,phone)")
         .eq("tenant_id", tenantId)
         .neq("status", "void")
         .order("created_at", { ascending: false })
@@ -132,6 +138,7 @@ function MobileSaleReturns() {
   useEffect(() => {
     if (selectedSale) {
       setReturnQty({});
+      setReturnDeduction("");
       setReason("");
       setRefundMethod("cash");
     }
@@ -146,8 +153,16 @@ function MobileSaleReturns() {
       sub += it.unit_price * qty - (it.discount * qty) / (it.qty || 1);
       vat += (it.vat * qty) / (it.qty || 1);
     }
-    return Math.max(0, Math.round((sub + vat) * 100) / 100);
-  }, [items, returnQty]);
+    const invDisc = Number(selectedSale?.discount ?? 0);
+    const invSub = Number(selectedSale?.subtotal ?? 0);
+    const invDiscShare =
+      invDisc > 0 && invSub > 0
+        ? Math.round(sub * Math.min(1, invDisc / invSub) * 100) / 100
+        : 0;
+    const extraDed = Math.max(0, Number(returnDeduction) || 0);
+    const total = Math.max(0, Math.round((sub + vat - invDiscShare - extraDed) * 100) / 100);
+    return { sub, vat, invDiscShare, extraDed, total };
+  }, [items, returnQty, selectedSale, returnDeduction]);
 
   const doReturn = useMutation({
     mutationFn: async () => {
@@ -157,17 +172,17 @@ function MobileSaleReturns() {
         .map(([sale_item_id, qty]) => ({ sale_item_id, qty }));
       if (!payload.length) throw new Error("রিটার্নের পরিমাণ দিন");
 
-      const { data, error } = await supabase.rpc("pos_return", {
-        _tenant_id: tenantId,
-        _sale_id: selectedSale.id,
-        _items: payload as never,
-        _reason: reason.trim() || undefined,
-        _refund_method: refundMethod,
-        _refund_amount: refundPreview,
-        _client_op_id: crypto.randomUUID(),
-      } as never);
-      if (error) throw new Error(error.message);
-      return data as { return_no: string; refunded_amount: number };
+      return await processReturnFn({
+        data: {
+          tenantId,
+          saleId: selectedSale.id,
+          items: payload,
+          reason: reason.trim() || undefined,
+          refundMethod,
+          refundAmount: refundPreview.total,
+          clientOpId: crypto.randomUUID(),
+        },
+      });
     },
     onSuccess: (res) => {
       toast.success(`রিটার্ন সম্পন্ন — ${res.return_no}`);
@@ -372,9 +387,37 @@ function MobileSaleReturns() {
                 })}
               </div>
 
-              <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-3 py-2">
-                <span className="text-xs font-semibold text-slate-700">মোট রিফান্ড:</span>
-                <span className="text-base font-extrabold text-rose-600">{money(refundPreview)}</span>
+              <div className="space-y-1">
+                <Label className="text-xs">রিটার্ন বাদ / ডিসকাউন্ট (৳)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={returnDeduction}
+                  onChange={(e) => setReturnDeduction(e.target.value)}
+                  placeholder="0"
+                  inputMode="decimal"
+                  className="h-10"
+                />
+              </div>
+
+              <div className="rounded-xl bg-rose-50 border border-rose-200 px-3 py-2 space-y-1 text-xs">
+                {refundPreview.invDiscShare > 0 && (
+                  <div className="flex justify-between text-amber-800">
+                    <span>পূর্বের ইনভয়েস ডিসকাউন্ট সমন্বয়:</span>
+                    <span>− {money(refundPreview.invDiscShare)}</span>
+                  </div>
+                )}
+                {refundPreview.extraDed > 0 && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>রিটার্ন বাদ / ডিসকাউন্ট:</span>
+                    <span>− {money(refundPreview.extraDed)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-0.5">
+                  <span className="font-semibold text-slate-700">মোট রিফান্ড:</span>
+                  <span className="text-base font-extrabold text-rose-600">{money(refundPreview.total)}</span>
+                </div>
               </div>
 
               <div className="space-y-1">
@@ -414,7 +457,7 @@ function MobileSaleReturns() {
             <Button
               type="button"
               onClick={() => doReturn.mutate()}
-              disabled={doReturn.isPending || refundPreview <= 0}
+              disabled={doReturn.isPending || refundPreview.total <= 0}
               className="bg-rose-600 hover:bg-rose-700 text-white"
             >
               {doReturn.isPending ? "প্রসেস হচ্ছে..." : "রিটার্ন সম্পন্ন করুন"}
