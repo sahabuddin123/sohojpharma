@@ -274,12 +274,21 @@ function PhoneHome() {
           </div>
         </div>
 
-        {/* Row 3: Hand Cash Highlight */}
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
-          <span className="text-xs font-semibold text-slate-700">হাতে ক্যাশ (Hand Cash)</span>
-          <span className="text-base font-extrabold text-[#0d5c46]">
-            ৳{formatMoney(data?.kpi.cashInHand)}
-          </span>
+        {/* Row 3: Sale Return + Daily Hand Cash */}
+        <div className="phone-grid-keep grid grid-cols-2 gap-2">
+          <div className="flex items-center justify-between rounded-xl border border-rose-200/70 bg-rose-50/50 px-3 py-2.5">
+            <span className="text-[11px] font-semibold text-slate-700">বিক্রি রিটার্ন</span>
+            <span className="text-sm font-extrabold text-rose-600">
+              ৳{formatMoney(data?.kpi.todayReturn)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2.5">
+            <span className="text-[11px] font-semibold text-slate-700">দৈনিক হাতে ক্যাশ</span>
+            <span className="text-sm font-extrabold text-[#0d5c46]">
+              {Number(data?.kpi.dailyCashInHand ?? 0) < 0 ? "-" : ""}৳
+              {formatMoney(Math.abs(Number(data?.kpi.dailyCashInHand ?? 0)))}
+            </span>
+          </div>
         </div>
         </div>
 

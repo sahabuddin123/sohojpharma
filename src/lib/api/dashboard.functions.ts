@@ -28,7 +28,7 @@ type NotificationRow = {
 export interface StoreDashboardData {
   kpi: {
     todaySales: number; todayPurchase: number; todayProfit: number; todayExpense?: number;
-    todayCashSale?: number; todayDueSale?: number;
+    todayCashSale?: number; todayDueSale?: number; todayReturn?: number; dailyCashInHand?: number;
     cashInHand: number; bankBalance: number; dueCollection: number;
     totalCustomers: number; totalSuppliers: number; totalProducts: number;
     lowStock: number; expired: number; nearExpiry: number;
@@ -211,7 +211,7 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     const fromDate = data.from_date ?? bdTodayStr;
     const toDate = data.to_date ?? fromDate;
 
-    const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }, { data: duePayRows }] = await Promise.all([
+    const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }, { data: duePayRows }, { data: returnRows }] = await Promise.all([
       context.supabase
         .from("expenses")
         .select("amount")
@@ -238,6 +238,12 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         .eq("tenant_id", data.tenant_id)
         .gte("payment_date", fromDate)
         .lte("payment_date", toDate),
+      context.supabase
+        .from("sales_returns")
+        .select("total_refund, net_refund")
+        .eq("tenant_id", data.tenant_id)
+        .gte("created_at", `${fromDate}T00:00:00+06:00`)
+        .lte("created_at", `${toDate}T23:59:59.999+06:00`),
     ]);
 
     let rangeTotalSales = 0;
@@ -248,17 +254,23 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
       todayCashSale += Number(s.paid ?? 0);
       todayDueSale += Number(s.due ?? 0);
     }
+    const dueCollection = Number(
+      (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
+    );
+    const todayReturn = Number(
+      (returnRows ?? []).reduce((sum, r) => sum + Number(r.net_refund ?? r.total_refund ?? 0), 0).toFixed(2),
+    );
     result.kpi.todaySales = Number(rangeTotalSales.toFixed(2));
     result.kpi.todayCashSale = Number(todayCashSale.toFixed(2));
     result.kpi.todayDueSale = Number(todayDueSale.toFixed(2));
-    result.kpi.dueCollection = Number(
-      (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
-    );
+    result.kpi.dueCollection = dueCollection;
+    result.kpi.todayReturn = todayReturn;
 
     const todayExpense = Number(
       (expRows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2),
     );
     result.kpi.todayExpense = todayExpense;
+    result.kpi.dailyCashInHand = Number((todayCashSale + dueCollection - todayExpense).toFixed(2));
 
     // Recompute profit accurately for the selected range:
     // Use net billed revenue (sales.total, after bill-level discounts) minus COGS
