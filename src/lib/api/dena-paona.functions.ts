@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 const TenantInput = z.object({ tenantId: z.string().uuid() });
 
@@ -13,7 +12,7 @@ export const getDenaPaonaList = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const supabase = supabaseAdmin ?? context.supabase;
+    const supabase = context.supabase;
     let query = supabase
       .from("dena_paona")
       .select("*")
@@ -69,7 +68,7 @@ export const createDenaPaonaEntry = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const supabase = supabaseAdmin ?? context.supabase;
+    const supabase = context.supabase;
 
     // 1. Insert parent dena_paona entry
     const { data: entry, error: entryErr } = await supabase
@@ -126,7 +125,7 @@ export const getDenaPaonaDetails = createServerFn({ method: "GET" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const supabase = supabaseAdmin ?? context.supabase;
+    const supabase = context.supabase;
 
     const { data: loan, error: loanErr } = await supabase
       .from("dena_paona")
@@ -170,7 +169,7 @@ export const addDenaPaonaTransaction = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const supabase = supabaseAdmin ?? context.supabase;
+    const supabase = context.supabase;
 
     // Fetch existing loan
     const { data: loan, error: fetchErr } = await supabase
@@ -261,7 +260,7 @@ export const deleteDenaPaona = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    const supabase = supabaseAdmin ?? context.supabase;
+    const supabase = context.supabase;
     const { error } = await supabase
       .from("dena_paona")
       .delete()

@@ -295,21 +295,29 @@ export type MasterStats = { total: number; active: number; inactive: number; del
 
 async function computeMasterStats(sb: any, kind: MasterKind, tenantId: string): Promise<MasterStats> {
   const tbl = table(kind);
+
+  // Try fetching with deleted_at column first (most master tables have it)
   let res = await sb
     .from(tbl)
     .select("name, status, deleted_at")
     .eq("tenant_id", tenantId)
     .limit(10000);
 
-  if (res.error) {
+  const hasDeletedAt = !res.error;
+
+  if (!hasDeletedAt) {
+    // Fallback: table doesn't have deleted_at column
     res = await sb
       .from(tbl)
       .select("name, status")
       .eq("tenant_id", tenantId)
       .limit(10000);
   }
+
   if (res.error) {
-    return { total: 0, active: 0, inactive: 0, deleted: 0, duplicates: 0 };
+    // Last resort: just count rows without tenant_id filter (some tables may not have it)
+    const res2 = await sb.from(tbl).select("name", { count: "exact", head: true });
+    return { total: res2.count ?? 0, active: res2.count ?? 0, inactive: 0, deleted: 0, duplicates: 0 };
   }
 
   const rows = (res.data ?? []) as Array<{ name?: string | null; status?: string | null; deleted_at?: string | null }>;
@@ -320,7 +328,7 @@ async function computeMasterStats(sb: any, kind: MasterKind, tenantId: string): 
   const seen = new Map<string, number>();
 
   for (const r of rows) {
-    if (r.deleted_at) {
+    if (hasDeletedAt && r.deleted_at) {
       deleted++;
       continue;
     }
@@ -346,8 +354,8 @@ export const getMasterStats = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ kind: KindZ, tenant_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }): Promise<MasterStats> => {
     await assertMember(context, data.tenant_id);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    return computeMasterStats(supabaseAdmin as any, data.kind, data.tenant_id);
+    const sb = (context as Ctx).supabase as any;
+    return computeMasterStats(sb, data.kind, data.tenant_id);
   });
 
 export const getAllMasterStats = createServerFn({ method: "POST" })
@@ -355,8 +363,7 @@ export const getAllMasterStats = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ tenant_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }): Promise<Record<MasterKind, MasterStats>> => {
     await assertMember(context, data.tenant_id);
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const sb = supabaseAdmin as any;
+    const sb = (context as Ctx).supabase as any;
     const entries = await Promise.all(
       MASTER_KINDS.map(async (kind) => [kind, await computeMasterStats(sb, kind, data.tenant_id)] as const),
     );
