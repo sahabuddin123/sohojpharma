@@ -97,7 +97,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
       { to: "/m/suppliers", label: "সরবরাহকারী", icon: Users, tone: "sky" },
       { to: "/m/staff", label: "কর্মচারী", icon: IdCard, tone: "indigo" },
       { to: "/m/transactions", label: "লেনদেন", icon: ArrowLeftRight, tone: "teal" },
-      { to: "/accounts/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
+      { to: "/m/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
       { to: "/m/income", label: "আয়", icon: PiggyBank, tone: "emerald" },
       { to: "/m/credit-adjustment", label: "ক্রেডিট অ্যাডজাস্ট", icon: Scale, tone: "amber" },
       { to: "/dena-paona", label: "দেনা-পাওনা", icon: BookOpenCheck, tone: "indigo" },
