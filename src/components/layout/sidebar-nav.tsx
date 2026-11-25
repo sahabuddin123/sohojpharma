@@ -28,6 +28,7 @@ import {
   Printer,
   Download,
   HandCoins,
+  Undo2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,7 @@ const storeGroups: NavGroup[] = [
     label: "nav.operations",
     items: [
       { to: "/sales", k: "nav.sales", icon: ShoppingCart },
+      { to: "/sales/returns", k: "nav.saleReturn", icon: Undo2 },
       { to: "/invoices", k: "nav.invoices", icon: Receipt },
       { to: "/prescriptions", k: "nav.prescriptions", icon: ScanLine },
       { to: "/purchases", k: "nav.purchases", icon: Truck },

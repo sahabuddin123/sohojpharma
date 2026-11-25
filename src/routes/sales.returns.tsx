@@ -121,7 +121,7 @@ function ReturnSalePage() {
         .from("sales")
         .select("id,invoice_no,sale_date,total,status,customer_id,customer:customers(name,phone)")
         .eq("tenant_id", tenantId)
-        .in("status", ["completed", "partially_returned"])
+        .neq("status", "void")
         .order("sale_date", { ascending: false })
         .limit(20);
       if (debounced) qb = qb.ilike("invoice_no", `%${debounced}%`);

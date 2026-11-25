@@ -26,6 +26,7 @@ import {
   FlaskConical,
   BookOpenCheck,
   Plus,
+  Undo2,
 } from "lucide-react";
 
 export const Route = createFileRoute("/m/")({
@@ -71,6 +72,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
       { to: "/purchases/new", label: "নতুন ক্রয়", icon: Truck, tone: "sky" },
       { to: "/m/collect", label: "ক্যাশ কালেক্ট", icon: HandCoins, tone: "amber" },
       { to: "/m/sales", label: "বিক্রি রেকর্ড", icon: ReceiptText, tone: "indigo" },
+      { to: "/m/sale-returns", label: "বিক্রি রিটার্ন", icon: Undo2, tone: "rose" },
       { to: "/m/purchases", label: "ক্রয় রেকর্ড", icon: FileSpreadsheet, tone: "sky" },
     ],
   },

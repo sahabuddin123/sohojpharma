@@ -30,6 +30,7 @@
     "system": "System",
     "catalog": "Catalog",
     "dashboard": "Dashboard",
+    "saleReturn": "Sale Return",
     "products": "Products",
     "productList": "Product List",
     "companies": "Companies",
@@ -887,6 +888,7 @@
   "mobileNav": {
     "home": "Home",
     "dashboard": "Dashboard",
+    "saleReturn": "Sale Return",
     "products": "Products",
     "reports": "Reports",
     "profile": "Profile"
