@@ -95,7 +95,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
     tiles: [
       { to: "/m/customers", label: "গ্রাহক", icon: UserRound, tone: "emerald" },
       { to: "/m/suppliers", label: "সরবরাহকারী", icon: Users, tone: "sky" },
-      { to: "/staff/list", label: "কর্মচারী", icon: IdCard, tone: "indigo" },
+      { to: "/m/staff", label: "কর্মচারী", icon: IdCard, tone: "indigo" },
       { to: "/m/transactions", label: "লেনদেন", icon: ArrowLeftRight, tone: "teal" },
       { to: "/accounts/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
       { to: "/m/income", label: "আয়", icon: PiggyBank, tone: "emerald" },
