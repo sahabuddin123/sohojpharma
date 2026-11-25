@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   Camera,
   Check,
@@ -12,6 +13,8 @@ import {
   Search,
   ShoppingBag,
   Trash2,
+  UserPlus,
+  UserRound,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +31,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { createCustomer } from "@/lib/api/customer-crud.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRegister } from "@/hooks/use-active-register";
 import { cn } from "@/lib/utils";
@@ -496,6 +500,13 @@ function MobileSale() {
   );
 }
 
+type CustomerLite = {
+  id: string;
+  name: string;
+  phone: string | null;
+  current_balance?: number | null;
+};
+
 function BillingSheet({
   open,
   onOpenChange,
@@ -521,6 +532,17 @@ function BillingSheet({
   onDone: (saleId: string | null) => void;
   onContinue: () => void;
 }) {
+  const queryClient = useQueryClient();
+  const createCustomerFn = useServerFn(createCustomer);
+
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
+  const [custQuery, setCustQuery] = useState("");
+  const [showAddCust, setShowAddCust] = useState(false);
+  const [newCustName, setNewCustName] = useState("");
+  const [newCustPhone, setNewCustPhone] = useState("");
+  const [newCustAddress, setNewCustAddress] = useState("");
+  const [addingCust, setAddingCust] = useState(false);
+
   const [discountPercent, setDiscountPercent] = useState(true);
   const [discount, setDiscount] = useState("");
   const [commission, setCommission] = useState("");
@@ -529,6 +551,67 @@ function BillingSheet({
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [doneSale, setDoneSale] = useState<{ id: string; invoice_no: string } | null>(null);
+
+  const { data: customerList = [] } = useQuery({
+    queryKey: ["m-pos-customers", tenantId, custQuery.trim()],
+    enabled: open && !!tenantId && !selectedCustomer && !showAddCust,
+    queryFn: async (): Promise<CustomerLite[]> => {
+      let q = supabase
+        .from("customers")
+        .select("id, name, phone, current_balance")
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
+        .order("name")
+        .limit(15);
+      const term = custQuery.trim();
+      if (term) {
+        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data, error } = await q;
+      if (error) return [];
+      return (data ?? []) as CustomerLite[];
+    },
+  });
+
+  async function handleAddCustomer() {
+    if (!newCustName.trim()) {
+      toast.error("গ্রাহকের নাম লিখুন");
+      return;
+    }
+    if (!newCustPhone.trim()) {
+      toast.error("ফোন নম্বর লিখুন");
+      return;
+    }
+    setAddingCust(true);
+    try {
+      const created = await createCustomerFn({
+        data: {
+          tenantId,
+          name: newCustName.trim(),
+          phone: newCustPhone.trim(),
+          address: newCustAddress.trim() || null,
+        },
+      });
+      const cust: CustomerLite = {
+        id: (created as any).id,
+        name: (created as any).name ?? newCustName.trim(),
+        phone: (created as any).phone ?? newCustPhone.trim(),
+        current_balance: 0,
+      };
+      setSelectedCustomer(cust);
+      setShowAddCust(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustAddress("");
+      setCustQuery("");
+      queryClient.invalidateQueries({ queryKey: ["m-pos-customers"] });
+      toast.success(`গ্রাহক যোগ হয়েছে: ${cust.name}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "গ্রাহক যোগ করতে সমস্যা হয়েছে");
+    } finally {
+      setAddingCust(false);
+    }
+  }
 
   const discountAmount = discountPercent
     ? (totalPrice * (Number(discount) || 0)) / 100
@@ -566,7 +649,7 @@ function BillingSheet({
 
       const { data, error } = await supabase.rpc("pos_checkout", {
         _tenant_id: tenantId,
-        _customer_id: null as unknown as string,
+        _customer_id: (selectedCustomer?.id ?? null) as unknown as string,
         _cashier_id: userId,
         _invoice_no: null as unknown as string,
         _discount: discountAmount,
@@ -580,6 +663,8 @@ function BillingSheet({
       if (error) throw new Error(error.message);
       const sale = data as unknown as { id: string; invoice_no: string };
       setDoneSale({ id: sale.id, invoice_no: sale.invoice_no });
+      setSelectedCustomer(null);
+      setCustQuery("");
       toast.success(`বিক্রি সম্পন্ন — ${sale.invoice_no}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "বিক্রি সম্পন্ন করতে সমস্যা হয়েছে");
@@ -597,6 +682,104 @@ function BillingSheet({
           </SheetHeader>
 
           <div className="space-y-3.5 border-t border-border pt-4">
+            {/* Customer Select / Quick Add */}
+            <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-2.5">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+                  <UserRound className="h-3.5 w-3.5 text-[#0d5c46]" />
+                  গ্রাহক (Customer)
+                </span>
+                {!selectedCustomer && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCust((v) => !v)}
+                    className="flex items-center gap-1 rounded-lg bg-[#0d5c46] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#094735]"
+                  >
+                    <UserPlus className="h-3 w-3" />
+                    {showAddCust ? "তালিকা দেখুন" : "+ নতুন গ্রাহক"}
+                  </button>
+                )}
+              </div>
+
+              {selectedCustomer ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-slate-900 truncate">{selectedCustomer.name}</p>
+                    <p className="text-[11px] text-slate-500">
+                      {selectedCustomer.phone || "ফোন নেই"}
+                      {Number(selectedCustomer.current_balance ?? 0) > 0 &&
+                        ` · পূর্বের বাকি: ৳${Number(selectedCustomer.current_balance).toFixed(0)}`}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCustomer(null)}
+                    className="rounded-full p-1 text-slate-500 hover:bg-white"
+                    aria-label="Clear customer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : showAddCust ? (
+                <div className="space-y-2 rounded-lg border border-slate-200 bg-white p-2.5">
+                  <Input
+                    value={newCustName}
+                    onChange={(e) => setNewCustName(e.target.value)}
+                    placeholder="গ্রাহকের নাম *"
+                    className="h-9 text-xs"
+                  />
+                  <Input
+                    value={newCustPhone}
+                    onChange={(e) => setNewCustPhone(e.target.value)}
+                    placeholder="ফোন নম্বর *"
+                    inputMode="tel"
+                    className="h-9 text-xs"
+                  />
+                  <Input
+                    value={newCustAddress}
+                    onChange={(e) => setNewCustAddress(e.target.value)}
+                    placeholder="ঠিকানা (ঐচ্ছিক)"
+                    className="h-9 text-xs"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => void handleAddCustomer()}
+                    disabled={addingCust}
+                    className="h-9 w-full rounded-lg bg-[#0d5c46] hover:bg-[#094735] text-xs font-semibold text-white"
+                  >
+                    {addingCust ? "সেভ হচ্ছে..." : "সেভ ও সিলেক্ট করুন"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Input
+                    value={custQuery}
+                    onChange={(e) => setCustQuery(e.target.value)}
+                    placeholder="নাম বা ফোন দিয়ে খুঁজুন (ঐচ্ছিক — সাধারণ গ্রাহক)..."
+                    className="h-9 bg-white text-xs"
+                  />
+                  {customerList.length > 0 && (
+                    <div className="max-h-28 overflow-y-auto space-y-1 rounded-lg border border-slate-200 bg-white p-1">
+                      {customerList.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCustomer(c);
+                            setCustQuery("");
+                          }}
+                          className="flex w-full items-center justify-between rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-emerald-50"
+                        >
+                          <span className="font-semibold text-slate-900 truncate">{c.name}</span>
+                          <span className="shrink-0 text-[11px] text-slate-500">{c.phone || ""}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
                 মোট পরিমাণ: <span className="font-bold text-foreground">{totalQty} পিস</span>
