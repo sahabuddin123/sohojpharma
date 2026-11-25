@@ -27,6 +27,7 @@ import {
   BookOpenCheck,
   Plus,
   Undo2,
+  RotateCcw,
 } from "lucide-react";
 
 export const Route = createFileRoute("/m/")({
@@ -74,6 +75,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
       { to: "/m/sales", label: "বিক্রি রেকর্ড", icon: ReceiptText, tone: "indigo" },
       { to: "/m/sale-returns", label: "বিক্রি রিটার্ন", icon: Undo2, tone: "rose" },
       { to: "/m/purchases", label: "ক্রয় রেকর্ড", icon: FileSpreadsheet, tone: "sky" },
+      { to: "/m/purchase-returns", label: "ক্রয় রিটার্ন", icon: RotateCcw, tone: "amber" },
     ],
   },
   {

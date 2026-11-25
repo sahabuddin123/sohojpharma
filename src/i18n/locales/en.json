@@ -31,6 +31,7 @@
     "catalog": "Catalog",
     "dashboard": "Dashboard",
     "saleReturn": "Sale Return",
+    "purchaseReturn": "Purchase Return",
     "products": "Products",
     "productList": "Product List",
     "companies": "Companies",
@@ -889,6 +890,7 @@
     "home": "Home",
     "dashboard": "Dashboard",
     "saleReturn": "Sale Return",
+    "purchaseReturn": "Purchase Return",
     "products": "Products",
     "reports": "Reports",
     "profile": "Profile"

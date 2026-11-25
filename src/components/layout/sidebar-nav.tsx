@@ -29,6 +29,7 @@ import {
   Download,
   HandCoins,
   Undo2,
+  RotateCcw,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,7 @@ const storeGroups: NavGroup[] = [
       { to: "/invoices", k: "nav.invoices", icon: Receipt },
       { to: "/prescriptions", k: "nav.prescriptions", icon: ScanLine },
       { to: "/purchases", k: "nav.purchases", icon: Truck },
+      { to: "/purchases/returns", k: "nav.purchaseReturn", icon: RotateCcw },
       { to: "/purchasing/requisition-list", k: "nav.purchaseRequisitionList", icon: Receipt },
       { to: "/customers", k: "nav.customers", icon: Users },
       { to: "/suppliers", k: "nav.suppliers", icon: Building2 },

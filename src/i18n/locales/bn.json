@@ -30,6 +30,7 @@
     "catalog": "ক্যাটালগ",
     "dashboard": "ড্যাশবোর্ড",
     "saleReturn": "বিক্রি রিটার্ন",
+    "purchaseReturn": "ক্রয় রিটার্ন",
     "products": "পণ্য",
     "productList": "পণ্য তালিকা",
     "companies": "কোম্পানি",
@@ -887,6 +888,7 @@
     "home": "হোম",
     "dashboard": "ড্যাশবোর্ড",
     "saleReturn": "বিক্রি রিটার্ন",
+    "purchaseReturn": "ক্রয় রিটার্ন",
     "products": "পণ্য",
     "reports": "রিপোর্ট",
     "profile": "প্রোফাইল"
