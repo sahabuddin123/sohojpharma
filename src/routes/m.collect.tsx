@@ -41,6 +41,67 @@ type SaleRow = {
 };
 
 type FilterTab = "due" | "all" | "paid";
+type DatePreset =
+  | "all"
+  | "today"
+  | "yesterday"
+  | "this_week"
+  | "last_week"
+  | "this_month"
+  | "last_month"
+  | "custom";
+
+const DATE_PRESETS: Array<{ id: DatePreset; label: string }> = [
+  { id: "all", label: "সব" },
+  { id: "today", label: "আজ" },
+  { id: "yesterday", label: "গতকাল" },
+  { id: "this_week", label: "এই সপ্তাহ" },
+  { id: "last_week", label: "গত সপ্তাহ" },
+  { id: "this_month", label: "এই মাস" },
+  { id: "last_month", label: "গত মাস" },
+  { id: "custom", label: "কাস্টম" },
+];
+
+const toIsoDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+function getPresetRange(preset: DatePreset, customFrom: string, customTo: string): { from?: string; to?: string } {
+  const now = new Date();
+  const today = toIsoDate(now);
+  switch (preset) {
+    case "all":
+      return {};
+    case "today":
+      return { from: today, to: today };
+    case "yesterday": {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = toIsoDate(y);
+      return { from: yStr, to: yStr };
+    }
+    case "this_week": {
+      const s = new Date(now);
+      s.setDate(s.getDate() - s.getDay());
+      return { from: toIsoDate(s), to: today };
+    }
+    case "last_week": {
+      const e = new Date(now);
+      e.setDate(e.getDate() - e.getDay() - 1);
+      const s = new Date(e);
+      s.setDate(s.getDate() - 6);
+      return { from: toIsoDate(s), to: toIsoDate(e) };
+    }
+    case "this_month":
+      return { from: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 1)), to: today };
+    case "last_month":
+      return {
+        from: toIsoDate(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+        to: toIsoDate(new Date(now.getFullYear(), now.getMonth(), 0)),
+      };
+    case "custom":
+      return { from: customFrom || undefined, to: customTo || undefined };
+  }
+}
 
 function MobileCashCollect() {
   const { currentTenantId } = useAuth();
@@ -50,26 +111,34 @@ function MobileCashCollect() {
   const payFn = useServerFn(recordPayment);
 
   const [tab, setTab] = useState<FilterTab>("due");
+  const [preset, setPreset] = useState<DatePreset>("all");
+  const [customFrom, setCustomFrom] = useState(() => toIsoDate(new Date()));
+  const [customTo, setCustomTo] = useState(() => toIsoDate(new Date()));
   const [search, setSearch] = useState("");
   const [target, setTarget] = useState<SaleRow | null>(null);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "bkash" | "nagad" | "rocket" | "bank" | "card" | "other">("cash");
   const [notes, setNotes] = useState("");
 
+  const dateRange = useMemo(
+    () => getPresetRange(preset, customFrom, customTo),
+    [preset, customFrom, customTo],
+  );
+
   const { data = [], isLoading } = useQuery({
-    queryKey: ["m-collect", tenantId],
+    queryKey: ["m-collect", tenantId, dateRange.from, dateRange.to],
     enabled: !!tenantId,
     queryFn: async () => {
-      const from = new Date();
-      from.setDate(from.getDate() - 30);
-      const { data, error } = await supabase
+      let q = supabase
         .from("sales")
         .select("id,invoice_no,customer_id,created_at,total,paid,due,customers(name,phone)")
         .eq("tenant_id", tenantId)
         .neq("status", "void")
-        .gte("created_at", from.toISOString())
         .order("created_at", { ascending: false })
-        .limit(150);
+        .limit(300);
+      if (dateRange.from) q = q.gte("created_at", `${dateRange.from}T00:00:00`);
+      if (dateRange.to) q = q.lte("created_at", `${dateRange.to}T23:59:59.999`);
+      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as SaleRow[];
     },
@@ -148,7 +217,9 @@ function MobileCashCollect() {
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-emerald-200/80 bg-white p-3.5 text-center shadow-xs">
-          <p className="text-[11px] font-medium text-slate-500">আদায় (৩০ দিন)</p>
+          <p className="text-[11px] font-medium text-slate-500">
+            আদায় ({DATE_PRESETS.find((p) => p.id === preset)?.label ?? "সব"})
+          </p>
           <p className="mt-1 text-lg font-extrabold text-[#0d6e4e]">{money(stats.collected)}</p>
         </div>
         <div className="rounded-2xl border border-rose-200/80 bg-white p-3.5 text-center shadow-xs">
@@ -157,8 +228,52 @@ function MobileCashCollect() {
         </div>
       </div>
 
-      {/* Search + Filter Pills */}
+      {/* Date Filter + Search + Status Tabs */}
       <div className="mt-3 space-y-2.5">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide pb-0.5">
+          {DATE_PRESETS.map((p) => {
+            const active = preset === p.id;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPreset(p.id)}
+                className={cn(
+                  "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold border transition active:scale-95",
+                  active
+                    ? "bg-[#0d5c46] text-white border-[#0d5c46] shadow-xs"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
+                )}
+              >
+                {p.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {preset === "custom" && (
+          <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-slate-500">শুরু</span>
+              <Input
+                type="date"
+                value={customFrom}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                className="h-9 text-xs border-slate-200"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[11px] font-medium text-slate-500">শেষ</span>
+              <Input
+                type="date"
+                value={customTo}
+                onChange={(e) => setCustomTo(e.target.value)}
+                className="h-9 text-xs border-slate-200"
+              />
+            </div>
+          </div>
+        )}
+
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
