@@ -206,10 +206,10 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
       result.kpi.bankBalance = Number(bankBal.toFixed(2));
     }
 
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const fromDate = data.from_date ?? todayStr;
+    // Use Bangladesh Standard Time (UTC+6) so 12:00 AM – 6:00 AM BD sales fall on the right local day
+    const bdTodayStr = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const fromDate = data.from_date ?? bdTodayStr;
     const toDate = data.to_date ?? fromDate;
-    const isCustomRange = fromDate !== todayStr || toDate !== todayStr;
 
     const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }, { data: duePayRows }] = await Promise.all([
       context.supabase
@@ -222,24 +222,22 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         .from("sale_items")
         .select("qty, returned_qty, unit_cost, line_total, product:products(purchase_price), sale:sales!inner(status)")
         .eq("tenant_id", data.tenant_id)
-        .gte("created_at", `${fromDate}T00:00:00`)
-        .lte("created_at", `${toDate}T23:59:59.999`)
+        .gte("created_at", `${fromDate}T00:00:00+06:00`)
+        .lte("created_at", `${toDate}T23:59:59.999+06:00`)
         .neq("sale.status", "void"),
       context.supabase
         .from("sales")
         .select("total, paid, due")
         .eq("tenant_id", data.tenant_id)
-        .gte("created_at", `${fromDate}T00:00:00`)
-        .lte("created_at", `${toDate}T23:59:59.999`)
+        .gte("created_at", `${fromDate}T00:00:00+06:00`)
+        .lte("created_at", `${toDate}T23:59:59.999+06:00`)
         .neq("status", "void"),
-      isCustomRange
-        ? context.supabase
-            .from("customer_payments")
-            .select("amount")
-            .eq("tenant_id", data.tenant_id)
-            .gte("payment_date", fromDate)
-            .lte("payment_date", toDate)
-        : Promise.resolve({ data: null }),
+      context.supabase
+        .from("customer_payments")
+        .select("amount")
+        .eq("tenant_id", data.tenant_id)
+        .gte("payment_date", fromDate)
+        .lte("payment_date", toDate),
     ]);
 
     let rangeTotalSales = 0;
@@ -250,14 +248,12 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
       todayCashSale += Number(s.paid ?? 0);
       todayDueSale += Number(s.due ?? 0);
     }
-    if (isCustomRange) {
-      result.kpi.todaySales = Number(rangeTotalSales.toFixed(2));
-      result.kpi.dueCollection = Number(
-        (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
-      );
-    }
+    result.kpi.todaySales = Number(rangeTotalSales.toFixed(2));
     result.kpi.todayCashSale = Number(todayCashSale.toFixed(2));
     result.kpi.todayDueSale = Number(todayDueSale.toFixed(2));
+    result.kpi.dueCollection = Number(
+      (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
+    );
 
     const todayExpense = Number(
       (expRows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2),
@@ -265,9 +261,8 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     result.kpi.todayExpense = todayExpense;
 
     // Recompute profit accurately for the selected range:
-    // use sale_items.unit_cost when > 0, otherwise fall back to products.purchase_price,
-    // then subtract operating expenses for true net profit.
-    let todayRev = 0;
+    // Use net billed revenue (sales.total, after bill-level discounts) minus COGS
+    // (using netQty = qty - returned_qty), then subtract operating expenses.
     let todayCogs = 0;
     for (const item of (todaySaleItems ?? []) as any[]) {
       const netQty = Math.max(0, Number(item.qty ?? 0) - Number(item.returned_qty ?? 0));
@@ -275,12 +270,9 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         Number(item.unit_cost ?? 0) > 0
           ? Number(item.unit_cost)
           : Number(item.product?.purchase_price ?? 0);
-      todayRev += Number(item.line_total ?? 0);
       todayCogs += netQty * unitCost;
     }
-    const grossProfitToday = todaySaleItems && todaySaleItems.length > 0
-      ? todayRev - todayCogs
-      : (isCustomRange ? 0 : result.kpi.todayProfit);
+    const grossProfitToday = rangeTotalSales - todayCogs;
     result.kpi.todayProfit = Number((grossProfitToday - todayExpense).toFixed(2));
 
     return result;
