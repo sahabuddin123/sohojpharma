@@ -31,6 +31,7 @@ import {
   RotateCcw,
   Calendar,
   Settings,
+  Boxes,
 } from "lucide-react";
 
 export const Route = createFileRoute("/m/")({
@@ -84,6 +85,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
   {
     title: "স্টক ও সতর্কতা",
     tiles: [
+      { to: "/m/inventory", label: "ইনভেন্টরি", icon: Boxes, tone: "emerald" },
       { to: "/m/short-items", label: "শর্ট আইটেম", icon: PackageSearch, tone: "amber", badge: "lowStock" },
       { to: "/m/short-list", label: "শর্ট লিস্ট", icon: ListChecks, tone: "teal" },
       { to: "/m/expired", label: "মেয়াদোত্তীর্ণ", icon: CalendarX, tone: "rose", badge: "expired" },
