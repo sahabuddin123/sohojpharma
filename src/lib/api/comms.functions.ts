@@ -85,3 +85,33 @@ export const updateNotificationPrefs = createServerFn({ method: "POST" })
     if (error) throw new Error(error.message);
     return { ok: true };
   });
+
+export const sendInvoiceSms = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((i: unknown) =>
+    z.object({
+      tenantId: z.string().uuid(),
+      phone: z.string().trim().min(6, "সঠিক ফোন নম্বর দিন").max(30),
+      message: z.string().trim().min(1).max(1000),
+    }).parse(i),
+  )
+  .handler(async ({ data, context }) => {
+    const { sendSms } = await import("@/lib/comms/sms.server");
+    const res = await sendSms({ to: data.phone, body: data.message });
+    if (!res.ok) {
+      throw new Error(res.error || "SMS পাঠানো যায়নি");
+    }
+    try {
+      await context.supabase.from("sms_logs").insert({
+        tenant_id: data.tenantId,
+        recipient: data.phone,
+        message: data.message,
+        provider: res.provider,
+        status: "sent",
+        provider_message_id: res.providerMessageId ?? null,
+      } as never);
+    } catch {
+      // Non-fatal if sms_logs schema differs
+    }
+    return { ok: true, provider: res.provider };
+  });

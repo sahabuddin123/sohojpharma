@@ -25,6 +25,10 @@ import {
   MobileCameraScanner,
   type ScannedProductMatch,
 } from "@/components/mobile/mobile-camera-scanner";
+import {
+  InvoiceShareDialog,
+  type ShareInvoicePayload,
+} from "@/components/mobile/invoice-share-dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -534,6 +538,8 @@ function BillingSheet({
 }) {
   const queryClient = useQueryClient();
   const createCustomerFn = useServerFn(createCustomer);
+  const { memberships } = useAuth();
+  const shopName = memberships.find((m) => m.tenant_id === tenantId)?.tenants?.name ?? "SohojPharma";
 
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerLite | null>(null);
   const [custQuery, setCustQuery] = useState("");
@@ -550,7 +556,8 @@ function BillingSheet({
   const [method, setMethod] = useState("cash");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
-  const [doneSale, setDoneSale] = useState<{ id: string; invoice_no: string } | null>(null);
+  const [doneSale, setDoneSale] = useState<{ id: string; invoice_no: string; share: ShareInvoicePayload } | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { data: customerList = [] } = useQuery({
     queryKey: ["m-pos-customers", tenantId, custQuery.trim()],
@@ -662,7 +669,21 @@ function BillingSheet({
       } as never);
       if (error) throw new Error(error.message);
       const sale = data as unknown as { id: string; invoice_no: string };
-      setDoneSale({ id: sale.id, invoice_no: sale.invoice_no });
+      const itemsSummary = cart.map((l) => `${l.name} (${l.qty})`).join(", ");
+      setDoneSale({
+        id: sale.id,
+        invoice_no: sale.invoice_no,
+        share: {
+          invoiceNo: sale.invoice_no,
+          shopName,
+          itemsSummary,
+          total: finalPrice,
+          paid,
+          due,
+          customerName: selectedCustomer?.name ?? null,
+          customerPhone: selectedCustomer?.phone ?? null,
+        },
+      });
       setSelectedCustomer(null);
       setCustQuery("");
       toast.success(`বিক্রি সম্পন্ন — ${sale.invoice_no}`);
@@ -926,16 +947,9 @@ function BillingSheet({
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={async () => {
-                const text = `Invoice ${doneSale?.invoice_no} — ${money(finalPrice)}`;
-                if (navigator.share) await navigator.share({ title: "Invoice", text }).catch(() => {});
-                else {
-                  await navigator.clipboard.writeText(text);
-                  toast.success("ইনভয়েস কপি হয়েছে");
-                }
-              }}
+              onClick={() => setShareOpen(true)}
             >
-              শেয়ার
+              শেয়ার (SMS / WhatsApp)
             </Button>
             <Button
               className="rounded-full bg-[#0d5c46] hover:bg-[#094735]"
@@ -960,6 +974,13 @@ function BillingSheet({
           </div>
         </DialogContent>
       </Dialog>
+
+      <InvoiceShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        tenantId={tenantId}
+        invoice={doneSale?.share ?? null}
+      />
     </>
   );
 }
