@@ -92,10 +92,14 @@ function MobileInvoicePreview() {
   const build58mmHtml = () => {
     const node = document.getElementById("m-receipt");
     if (!node) return "";
+    const itemCount = data?.sale_items?.length ?? 1;
+    // Chrome rejects mixed `<length> auto` in @page size and falls back to A4.
+    // Use an explicit <width> <height> pair in mm so Chrome auto-sizes the 58mm roll.
+    const pageHeightMm = Math.max(110, 85 + itemCount * 9);
     return `<!doctype html><html><head><meta charset="utf-8" /><style>
-      @page { size: 58mm auto; margin: 2mm; }
+      @page { size: 58mm ${pageHeightMm}mm; margin: 0; }
       * { box-sizing: border-box; }
-      html, body { width: 54mm; margin: 0 auto; padding: 0; font-family: monospace; font-size: 11px; line-height: 1.35; color: #000; background: #fff; }
+      html, body { width: 58mm; margin: 0; padding: 2mm; font-family: monospace; font-size: 11px; line-height: 1.35; color: #000; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .r-center { text-align: center; }
       .r-bold { font-weight: 700; }
       .r-row { display: flex; justify-content: space-between; gap: 4px; }
