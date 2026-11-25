@@ -24,70 +24,83 @@ import {
   Scale,
   PiggyBank,
   FlaskConical,
+  BookOpenCheck,
+  Plus,
 } from "lucide-react";
 
 export const Route = createFileRoute("/m/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
   head: () => ({
     meta: [
-      { title: "Pharmacy App Home — SohojPharma" },
+      { title: "হোম — SohojPharma" },
       {
         name: "description",
-        content:
-          "Phone home screen for your pharmacy: sales, purchase, stock, customers, suppliers and cash — one tap away.",
+        content: "ফার্মেসি মোবাইল ড্যাশবোর্ড: বিক্রি, ক্রয়, স্টক, গ্রাহক ও ক্যাশ হিসাব।",
       },
-      { property: "og:title", content: "Pharmacy App Home — SohojPharma" },
-      {
-        property: "og:description",
-        content: "Run your pharmacy from your phone — sale, purchase, stock and cash in one app.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "theme-color", content: "#7f1d3a" },
+      { name: "theme-color", content: "#0d5c46" },
     ],
   }),
   component: PhoneHome,
 });
 
+type IconTone = "emerald" | "sky" | "amber" | "rose" | "indigo" | "teal";
+
 type Tile = {
   to: string;
   label: string;
   icon: typeof ClipboardList;
-  tone: "rose" | "sky" | "mint";
+  tone: IconTone;
   badge?: "lowStock" | "expired";
 };
 
-const tiles: Tile[] = [
-  { to: "/products", label: "Product List", icon: ClipboardList, tone: "sky" },
-  { to: "/m/sale", label: "Sale", icon: ShoppingCart, tone: "sky" },
-  { to: "/purchases/new", label: "Purchase", icon: Truck, tone: "sky" },
-  { to: "/m/collect", label: "Cash collect", icon: HandCoins, tone: "rose" },
-  { to: "/m/sales", label: "Sale Record", icon: ReceiptText, tone: "rose" },
-  { to: "/m/purchases", label: "Purchase Record", icon: FileSpreadsheet, tone: "rose" },
-  { to: "/m/short-items", label: "Short items", icon: PackageSearch, tone: "rose", badge: "lowStock" },
-  { to: "/inventory/reports", label: "Short list Record", icon: ListChecks, tone: "rose" },
-  { to: "/m/expired", label: "Expired", icon: CalendarX, tone: "rose", badge: "expired" },
-  { to: "/m/suppliers", label: "Supplier", icon: Users, tone: "mint" },
-  { to: "/m/customers", label: "Customer", icon: UserRound, tone: "mint" },
-  { to: "/staff/list", label: "Employee", icon: IdCard, tone: "mint" },
-  { to: "/m/transactions", label: "Transaction", icon: ArrowLeftRight, tone: "sky" },
-  { to: "/accounts/expenses", label: "Expenses", icon: Wallet, tone: "sky" },
-  { to: "/m/credit-adjustment", label: "Credit Adjustment", icon: Scale, tone: "sky" },
-  { to: "/m/income", label: "Income", icon: PiggyBank, tone: "sky" },
-  { to: "/m/generics", label: "Generics", icon: FlaskConical, tone: "sky" },
+const TONE_CLASSES: Record<IconTone, string> = {
+  emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+  sky: "bg-sky-50 text-sky-700 border-sky-100",
+  amber: "bg-amber-50 text-amber-700 border-amber-100",
+  rose: "bg-rose-50 text-rose-600 border-rose-100",
+  indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+  teal: "bg-teal-50 text-teal-700 border-teal-100",
+};
+
+const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
+  {
+    title: "দৈনন্দিন কার্যক্রম",
+    tiles: [
+      { to: "/m/products", label: "পণ্যের হিসাব", icon: ClipboardList, tone: "emerald" },
+      { to: "/m/sale", label: "বিক্রি (POS)", icon: ShoppingCart, tone: "teal" },
+      { to: "/purchases/new", label: "নতুন ক্রয়", icon: Truck, tone: "sky" },
+      { to: "/m/collect", label: "ক্যাশ কালেক্ট", icon: HandCoins, tone: "amber" },
+      { to: "/m/sales", label: "বিক্রি রেকর্ড", icon: ReceiptText, tone: "indigo" },
+      { to: "/m/purchases", label: "ক্রয় রেকর্ড", icon: FileSpreadsheet, tone: "sky" },
+    ],
+  },
+  {
+    title: "স্টক ও সতর্কতা",
+    tiles: [
+      { to: "/m/short-items", label: "শর্ট আইটেম", icon: PackageSearch, tone: "amber", badge: "lowStock" },
+      { to: "/inventory/reports", label: "শর্ট লিস্ট", icon: ListChecks, tone: "teal" },
+      { to: "/m/expired", label: "মেয়াদোত্তীর্ণ", icon: CalendarX, tone: "rose", badge: "expired" },
+      { to: "/m/generics", label: "জেনেরিক", icon: FlaskConical, tone: "indigo" },
+    ],
+  },
+  {
+    title: "ব্যক্তি ও হিসাব",
+    tiles: [
+      { to: "/m/customers", label: "গ্রাহক", icon: UserRound, tone: "emerald" },
+      { to: "/m/suppliers", label: "সরবরাহকারী", icon: Users, tone: "sky" },
+      { to: "/staff/list", label: "কর্মচারী", icon: IdCard, tone: "indigo" },
+      { to: "/m/transactions", label: "লেনদেন", icon: ArrowLeftRight, tone: "teal" },
+      { to: "/accounts/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
+      { to: "/m/income", label: "আয়", icon: PiggyBank, tone: "emerald" },
+      { to: "/m/credit-adjustment", label: "ক্রেডিট অ্যাডজাস্ট", icon: Scale, tone: "amber" },
+      { to: "/dena-paona", label: "দেনা-পাওনা", icon: BookOpenCheck, tone: "indigo" },
+    ],
+  },
 ];
 
-const toneArt: Record<Tile["tone"], string> = {
-  rose: "bg-[color-mix(in_oklab,var(--color-primary)_10%,transparent)] text-primary",
-  sky: "bg-[color-mix(in_oklab,var(--color-accent)_35%,transparent)] text-accent-foreground",
-  mint: "bg-[color-mix(in_oklab,var(--color-muted)_80%,transparent)] text-foreground",
-};
-
-const toneFoot: Record<Tile["tone"], string> = {
-  rose: "bg-[color-mix(in_oklab,var(--color-primary)_8%,var(--color-card))]",
-  sky: "bg-[color-mix(in_oklab,var(--color-accent)_25%,var(--color-card))]",
-  mint: "bg-muted/60",
-};
+function formatMoney(v: number | undefined | null): string {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(v ?? 0));
+}
 
 function PhoneHome() {
   const { currentTenantId } = useAuth();
@@ -108,32 +121,87 @@ function PhoneHome() {
   return (
     <PhoneShell>
       <h1 className="sr-only">Pharmacy phone home</h1>
-      <div className="phone-grid-keep grid grid-cols-3 gap-3">
-        {tiles.map((tile) => {
-          const Icon = tile.icon;
-          const badge = badgeValue(tile.badge);
-          return (
-            <Link
-              key={tile.label}
-              to={tile.to as never}
-              className="relative overflow-hidden rounded-2xl border border-border/60 bg-card shadow-sm active:scale-[0.98] transition-transform"
-            >
-              {badge !== null && (
-                <span className="absolute left-1.5 top-1.5 z-10 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-primary-foreground">
-                  {badge}
-                </span>
-              )}
-              <div className={cn("grid h-20 place-items-center", toneArt[tile.tone])}>
-                <Icon className="h-8 w-8" strokeWidth={1.6} />
-              </div>
-              <div className={cn("px-1.5 py-2", toneFoot[tile.tone])}>
-                <p className="text-center text-[12px] font-semibold leading-tight text-foreground">
-                  {tile.label}
-                </p>
-              </div>
-            </Link>
-          );
-        })}
+
+      {/* Today's Live Snapshot + Quick Actions */}
+      <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div>
+            <p className="text-[11px] font-medium text-slate-500">আজকের বিক্রি</p>
+            <p className="mt-0.5 text-base font-extrabold text-slate-900">
+              ৳{formatMoney(data?.kpi.todaySales)}
+            </p>
+          </div>
+          <div className="border-x border-slate-100 px-1">
+            <p className="text-[11px] font-medium text-slate-500">আজকের লাভ</p>
+            <p className="mt-0.5 text-base font-extrabold text-[#0d6e4e]">
+              ৳{formatMoney(data?.kpi.todayProfit)}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] font-medium text-slate-500">হাতে ক্যাশ</p>
+            <p className="mt-0.5 text-base font-extrabold text-slate-900">
+              ৳{formatMoney(data?.kpi.cashInHand)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-3">
+          <Link
+            to={"/m/sale" as never}
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0d5c46] py-2.5 text-xs font-bold text-white shadow-xs active:scale-[0.98] transition"
+          >
+            <Plus className="h-4 w-4" />
+            নতুন বিক্রি
+          </Link>
+          <Link
+            to={"/purchases/new" as never}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 active:scale-[0.98] transition"
+          >
+            <Truck className="h-4 w-4 text-[#0d5c46]" />
+            নতুন ক্রয়
+          </Link>
+        </div>
+      </div>
+
+      {/* Categorized Navigation Grid */}
+      <div className="space-y-5">
+        {SECTIONS.map((section) => (
+          <section key={section.title} className="space-y-2.5">
+            <h2 className="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
+              {section.title}
+            </h2>
+            <div className="phone-grid-keep grid grid-cols-3 gap-2.5">
+              {section.tiles.map((tile) => {
+                const Icon = tile.icon;
+                const badge = badgeValue(tile.badge);
+                return (
+                  <Link
+                    key={tile.label}
+                    to={tile.to as never}
+                    className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white px-2 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-slate-300 active:scale-[0.96] transition"
+                  >
+                    {badge !== null && (
+                      <span className="absolute right-2 top-2 rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                        {badge}
+                      </span>
+                    )}
+                    <div
+                      className={cn(
+                        "grid h-11 w-11 place-items-center rounded-2xl border",
+                        TONE_CLASSES[tile.tone],
+                      )}
+                    >
+                      <Icon className="h-5 w-5" strokeWidth={1.9} />
+                    </div>
+                    <p className="text-center text-[12px] font-semibold leading-tight text-slate-800">
+                      {tile.label}
+                    </p>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </div>
     </PhoneShell>
   );
