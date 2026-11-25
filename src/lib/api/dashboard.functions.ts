@@ -22,7 +22,7 @@ type NotificationRow = {
 
 export interface StoreDashboardData {
   kpi: {
-    todaySales: number; todayPurchase: number; todayProfit: number;
+    todaySales: number; todayPurchase: number; todayProfit: number; todayExpense?: number;
     cashInHand: number; bankBalance: number; dueCollection: number;
     totalCustomers: number; totalSuppliers: number; totalProducts: number;
     lowStock: number; expired: number; nearExpiry: number;
@@ -199,6 +199,16 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
       result.kpi.cashInHand = Number(cashBal.toFixed(2));
       result.kpi.bankBalance = Number(bankBal.toFixed(2));
     }
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const { data: expRows } = await context.supabase
+      .from("expenses")
+      .select("amount")
+      .eq("tenant_id", data.tenant_id)
+      .eq("expense_date", todayStr);
+    result.kpi.todayExpense = Number(
+      (expRows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2),
+    );
 
     return result;
   });

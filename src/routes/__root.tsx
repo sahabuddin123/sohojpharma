@@ -4,6 +4,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
   type ErrorComponentProps,
@@ -179,9 +180,7 @@ function RootComponent() {
           <AuthGate>
             <OnboardingGate>
               <Outlet />
-              <div className="fixed bottom-4 right-4 z-50">
-                <OfflineIndicator />
-              </div>
+              <RootOfflineBadge />
               <PWAUpdater />
               <Toaster richColors position="top-right" />
             </OnboardingGate>
@@ -189,5 +188,15 @@ function RootComponent() {
         </AuthProvider>
       </I18nextProvider>
     </QueryClientProvider>
+  );
+}
+
+function RootOfflineBadge() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  if (pathname === "/m" || pathname.startsWith("/m/")) return null;
+  return (
+    <div className="fixed bottom-4 right-4 z-50">
+      <OfflineIndicator />
+    </div>
   );
 }
