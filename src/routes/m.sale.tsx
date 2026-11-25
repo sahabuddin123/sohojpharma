@@ -38,6 +38,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { createCustomer } from "@/lib/api/customer-crud.functions";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRegister } from "@/hooks/use-active-register";
+import {
+  getAvailableUnits,
+  getUnitMultiplier,
+  resolvePackConfig,
+  unitLabelBn,
+  type MedicineUnitMode,
+} from "@/lib/medicine-units";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/sale")({
@@ -70,10 +77,14 @@ type Line = {
   form: string | null;
   strength: string | null;
   cost: number;
-  price: number;
+  price: number; // always per-piece price
   vat_rate: number;
-  stock: number;
-  qty: number;
+  stock: number; // in pieces
+  qty: number; // quantity in active unitMode
+  unitMode: MedicineUnitMode;
+  hasStrip: boolean;
+  pcsPerStrip: number;
+  pcsPerBox: number;
 };
 
 function MobileSale() {
@@ -108,17 +119,42 @@ function MobileSale() {
         _offset: 0,
       } as never);
       if (error) throw error;
-      return ((data ?? []) as SearchRow[]).map((p) => ({
-        product_id: p.id,
-        name: p.name,
-        form: p.medicine_type,
-        strength: p.strength,
-        cost: Number(p.purchase_price ?? 0),
-        price: Number(p.effective_price ?? p.retail_price ?? 0),
-        vat_rate: Number(p.vat_rate ?? 0),
-        stock: Number(p.qty_on_hand ?? 0),
-        qty: 0,
-      }));
+      const list = (data ?? []) as SearchRow[];
+      const ids = list.map((p) => p.id);
+      const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
+      if (ids.length > 0) {
+        const { data: packRows } = await supabase
+          .from("products")
+          .select("id, pack_size, qty_per_box")
+          .in("id", ids);
+        for (const pr of (packRows ?? []) as any[]) {
+          packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
+        }
+      }
+      return list.map((p) => {
+        const pk = packMap.get(p.id);
+        const cfg = resolvePackConfig({
+          medicine_type: p.medicine_type,
+          name: p.name,
+          pack_size: pk?.pack_size,
+          qty_per_box: pk?.qty_per_box,
+        });
+        return {
+          product_id: p.id,
+          name: p.name,
+          form: p.medicine_type,
+          strength: p.strength,
+          cost: Number(p.purchase_price ?? 0),
+          price: Number(p.effective_price ?? p.retail_price ?? 0),
+          vat_rate: Number(p.vat_rate ?? 0),
+          stock: Number(p.qty_on_hand ?? 0),
+          qty: 0,
+          unitMode: "pc" as MedicineUnitMode,
+          hasStrip: cfg.hasStrip,
+          pcsPerStrip: cfg.pcsPerStrip,
+          pcsPerBox: cfg.pcsPerBox,
+        };
+      });
     },
   });
 
@@ -130,6 +166,9 @@ function MobileSale() {
 
   function addFromSearch(item: Line | ScannedProductMatch, addQty: number, clearAfter = true) {
     if (addQty <= 0) return;
+    const cfg = "hasStrip" in item
+      ? { hasStrip: item.hasStrip, pcsPerStrip: item.pcsPerStrip, pcsPerBox: item.pcsPerBox }
+      : resolvePackConfig({ medicine_type: item.form, name: item.name });
     setCart((prev) => {
       const idx = prev.findIndex((l) => l.product_id === item.product_id);
       if (idx >= 0) {
@@ -137,11 +176,27 @@ function MobileSale() {
         next[idx] = { ...next[idx], qty: next[idx].qty + addQty };
         return next;
       }
-      return [{ ...item, qty: addQty }, ...prev];
+      return [
+        {
+          ...item,
+          qty: addQty,
+          unitMode: "unitMode" in item ? item.unitMode : "pc",
+          hasStrip: cfg.hasStrip,
+          pcsPerStrip: cfg.pcsPerStrip,
+          pcsPerBox: cfg.pcsPerBox,
+        },
+        ...prev,
+      ];
     });
     if (clearAfter) {
       clearSearch();
     }
+  }
+
+  function updateCartUnit(productId: string, unitMode: MedicineUnitMode) {
+    setCart((prev) =>
+      prev.map((l) => (l.product_id === productId ? { ...l, unitMode } : l)),
+    );
   }
 
   function updateCartQty(productId: string, qty: number) {
@@ -158,9 +213,10 @@ function MobileSale() {
     );
   }
 
-  const totalQty = cart.reduce((s, l) => s + l.qty, 0);
-  const totalPrice = cart.reduce((s, l) => s + l.qty * l.price, 0);
-  const totalCost = cart.reduce((s, l) => s + l.qty * l.cost, 0);
+  const lineMult = (l: Line) => getUnitMultiplier(l.unitMode, l.pcsPerStrip, l.pcsPerBox);
+  const totalQty = cart.reduce((s, l) => s + l.qty * lineMult(l), 0);
+  const totalPrice = cart.reduce((s, l) => s + l.qty * lineMult(l) * l.price, 0);
+  const totalCost = cart.reduce((s, l) => s + l.qty * lineMult(l) * l.cost, 0);
 
   return (
     <PhoneShell
@@ -358,10 +414,15 @@ function MobileSale() {
           </div>
         )}
 
-        {cart.map((r) => (
+        {cart.map((r) => {
+          const mult = lineMult(r);
+          const totalPcs = r.qty * mult;
+          const unitPriceDisplay = Math.round(r.price * mult * 100) / 100;
+          const units = getAvailableUnits(r.hasStrip, r.pcsPerBox);
+          return (
           <div
             key={r.product_id}
-            className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-3"
+            className="rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] space-y-2.5"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -370,14 +431,14 @@ function MobileSale() {
                   {[r.form, r.strength].filter(Boolean).join(" · ") || "—"}
                   {" · "}
                   <span className={r.stock > 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"}>
-                    স্টক: {r.stock}
+                    স্টক: {r.stock} পিস
                   </span>
                 </p>
                 {showCost && (
                   <p className="mt-0.5 text-[11px] text-slate-500">
-                    ক্রয়মূল্য: ৳{r.cost.toFixed(2)} · লাভ:{" "}
+                    ক্রয়মূল্য: ৳{r.cost.toFixed(2)}/পিস · লাভ:{" "}
                     <span className="font-semibold text-emerald-700">
-                      ৳{((r.price - r.cost) * r.qty).toFixed(2)}
+                      ৳{((r.price - r.cost) * totalPcs).toFixed(2)}
                     </span>
                   </p>
                 )}
@@ -385,7 +446,7 @@ function MobileSale() {
 
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-sm font-extrabold text-slate-900">
-                  ৳{(r.qty * r.price).toFixed(2)}
+                  ৳{(totalPcs * r.price).toFixed(2)}
                 </span>
                 <button
                   type="button"
@@ -398,9 +459,37 @@ function MobileSale() {
               </div>
             </div>
 
+            {/* Unit Selector (Pc / Strip / Box) */}
+            {units.length > 1 && (
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200">
+                  {units.map((u) => {
+                    const active = r.unitMode === u;
+                    return (
+                      <button
+                        key={u}
+                        type="button"
+                        onClick={() => updateCartUnit(r.product_id, u)}
+                        className={cn(
+                          "rounded-md px-2.5 py-1 text-[11px] font-bold transition",
+                          active ? "bg-[#0d5c46] text-white shadow-2xs" : "text-slate-600",
+                        )}
+                      >
+                        {unitLabelBn(u)}
+                      </button>
+                    );
+                  })}
+                </div>
+                {mult > 1 && (
+                  <span className="text-[11px] font-medium text-slate-500">
+                    {r.qty} {unitLabelBn(r.unitMode)} = {totalPcs} পিস
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Qty + Editable Sale Price Row */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-              {/* Qty stepper */}
               <div className="flex items-center gap-1.5">
                 <Button
                   type="button"
@@ -430,15 +519,20 @@ function MobileSale() {
                 </Button>
               </div>
 
-              {/* Editable Sale Price */}
+              {/* Editable Sale Price (in active unit!) */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-medium text-slate-500">দর ৳</span>
+                <span className="text-[11px] font-medium text-slate-500">
+                  দর/{unitLabelBn(r.unitMode)} ৳
+                </span>
                 <Input
                   type="number"
                   step="0.01"
                   min={0}
-                  value={r.price}
-                  onChange={(e) => updateCartPrice(r.product_id, Number(e.target.value))}
+                  value={unitPriceDisplay}
+                  onChange={(e) => {
+                    const entered = Number(e.target.value);
+                    updateCartPrice(r.product_id, mult > 0 ? entered / mult : entered);
+                  }}
                   inputMode="decimal"
                   className="h-8 w-20 rounded-lg border-slate-200 bg-slate-50 text-right text-xs font-bold text-slate-900 focus:bg-white"
                   aria-label="Sale price"
@@ -446,7 +540,8 @@ function MobileSale() {
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Floating Billing Bar */}
@@ -642,14 +737,18 @@ function BillingSheet({
     }
     setSaving(true);
     try {
-      const items = cart.map((l) => ({
-        product_id: l.product_id,
-        qty: l.qty,
-        unit_price: l.price,
-        discount: 0,
-        vat: Math.round(l.qty * l.price * (l.vat_rate / 100) * 100) / 100,
-        allow_stock_override: true,
-      }));
+      const items = cart.map((l) => {
+        const mult = getUnitMultiplier(l.unitMode, l.pcsPerStrip, l.pcsPerBox);
+        const pcsQty = l.qty * mult;
+        return {
+          product_id: l.product_id,
+          qty: pcsQty,
+          unit_price: l.price,
+          discount: 0,
+          vat: Math.round(pcsQty * l.price * (l.vat_rate / 100) * 100) / 100,
+          allow_stock_override: true,
+        };
+      });
       const payments: Array<{ method: string; amount: number }> = [];
       if (paid > 0) payments.push({ method, amount: Math.min(paid, finalPrice) });
       if (due > 0) payments.push({ method: "due", amount: due });

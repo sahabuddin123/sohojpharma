@@ -21,6 +21,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { buildProductDisplayName } from "@/lib/product-display";
+import {
+  getAvailableUnits,
+  getUnitMultiplier,
+  resolvePackConfig,
+  unitLabelBn,
+  type MedicineUnitMode,
+} from "@/lib/medicine-units";
 import { createPurchaseOrder, receivePurchaseOrder, updatePOStatus } from "@/lib/api/procurement.functions";
 import { recordSupplierPayment } from "@/lib/api/supplier-ledger.functions";
 import { getActiveBusinessRules } from "@/lib/api/business-rules.functions";
@@ -41,6 +48,7 @@ type SearchRow = {
 type PickedProduct = {
   id: string; name: string; displayName: string;
   sku: string; barcode: string; lastPurchasePrice: number; lastRetailPrice: number; stock: number;
+  hasStrip: boolean; pcsPerStrip: number; pcsPerBox: number;
 };
 
 type Line = {
@@ -54,12 +62,17 @@ type Line = {
   bonus: number;
   discount: number;
   vat: number;
+  unitMode: MedicineUnitMode;
+  hasStrip: boolean;
+  pcsPerStrip: number;
+  pcsPerBox: number;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt = (n: number) => `৳ ${(Number.isFinite(n) ? n : 0).toFixed(2)}`;
+const lineMult = (l: Line) => getUnitMultiplier(l.unitMode, l.pcsPerStrip, l.pcsPerBox);
 const lineTotal = (l: Line) =>
-  Math.max(0, l.qty * l.purchase_price - l.discount + l.vat);
+  Math.max(0, l.qty * lineMult(l) * l.purchase_price - l.discount + l.vat);
 
 function NewPurchasePage() {
   const { currentTenantId } = useAuth();
@@ -168,14 +181,38 @@ function NewPurchasePage() {
         _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 20,
       } as never);
       if (error) throw error;
-      return ((data ?? []) as SearchRow[]).map<PickedProduct>((p) => ({
-        id: p.id, name: p.name,
-        displayName: buildProductDisplayName(p),
-        sku: p.sku ?? "", barcode: p.barcode ?? "",
-        lastPurchasePrice: Number(p.purchase_price ?? 0),
-        lastRetailPrice: Number(p.retail_price ?? 0),
-        stock: Number(p.qty_on_hand ?? 0),
-      }));
+      const list = (data ?? []) as SearchRow[];
+      const ids = list.map((p) => p.id);
+      const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
+      if (ids.length > 0) {
+        const { data: packRows } = await supabase
+          .from("products")
+          .select("id, pack_size, qty_per_box")
+          .in("id", ids);
+        for (const pr of (packRows ?? []) as any[]) {
+          packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
+        }
+      }
+      return list.map<PickedProduct>((p) => {
+        const pk = packMap.get(p.id);
+        const cfg = resolvePackConfig({
+          medicine_type: p.medicine_type,
+          name: p.name,
+          pack_size: pk?.pack_size ?? p.pack_size,
+          qty_per_box: pk?.qty_per_box,
+        });
+        return {
+          id: p.id, name: p.name,
+          displayName: buildProductDisplayName(p),
+          sku: p.sku ?? "", barcode: p.barcode ?? "",
+          lastPurchasePrice: Number(p.purchase_price ?? 0),
+          lastRetailPrice: Number(p.retail_price ?? 0),
+          stock: Number(p.qty_on_hand ?? 0),
+          hasStrip: cfg.hasStrip,
+          pcsPerStrip: cfg.pcsPerStrip,
+          pcsPerBox: cfg.pcsPerBox,
+        };
+      });
     },
   });
 
@@ -193,6 +230,10 @@ function NewPurchasePage() {
       bonus: 0,
       discount: 0,
       vat: 0,
+      unitMode: "pc",
+      hasStrip: p.hasStrip,
+      pcsPerStrip: p.pcsPerStrip,
+      pcsPerBox: p.pcsPerBox,
     }]);
     setQuery("");
     searchRef.current?.focus();
@@ -267,16 +308,18 @@ function NewPurchasePage() {
           supplier_id: supplierId,
           expected_delivery_date: dueDate || undefined,
           notes: [invoiceNo ? `Invoice: ${invoiceNo}` : "", notes].filter(Boolean).join(" — ") || undefined,
-          items: lines.map((l) => ({
-            product_id: l.product.id,
-            qty_ordered: l.qty + l.bonus,
-            unit_cost: l.purchase_price,
-            // Bonus units must not be charged: absorb bonus value into discount
-            // so PO total matches the displayed Grand Total.
-            discount: l.discount + l.bonus * l.purchase_price,
-            vat: l.vat,
-            notes: l.bonus > 0 ? `Bonus: ${l.bonus}` : undefined,
-          })),
+          items: lines.map((l) => {
+            const mult = lineMult(l);
+            const totalPcs = (l.qty + l.bonus) * mult;
+            return {
+              product_id: l.product.id,
+              qty_ordered: totalPcs,
+              unit_cost: l.purchase_price,
+              discount: l.discount + l.bonus * mult * l.purchase_price,
+              vat: l.vat,
+              notes: l.bonus > 0 ? `Bonus: ${l.bonus * mult} pcs` : undefined,
+            };
+          }),
         },
       });
 
@@ -296,9 +339,10 @@ function NewPurchasePage() {
         const match = (items ?? []).find((it) => it.product_id === l.product.id && !used.has(it.id));
         if (!match) throw new Error(`Could not link product ${l.product.name}`);
         used.add(match.id);
+        const mult = lineMult(l);
         return {
           item_id: match.id,
-          qty: l.qty + l.bonus,
+          qty: (l.qty + l.bonus) * mult,
           batch_no: l.batch_no.trim(),
           expiry_date: l.expiry_date,
         };
@@ -519,11 +563,52 @@ function NewPurchasePage() {
                     </TableCell>
                   </TableRow>
                 )}
-                {lines.map((l) => (
+                {lines.map((l) => {
+                  const units = getAvailableUnits(l.hasStrip, l.pcsPerBox);
+                  const mult = lineMult(l);
+                  return (
                   <TableRow key={l.uid}>
                     <TableCell>
                       <div className="font-medium text-sm">{l.product.displayName}</div>
-                      <div className="text-xs text-muted-foreground">{l.product.sku || "—"} · Stock {l.product.stock}</div>
+                      <div className="text-xs text-muted-foreground">{l.product.sku || "—"} · Stock {l.product.stock} pcs</div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <div className="inline-flex rounded-md bg-muted p-0.5 border border-border">
+                          {units.map((u) => (
+                            <button
+                              key={u}
+                              type="button"
+                              onClick={() => update(l.uid, { unitMode: u })}
+                              className={`rounded px-2 py-0.5 text-[10px] font-bold transition ${
+                                l.unitMode === u ? "bg-emerald-700 text-white" : "text-muted-foreground"
+                              }`}
+                            >
+                              {unitLabelBn(u)}
+                            </button>
+                          ))}
+                        </div>
+                        {l.hasStrip && (
+                          <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                            পাতায়:
+                            <input
+                              type="number"
+                              min={1}
+                              value={l.pcsPerStrip}
+                              onChange={(e) => update(l.uid, { pcsPerStrip: Math.max(1, Number(e.target.value) || 1) })}
+                              className="w-10 rounded border bg-background px-1 py-0.5 text-center text-[11px] font-semibold text-foreground"
+                            />
+                          </label>
+                        )}
+                        <label className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                          বক্সে:
+                          <input
+                            type="number"
+                            min={1}
+                            value={l.pcsPerBox}
+                            onChange={(e) => update(l.uid, { pcsPerBox: Math.max(1, Number(e.target.value) || 1) })}
+                            className="w-12 rounded border bg-background px-1 py-0.5 text-center text-[11px] font-semibold text-foreground"
+                          />
+                        </label>
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Input value={l.batch_no} onChange={(e) => update(l.uid, { batch_no: e.target.value })} placeholder="Batch" className="h-10 text-sm" />
@@ -534,14 +619,29 @@ function NewPurchasePage() {
                     <TableCell>
                       <Input type="number" step="0.01" min="0" className="h-10 text-right text-sm" value={l.purchase_price}
                         onChange={(e) => update(l.uid, { purchase_price: Number(e.target.value) || 0 })} />
+                      {l.hasStrip && (
+                        <div className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                          পাতা: ৳{(l.purchase_price * l.pcsPerStrip).toFixed(2)}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input type="number" step="0.01" min="0" className="h-10 text-right text-sm" value={l.sale_price}
                         onChange={(e) => update(l.uid, { sale_price: Number(e.target.value) || 0 })} />
+                      {l.hasStrip && (
+                        <div className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                          পাতা: ৳{(l.sale_price * l.pcsPerStrip).toFixed(2)}
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input type="number" min="1" className="h-10 text-right text-sm" value={l.qty}
                         onChange={(e) => update(l.uid, { qty: Math.max(0, Number(e.target.value) || 0) })} />
+                      {mult > 1 && (
+                        <div className="mt-0.5 text-right text-[10px] text-muted-foreground">
+                          = {l.qty * mult} pcs
+                        </div>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input type="number" min="0" className="h-10 text-right text-sm" value={l.bonus}
@@ -562,7 +662,8 @@ function NewPurchasePage() {
                       </Button>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

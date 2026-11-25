@@ -18,6 +18,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { buildProductDisplayName } from "@/lib/product-display";
+import {
+  getAvailableUnits,
+  getUnitMultiplier,
+  resolvePackConfig,
+  unitLabelBn,
+  type MedicineUnitMode,
+} from "@/lib/medicine-units";
 import { createPurchaseOrder, receivePurchaseOrder, updatePOStatus } from "@/lib/api/procurement.functions";
 import { recordSupplierPayment } from "@/lib/api/supplier-ledger.functions";
 
@@ -41,6 +48,7 @@ type SearchRow = {
   purchase_price: number | string; retail_price: number | string;
   qty_on_hand: number | string | null;
   strength: string | null; medicine_type: string | null; volume: string | null; pack_size: number | null;
+  qty_per_box?: number | null;
 };
 
 type Line = {
@@ -49,11 +57,15 @@ type Line = {
   name: string;
   batch_no: string;
   expiry_date: string;
-  purchase_price: number;
-  sale_price: number;
-  qty: number;
-  bonus: number;
+  purchase_price: number; // per piece
+  sale_price: number; // per piece
+  qty: number; // in active unitMode
+  bonus: number; // in active unitMode
   discount: number;
+  unitMode?: MedicineUnitMode;
+  hasStrip?: boolean;
+  pcsPerStrip?: number;
+  pcsPerBox?: number;
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -242,7 +254,7 @@ function MobilePurchase() {
     try {
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, purchase_price, retail_price, strength, medicine_type, volume, pack_size")
+        .select("id, name, purchase_price, retail_price, strength, medicine_type, volume, pack_size, qty_per_box")
         .eq("tenant_id", tenantId)
         .eq("is_active", true)
         .eq("manufacturer_id", supplierManufacturerId)
@@ -258,18 +270,25 @@ function MobilePurchase() {
         const existingIds = new Set(prev.map((l) => l.productId));
         const added: Line[] = fetched
           .filter((p) => !existingIds.has(p.id))
-          .map((p) => ({
-            uid: `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            productId: p.id,
-            name: buildProductDisplayName(p),
-            batch_no: "",
-            expiry_date: "",
-            purchase_price: Number(p.purchase_price ?? 0),
-            sale_price: Number(p.retail_price ?? 0),
-            qty: 0,
-            bonus: 0,
-            discount: 0,
-          }));
+          .map((p) => {
+            const cfg = resolvePackConfig(p);
+            return {
+              uid: `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              productId: p.id,
+              name: buildProductDisplayName(p),
+              batch_no: "",
+              expiry_date: "",
+              purchase_price: Number(p.purchase_price ?? 0),
+              sale_price: Number(p.retail_price ?? 0),
+              qty: 0,
+              bonus: 0,
+              discount: 0,
+              unitMode: "pc" as MedicineUnitMode,
+              hasStrip: cfg.hasStrip,
+              pcsPerStrip: cfg.pcsPerStrip,
+              pcsPerBox: cfg.pcsPerBox,
+            };
+          });
         return [...prev, ...added];
       });
       setCompanyBulkLoaded(true);
@@ -322,6 +341,7 @@ function MobilePurchase() {
   });
 
   function addProduct(p: SearchRow) {
+    const cfg = resolvePackConfig(p);
     setLines((prev) => [
       ...prev,
       {
@@ -335,6 +355,10 @@ function MobilePurchase() {
         qty: 1,
         bonus: 0,
         discount: 0,
+        unitMode: "pc",
+        hasStrip: cfg.hasStrip,
+        pcsPerStrip: cfg.pcsPerStrip,
+        pcsPerBox: cfg.pcsPerBox,
       },
     ]);
     setQuery("");
@@ -375,8 +399,13 @@ function MobilePurchase() {
     setLines((ls) => ls.map((l) => (l.uid === uid ? { ...l, ...patch } : l)));
   const remove = (uid: string) => setLines((ls) => ls.filter((l) => l.uid !== uid));
 
+  const lineMult = (l: Line) =>
+    getUnitMultiplier(l.unitMode ?? "pc", l.pcsPerStrip ?? 10, l.pcsPerBox ?? 100);
   const activeLines = useMemo(() => lines.filter((l) => l.qty > 0), [lines]);
-  const grandTotal = activeLines.reduce((s, l) => s + Math.max(0, l.qty * l.purchase_price - l.discount), 0);
+  const grandTotal = activeLines.reduce(
+    (s, l) => s + Math.max(0, l.qty * lineMult(l) * l.purchase_price - l.discount),
+    0,
+  );
   const due = Math.max(0, grandTotal - paid);
 
   const errors = useMemo(() => {
@@ -406,14 +435,18 @@ function MobilePurchase() {
           supplier_id: supplierId,
           expected_delivery_date: dueDate || undefined,
           notes: invoiceNo ? `Invoice: ${invoiceNo}` : undefined,
-          items: activeLines.map((l) => ({
-            product_id: l.productId,
-            qty_ordered: l.qty + l.bonus,
-            unit_cost: l.purchase_price,
-            discount: l.discount + l.bonus * l.purchase_price,
-            vat: 0,
-            notes: l.bonus > 0 ? `Bonus: ${l.bonus}` : undefined,
-          })),
+          items: activeLines.map((l) => {
+            const mult = lineMult(l);
+            const totalPcs = (l.qty + l.bonus) * mult;
+            return {
+              product_id: l.productId,
+              qty_ordered: totalPcs,
+              unit_cost: l.purchase_price,
+              discount: l.discount + l.bonus * mult * l.purchase_price,
+              vat: 0,
+              notes: l.bonus > 0 ? `Bonus: ${l.bonus * mult} pcs` : undefined,
+            };
+          }),
         },
       });
       await updateStatus({ data: { id: poId, branch_id: branchId, action: "approve" } });
@@ -429,9 +462,31 @@ function MobilePurchase() {
         const match = (items ?? []).find((it) => it.product_id === l.productId && !used.has(it.id));
         if (!match) throw new Error(`Could not link product ${l.name}`);
         used.add(match.id);
-        return { item_id: match.id, qty: l.qty + l.bonus, batch_no: l.batch_no.trim(), expiry_date: l.expiry_date };
+        const mult = lineMult(l);
+        return {
+          item_id: match.id,
+          qty: (l.qty + l.bonus) * mult,
+          batch_no: l.batch_no.trim(),
+          expiry_date: l.expiry_date,
+        };
       });
       await receivePO({ data: { id: poId, branch_id: branchId, lines: recvLines } });
+
+      // Sync updated pack_size, qty_per_box & prices back to products table
+      await Promise.all(
+        activeLines.map((l) =>
+          supabase
+            .from("products")
+            .update({
+              pack_size: l.pcsPerStrip ?? 1,
+              qty_per_box: l.pcsPerBox ?? 1,
+              purchase_price: l.purchase_price,
+              retail_price: l.sale_price,
+            })
+            .eq("id", l.productId)
+            .eq("tenant_id", tenantId),
+        ),
+      );
 
       if (paid > 0) {
         await payPO({
@@ -631,7 +686,18 @@ function MobilePurchase() {
             message={tr("এই ক্রয়ে যোগ করতে ওপরের বক্সে পণ্য খুঁজুন", "Search and add products to this purchase")}
           />
         )}
-        {lines.map((l, idx) => (
+        {lines.map((l, idx) => {
+          const unitMode = l.unitMode ?? "pc";
+          const pcsPerStrip = l.pcsPerStrip ?? 10;
+          const pcsPerBox = l.pcsPerBox ?? 100;
+          const hasStrip = l.hasStrip ?? false;
+          const units = getAvailableUnits(hasStrip, pcsPerBox);
+          const mult = getUnitMultiplier(unitMode, pcsPerStrip, pcsPerBox);
+          const totalPcs = l.qty * mult;
+          const stripCost = Math.round(l.purchase_price * pcsPerStrip * 100) / 100;
+          const stripMrp = Math.round(l.sale_price * pcsPerStrip * 100) / 100;
+
+          return (
           <PhoneCard key={l.uid} className="space-y-3">
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 font-bold text-foreground">{idx + 1}. {l.name}</p>
@@ -654,30 +720,126 @@ function MobilePurchase() {
               </div>
             </div>
 
+            {/* Unit Mode Toggle + Pack Size Config */}
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-slate-50 border border-slate-200/80 p-2">
+              <div className="inline-flex rounded-lg bg-white p-0.5 border border-slate-200">
+                {units.map((u) => {
+                  const active = unitMode === u;
+                  return (
+                    <button
+                      key={u}
+                      type="button"
+                      onClick={() => update(l.uid, { unitMode: u })}
+                      className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                        active ? "bg-[#0d5c46] text-white" : "text-slate-600"
+                      }`}
+                    >
+                      {unitLabelBn(u)}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex items-center gap-2 text-[11px]">
+                {hasStrip && (
+                  <label className="flex items-center gap-1 text-slate-600">
+                    <span>{tr("পাতায়", "Strip")}</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      inputMode="numeric"
+                      value={pcsPerStrip}
+                      onChange={(e) =>
+                        update(l.uid, { pcsPerStrip: Math.max(1, num(e.target.value) || 1) })
+                      }
+                      className="h-7 w-12 px-1 text-center text-xs bg-white"
+                    />
+                  </label>
+                )}
+                <label className="flex items-center gap-1 text-slate-600">
+                  <span>{tr("বক্সে", "Box")}</span>
+                  <Input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={pcsPerBox}
+                    onChange={(e) =>
+                      update(l.uid, { pcsPerBox: Math.max(1, num(e.target.value) || 1) })
+                    }
+                    className="h-7 w-14 px-1 text-center text-xs bg-white"
+                  />
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">{tr("ব্যাচ *", "Batch *")}</Label>
-                <Input className="h-11" value={l.batch_no} onChange={(e) => update(l.uid, { batch_no: e.target.value })} />
+                <Input className="h-10" value={l.batch_no} onChange={(e) => update(l.uid, { batch_no: e.target.value })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">{tr("মেয়াদ *", "Expiry *")}</Label>
-                <Input className="h-11" type="date" value={l.expiry_date} onChange={(e) => update(l.uid, { expiry_date: e.target.value })} />
+                <Input className="h-10" type="date" value={l.expiry_date} onChange={(e) => update(l.uid, { expiry_date: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{tr("ক্রয়মূল্য", "Cost")}</Label>
-                <Input className="h-11" type="number" inputMode="decimal" value={l.purchase_price} onChange={(e) => update(l.uid, { purchase_price: num(e.target.value) })} />
+                <Label className="text-xs">{tr("ক্রয়মূল্য (পিস)", "Cost / Pc")}</Label>
+                <Input
+                  className="h-10"
+                  type="number"
+                  inputMode="decimal"
+                  value={l.purchase_price}
+                  onChange={(e) => update(l.uid, { purchase_price: num(e.target.value) })}
+                />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">{tr("বিক্রয়মূল্য (MRP)", "MRP")}</Label>
-                <Input className="h-11" type="number" inputMode="decimal" value={l.sale_price} onChange={(e) => update(l.uid, { sale_price: num(e.target.value) })} />
+                <Label className="text-xs">{tr("বিক্রয় MRP (পিস)", "MRP / Pc")}</Label>
+                <Input
+                  className="h-10"
+                  type="number"
+                  inputMode="decimal"
+                  value={l.sale_price}
+                  onChange={(e) => update(l.uid, { sale_price: num(e.target.value) })}
+                />
               </div>
+              {hasStrip && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-[#0d5c46]">{tr("ক্রয়মূল্য (পাতা)", "Cost / Strip")}</Label>
+                    <Input
+                      className="h-10 border-emerald-200 bg-emerald-50/30"
+                      type="number"
+                      inputMode="decimal"
+                      value={stripCost}
+                      onChange={(e) =>
+                        update(l.uid, {
+                          purchase_price: Math.round((num(e.target.value) / Math.max(1, pcsPerStrip)) * 10000) / 10000,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs text-[#0d5c46]">{tr("বিক্রয় MRP (পাতা)", "MRP / Strip")}</Label>
+                    <Input
+                      className="h-10 border-emerald-200 bg-emerald-50/30"
+                      type="number"
+                      inputMode="decimal"
+                      value={stripMrp}
+                      onChange={(e) =>
+                        update(l.uid, {
+                          sale_price: Math.round((num(e.target.value) / Math.max(1, pcsPerStrip)) * 10000) / 10000,
+                        })
+                      }
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-1">
                 <Label className="text-xs">{tr("বোনাস", "Bonus")}</Label>
-                <Input className="h-11" type="number" inputMode="numeric" value={l.bonus} onChange={(e) => update(l.uid, { bonus: num(e.target.value) })} />
+                <Input className="h-10" type="number" inputMode="numeric" value={l.bonus} onChange={(e) => update(l.uid, { bonus: num(e.target.value) })} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">{tr("ডিসকাউন্ট", "Discount")}</Label>
-                <Input className="h-11" type="number" inputMode="decimal" value={l.discount} onChange={(e) => update(l.uid, { discount: num(e.target.value) })} />
+                <Input className="h-10" type="number" inputMode="decimal" value={l.discount} onChange={(e) => update(l.uid, { discount: num(e.target.value) })} />
               </div>
             </div>
 
@@ -687,7 +849,7 @@ function MobilePurchase() {
                   <Minus className="h-4 w-4" />
                 </Button>
                 <Input
-                  className="h-10 w-16 text-center"
+                  className="h-10 w-16 text-center font-bold"
                   type="number"
                   inputMode="numeric"
                   value={l.qty}
@@ -696,13 +858,18 @@ function MobilePurchase() {
                 <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => update(l.uid, { qty: l.qty + 1 })}>
                   <Plus className="h-4 w-4" />
                 </Button>
+                <span className="text-xs font-semibold text-slate-500">
+                  {unitLabelBn(unitMode)}
+                  {mult > 1 && l.qty > 0 ? ` (${totalPcs} পিস)` : ""}
+                </span>
               </div>
               <p className="font-extrabold text-primary">
-                {money(Math.max(0, l.qty * l.purchase_price - l.discount))}
+                {money(Math.max(0, totalPcs * l.purchase_price - l.discount))}
               </p>
             </div>
           </PhoneCard>
-        ))}
+          );
+        })}
 
         {lines.length > 0 && (
           <PhoneCard className="space-y-2">

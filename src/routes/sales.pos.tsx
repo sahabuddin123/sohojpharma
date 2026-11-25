@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { resolvePackConfig, supportsStripUnit } from "@/lib/medicine-units";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { POSCustomerSelect, type CustomerRow } from "@/components/pos/pos-customer-select";
@@ -111,6 +112,9 @@ type CartLine = {
   category_name?: string | null;
   manufacturer_name?: string | null;
   unit_type?: UnitType;
+  hasStrip?: boolean;
+  pcsPerStrip?: number;
+  pcsPerBox?: number;
   batch_no?: string | null;
   expiry_date?: string | null;
 };
@@ -246,22 +250,18 @@ function POSPage() {
     setCart((lines) =>
       lines.map((l) => {
         if (l.product_id !== productId) return l;
-        const base = l.base_price ?? l.unit_price;
-        let newPrice = base;
-        if (unit === "box") {
-          newPrice = Math.round(base * 10 * 100) / 100;
-        } else if (unit === "piece") {
-          newPrice = Math.max(1, Math.round((base / 10) * 100) / 100);
-        } else {
-          newPrice = base;
-        }
+        const basePc = l.base_price ?? l.unit_price;
+        const pcsPerStrip = l.pcsPerStrip ?? 10;
+        const pcsPerBox = l.pcsPerBox ?? 100;
+        const mult = unit === "box" ? pcsPerBox : unit === "pata" ? pcsPerStrip : 1;
+        const newPrice = Math.round(basePc * mult * 100) / 100;
         return {
           ...l,
           unit_type: unit,
-          base_price: base,
+          base_price: basePc,
           unit_price: newPrice,
         };
-      })
+      }),
     );
   };
 
@@ -572,6 +572,12 @@ function POSPage() {
       if (existing) {
         return c.map((l) => l.product_id === p.id ? { ...l, qty: l.qty + 1 } : l);
       }
+      const cfg = resolvePackConfig({
+        medicine_type: p.medicine_type,
+        name: p.name,
+        pack_size: p.pack_size,
+        qty_per_box: (p as any).qty_per_box,
+      });
       return [...c, {
         product_id: p.id, name: p.displayName ?? p.name, sku: p.sku,
         unit_price: p.retail_price, base_price: p.retail_price, cost: p.purchase_price,
@@ -579,7 +585,10 @@ function POSPage() {
         generic_name: p.generic_name ?? null,
         category_name: p.category_name ?? null,
         manufacturer_name: p.manufacturer_name ?? null,
-        unit_type: "pata" as UnitType,
+        unit_type: "piece" as UnitType,
+        hasStrip: cfg.hasStrip,
+        pcsPerStrip: cfg.pcsPerStrip,
+        pcsPerBox: cfg.pcsPerBox,
       }];
     });
     setQuery("");
@@ -990,10 +999,13 @@ function POSPage() {
         const lineBase = baseTotals[idx];
         const lineVat = Math.round(lineBase * (l.vat_rate / 100) * 100) / 100;
         const extraVat = Math.round((invoiceTaxAmount * (lineBase / baseSum)) * 100) / 100;
+        const mult = l.unit_type === "box" ? (l.pcsPerBox ?? 100) : l.unit_type === "pata" ? (l.pcsPerStrip ?? 10) : 1;
+        const pcsQty = l.qty * mult;
+        const pcPrice = mult > 0 ? l.unit_price / mult : l.unit_price;
         return {
           product_id: l.product_id,
-          qty: l.qty,
-          unit_price: l.unit_price,
+          qty: pcsQty,
+          unit_price: pcPrice,
           discount: l.discount,
           vat: lineVat + extraVat,
           allow_stock_override: overrideStock,
@@ -1485,8 +1497,15 @@ function POSPage() {
                 </div>
                 {cart.map((l) => {
                   const lineTotal = l.unit_price * l.qty - l.discount;
-                  const lowStock = l.stock < l.qty;
-                  const unitLabel = l.unit_type === "box" ? "বক্স" : l.unit_type === "piece" ? "পিস" : "পাতা";
+                  const mult = l.unit_type === "box" ? (l.pcsPerBox ?? 100) : l.unit_type === "pata" ? (l.pcsPerStrip ?? 10) : 1;
+                  const lowStock = l.stock < l.qty * mult;
+                  const unitLabel = l.unit_type === "box" ? "বক্স" : l.unit_type === "pata" ? "পাতা" : "পিস";
+                  const showStrip = l.hasStrip ?? supportsStripUnit(undefined, l.name);
+                  const availableUnits: UnitType[] = showStrip
+                    ? ["piece", "pata", "box"]
+                    : (l.pcsPerBox ?? 1) > 1
+                      ? ["piece", "box"]
+                      : ["piece"];
                   const batchInfo = liveBatchInfo?.earliest?.[l.product_id];
                   return (
                     <div key={l.product_id} className={cn(
@@ -1546,8 +1565,8 @@ function POSPage() {
                         {/* 1-Tap Unit Selector */}
                         <div className="flex items-center gap-1">
                           <div className="inline-flex rounded-lg bg-muted/70 p-0.5 border border-border">
-                            {(["box", "pata", "piece"] as const).map((u) => {
-                              const active = (l.unit_type || "pata") === u;
+                            {availableUnits.map((u) => {
+                              const active = (l.unit_type || "piece") === u;
                               const label = u === "box" ? "বক্স" : u === "pata" ? "পাতা" : "পিস";
                               return (
                                 <button
