@@ -252,6 +252,45 @@ export const updatePOStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const deletePurchaseOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("purchase")])
+  .inputValidator(z.object({ id: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    const { data: poRow, error: fErr } = await context.supabase
+      .from("purchase_orders")
+      .select("id, tenant_id, branch_id, status, po_number")
+      .eq("id", data.id)
+      .single();
+    if (fErr || !poRow) throw new Error("Purchase order not found");
+    if (poRow.branch_id) await assertBranchWrite(context.supabase, poRow.tenant_id, poRow.branch_id);
+    if (["received", "partially_received"].includes(poRow.status ?? "")) {
+      throw new Error("রিসিভ হওয়া ক্রয় মুছে ফেলা যাবে না — প্রয়োজনে ক্রয় রিটার্ন করুন");
+    }
+
+    const { error: iErr } = await context.supabase
+      .from("purchase_order_items")
+      .delete()
+      .eq("purchase_order_id", data.id);
+    if (iErr) throw new Error(iErr.message);
+
+    const { error: dErr } = await context.supabase
+      .from("purchase_orders")
+      .delete()
+      .eq("id", data.id);
+    if (dErr) throw new Error(dErr.message);
+
+    await context.supabase.from("audit_log").insert({
+      tenant_id: poRow.tenant_id,
+      branch_id: poRow.branch_id ?? null,
+      user_id: context.userId,
+      action: "po.delete",
+      entity_table: "purchase_orders",
+      entity_id: data.id,
+      before_data: { po_number: poRow.po_number, status: poRow.status },
+    });
+    return { ok: true };
+  });
+
 // RECEIVE (full or partial) — creates batches + stock_movements + GRN
 export const receivePurchaseOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("purchase")])
