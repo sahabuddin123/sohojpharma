@@ -74,6 +74,7 @@ function MobilePurchase() {
   const payPO = useServerFn(recordSupplierPayment);
 
   const [supplierId, setSupplierId] = useState("");
+  const [supplierQuery, setSupplierQuery] = useState("");
   const [addSupOpen, setAddSupOpen] = useState(false);
   const [companyQuery, setCompanyQuery] = useState("");
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
@@ -159,6 +160,15 @@ function MobilePurchase() {
     },
   });
   const supplier = suppliers.find((s) => s.id === supplierId) ?? null;
+  const filteredSuppliers = useMemo(() => {
+    const q = supplierQuery.trim().toLowerCase();
+    if (!q) return [];
+    return suppliers.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.phone && s.phone.toLowerCase().includes(q)),
+    );
+  }, [suppliers, supplierQuery]);
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ["m-purchase-search", tenantId, debounced],
@@ -292,27 +302,65 @@ function MobilePurchase() {
               {tr("+ নতুন সরবরাহকারী", "+ Add Supplier")}
             </button>
           </div>
-          <Select value={supplierId} onValueChange={setSupplierId}>
-            <SelectTrigger className="h-11">
-              <SelectValue
-                placeholder={
-                  suppliers.length
-                    ? tr("সরবরাহকারী নির্বাচন করুন", "Select supplier")
-                    : tr("কোনো সরবরাহকারী নেই — নতুন যোগ করুন", "No suppliers yet — add one")
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {suppliers.map((s) => (
-                <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {supplier && (
-            <p className="text-xs text-muted-foreground">
-              {tr("বাকি", "Due")}: {money(Number(supplier.due_balance ?? 0))}
-              {supplier.phone ? ` · ${supplier.phone}` : ""}
-            </p>
+          {supplier ? (
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-200 bg-emerald-50/70 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-900 truncate">{supplier.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {tr("বাকি", "Due")}: {money(Number(supplier.due_balance ?? 0))}
+                  {supplier.phone ? ` · ${supplier.phone}` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSupplierId("");
+                  setSupplierQuery("");
+                }}
+                className="rounded-full p-1 text-slate-500 hover:bg-white"
+                aria-label="Clear supplier"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={supplierQuery}
+                  onChange={(e) => setSupplierQuery(e.target.value)}
+                  placeholder={
+                    suppliers.length
+                      ? tr("নাম বা ফোন দিয়ে সরবরাহকারী খুঁজুন...", "Search supplier by name or phone...")
+                      : tr("কোনো সরবরাহকারী নেই — নতুন যোগ করুন", "No suppliers yet — add one")
+                  }
+                  className="h-11 pl-9"
+                />
+              </div>
+              {supplierQuery.trim().length > 0 && filteredSuppliers.length > 0 ? (
+                <div className="max-h-40 overflow-y-auto space-y-1 rounded-xl border border-slate-200 bg-white p-1 shadow-xs">
+                  {filteredSuppliers.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => {
+                        setSupplierId(s.id);
+                        setSupplierQuery("");
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50"
+                    >
+                      <span className="font-semibold text-slate-900 truncate">{s.name}</span>
+                      <span className="shrink-0 text-[11px] text-slate-500">{s.phone || ""}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : supplierQuery.trim().length > 0 ? (
+                <p className="px-1 text-[11px] text-slate-500">
+                  {tr("কোনো সরবরাহকারী পাওয়া যায়নি", "No supplier found")}
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
         <div className="grid grid-cols-2 gap-3">
