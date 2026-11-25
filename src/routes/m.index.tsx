@@ -123,25 +123,48 @@ function PhoneHome() {
       <h1 className="sr-only">Pharmacy phone home</h1>
 
       {/* Today's Live Snapshot + Quick Actions */}
-      <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-        <div className="grid grid-cols-2 gap-3 text-center">
-          <div className="rounded-xl bg-slate-50/80 px-2 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">আজকের বিক্রি</p>
-            <p className="mt-0.5 text-base font-extrabold text-slate-900">
+      <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] space-y-2.5">
+        {/* Row 1: Total Sale, Cash Sale, Due Sale */}
+        <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-slate-50 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">মোট বিক্রি</p>
+            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
               ৳{formatMoney(data?.kpi.todaySales)}
             </p>
           </div>
-          <div className="rounded-xl bg-rose-50/60 px-2 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">আজকের খরচ</p>
-            <p className="mt-0.5 text-base font-extrabold text-rose-600">
+          <div className="rounded-xl bg-emerald-50/70 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">নগদ বিক্রি</p>
+            <p className="mt-0.5 text-sm font-extrabold text-[#0d6e4e]">
+              ৳{formatMoney(data?.kpi.todayCashSale)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-amber-50/70 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">বাকি বিক্রি</p>
+            <p className="mt-0.5 text-sm font-extrabold text-amber-700">
+              ৳{formatMoney(data?.kpi.todayDueSale)}
+            </p>
+          </div>
+        </div>
+
+        {/* Row 2: Due Collection, Expense, Net Profit */}
+        <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-xl bg-sky-50/70 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">বাকি আদায়</p>
+            <p className="mt-0.5 text-sm font-extrabold text-sky-700">
+              ৳{formatMoney(data?.kpi.dueCollection)}
+            </p>
+          </div>
+          <div className="rounded-xl bg-rose-50/70 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">আজকের খরচ</p>
+            <p className="mt-0.5 text-sm font-extrabold text-rose-600">
               ৳{formatMoney(data?.kpi.todayExpense)}
             </p>
           </div>
-          <div className="rounded-xl bg-emerald-50/60 px-2 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">আজকের নিট লাভ</p>
+          <div className="rounded-xl bg-emerald-50/60 px-1.5 py-2">
+            <p className="text-[10px] font-medium text-slate-500">নিট লাভ</p>
             <p
               className={cn(
-                "mt-0.5 text-base font-extrabold",
+                "mt-0.5 text-sm font-extrabold",
                 Number(data?.kpi.todayProfit ?? 0) < 0 ? "text-rose-600" : "text-[#0d6e4e]",
               )}
             >
@@ -149,15 +172,17 @@ function PhoneHome() {
               {formatMoney(Math.abs(Number(data?.kpi.todayProfit ?? 0)))}
             </p>
           </div>
-          <div className="rounded-xl bg-slate-50/80 px-2 py-2.5">
-            <p className="text-[11px] font-medium text-slate-500">হাতে ক্যাশ</p>
-            <p className="mt-0.5 text-base font-extrabold text-slate-900">
-              ৳{formatMoney(data?.kpi.cashInHand)}
-            </p>
-          </div>
         </div>
 
-        <div className="mt-3.5 grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-3">
+        {/* Row 3: Hand Cash Highlight */}
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
+          <span className="text-xs font-semibold text-slate-700">হাতে ক্যাশ (Hand Cash)</span>
+          <span className="text-base font-extrabold text-[#0d5c46]">
+            ৳{formatMoney(data?.kpi.cashInHand)}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-2.5">
           <Link
             to={"/m/sale" as never}
             className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0d5c46] py-2.5 text-xs font-bold text-white shadow-xs active:scale-[0.98] transition"

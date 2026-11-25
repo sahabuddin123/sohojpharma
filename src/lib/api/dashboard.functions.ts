@@ -23,6 +23,7 @@ type NotificationRow = {
 export interface StoreDashboardData {
   kpi: {
     todaySales: number; todayPurchase: number; todayProfit: number; todayExpense?: number;
+    todayCashSale?: number; todayDueSale?: number;
     cashInHand: number; bankBalance: number; dueCollection: number;
     totalCustomers: number; totalSuppliers: number; totalProducts: number;
     lowStock: number; expired: number; nearExpiry: number;
@@ -201,7 +202,7 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const [{ data: expRows }, { data: todaySaleItems }] = await Promise.all([
+    const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }] = await Promise.all([
       context.supabase
         .from("expenses")
         .select("amount")
@@ -213,7 +214,22 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
         .eq("tenant_id", data.tenant_id)
         .gte("created_at", `${todayStr}T00:00:00`)
         .neq("sale.status", "void"),
+      context.supabase
+        .from("sales")
+        .select("total, paid, due")
+        .eq("tenant_id", data.tenant_id)
+        .gte("created_at", `${todayStr}T00:00:00`)
+        .neq("status", "void"),
     ]);
+
+    let todayCashSale = 0;
+    let todayDueSale = 0;
+    for (const s of todaySalesRows ?? []) {
+      todayCashSale += Number(s.paid ?? 0);
+      todayDueSale += Number(s.due ?? 0);
+    }
+    result.kpi.todayCashSale = Number(todayCashSale.toFixed(2));
+    result.kpi.todayDueSale = Number(todayDueSale.toFixed(2));
 
     const todayExpense = Number(
       (expRows ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0).toFixed(2),
