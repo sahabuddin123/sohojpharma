@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useRegisterSummary, type ActiveRegister } from "@/hooks/use-active-register";
+import { useRegisterSummary, type ActiveRegister, type RegisterSummary } from "@/hooks/use-active-register";
 import { Wallet, ArrowUpFromLine, ArrowDownToLine, Receipt, Clock, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
@@ -207,7 +207,12 @@ export function CloseRegisterDialog({
   const { data: sum } = useRegisterSummary(register?.id);
   const [actual, setActual] = useState("");
   const [notes, setNotes] = useState("");
-  const [done, setDone] = useState<{ expected: number; actual: number } | null>(null);
+  const [done, setDone] = useState<{
+    expected: number;
+    actual: number;
+    registerName: string;
+    summary: RegisterSummary | null;
+  } | null>(null);
 
   const DENOMS = [1000, 500, 200, 100, 50, 20, 10, 5, 2, 1] as const;
   const [counts, setCounts] = useState<Record<number, number>>({});
@@ -244,7 +249,12 @@ export function CloseRegisterDialog({
       return amt;
     },
     onSuccess: (amt) => {
-      setDone({ expected, actual: amt });
+      setDone({
+        expected,
+        actual: amt,
+        registerName: register?.register_name ?? "",
+        summary: sum ?? null,
+      });
       toast.success(t("toast.registerClosed"));
       qc.invalidateQueries({ queryKey: ["active-register"] });
       qc.invalidateQueries({ queryKey: ["register-history"] });
@@ -393,20 +403,20 @@ export function CloseRegisterDialog({
                   {t("ipos.shiftReport")}
                 </div>
                 <div style={{ textAlign: "center", fontSize: 11, marginBottom: 8 }}>
-                  {register?.register_name ?? ""}<br />
+                  {done.registerName}<br />
                   {new Date().toLocaleString()}
                 </div>
                 <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
                 <table style={{ width: "100%", fontSize: 12 }}>
                   <tbody>
-                    <tr><td>{t("ipos.openingCashRow")}</td><td style={{ textAlign: "right" }}>৳ {(sum?.opening_cash ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.cashSales")}</td><td style={{ textAlign: "right" }}>৳ {(sum?.cash_sales ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.dueCollectionCash")}</td><td style={{ textAlign: "right" }}>৳ {(sum?.due_collection_cash ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.cashInRow")}</td><td style={{ textAlign: "right" }}>৳ {(sum?.cash_in ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.refundsCash")}</td><td style={{ textAlign: "right" }}>-৳ {(sum?.refunds_cash ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.expensesCash")}</td><td style={{ textAlign: "right" }}>-৳ {(sum?.expenses_cash ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.supplierPaidCash")}</td><td style={{ textAlign: "right" }}>-৳ {(sum?.supplier_payment_cash ?? 0).toFixed(2)}</td></tr>
-                    <tr><td>{t("ipos.cashOutRow")}</td><td style={{ textAlign: "right" }}>-৳ {(sum?.cash_out ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.openingCashRow")}</td><td style={{ textAlign: "right" }}>৳ {(done.summary?.opening_cash ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.cashSales")}</td><td style={{ textAlign: "right" }}>৳ {(done.summary?.cash_sales ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.dueCollectionCash")}</td><td style={{ textAlign: "right" }}>৳ {(done.summary?.due_collection_cash ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.cashInRow")}</td><td style={{ textAlign: "right" }}>৳ {(done.summary?.cash_in ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.refundsCash")}</td><td style={{ textAlign: "right" }}>-৳ {(done.summary?.refunds_cash ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.expensesCash")}</td><td style={{ textAlign: "right" }}>-৳ {(done.summary?.expenses_cash ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.supplierPaidCash")}</td><td style={{ textAlign: "right" }}>-৳ {(done.summary?.supplier_payment_cash ?? 0).toFixed(2)}</td></tr>
+                    <tr><td>{t("ipos.cashOutRow")}</td><td style={{ textAlign: "right" }}>-৳ {(done.summary?.cash_out ?? 0).toFixed(2)}</td></tr>
                   </tbody>
                 </table>
                 <div style={{ borderTop: "1px dashed #000", margin: "6px 0" }} />
