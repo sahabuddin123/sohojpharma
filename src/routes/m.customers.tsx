@@ -1,28 +1,28 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ChevronRight, Search, UserRound } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import {
-  PhoneCard,
-  PhoneChip,
-  PhoneChipRow,
   PhoneEmpty,
   PhoneKpi,
   PhoneKpiGrid,
   money,
 } from "@/components/mobile/phone-ui";
+import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/customers")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
   head: () => ({
     meta: [
-      { title: "Customers — Pharmacy Phone App" },
-      { name: "description", content: "Customer dues, advances and contact list on your phone." },
-      { property: "og:title", content: "Customers — Pharmacy Phone App" },
-      { property: "og:description", content: "Track customer due and advance balances from your phone." },
+      { title: "গ্রাহক তালিকা — SohojPharma" },
+      { name: "description", content: "গ্রাহকের বাকি, অগ্রিম ও পূর্ণ লেজার দেখুন।" },
+      { property: "og:title", content: "গ্রাহক তালিকা — SohojPharma" },
+      { property: "og:description", content: "মোবাইলে গ্রাহকের বকেয়া ও লেজার দেখুন।" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -35,6 +35,7 @@ type Row = { id: string; name: string; phone: string | null; due_balance: number
 function MobileCustomers() {
   const { currentTenantId } = useAuth();
   const [filter, setFilter] = useState<"all" | "due" | "advance">("all");
+  const [search, setSearch] = useState("");
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["m-customers", currentTenantId],
@@ -45,7 +46,7 @@ function MobileCustomers() {
         .select("id,name,phone,due_balance")
         .eq("tenant_id", currentTenantId!)
         .eq("is_active", true)
-        .order("name")
+        .order("due_balance", { ascending: false })
         .limit(500);
       if (error) throw error;
       return (data ?? []) as Row[];
@@ -62,62 +63,110 @@ function MobileCustomers() {
     return { due, adv, dueCount, advCount };
   }, [data]);
 
-  const rows = useMemo(
-    () =>
-      data.filter((r) => {
-        const b = Number(r.due_balance ?? 0);
-        if (filter === "due") return b > 0;
-        if (filter === "advance") return b < 0;
-        return true;
-      }),
-    [data, filter],
-  );
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return data.filter((r) => {
+      const b = Number(r.due_balance ?? 0);
+      if (filter === "due" && b <= 0) return false;
+      if (filter === "advance" && b >= 0) return false;
+      if (!q) return true;
+      return (
+        r.name.toLowerCase().includes(q) ||
+        (r.phone?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [data, filter, search]);
 
   return (
-    <PhoneShell title="Customer" back>
+    <PhoneShell title="গ্রাহক তালিকা" back>
       <PhoneKpiGrid>
-        <PhoneKpi tone="rose" accent="danger" value={money(stats.due)} label="Total Due Balance" />
-        <PhoneKpi tone="sky" accent="info" value={money(stats.adv)} label="Total Advance Balance" />
-        <PhoneKpi tone="rose" accent="danger" value={stats.dueCount} label="No of Due Customer" />
-        <PhoneKpi tone="sky" accent="info" value={stats.advCount} label="No of Advance Customer" />
+        <PhoneKpi tone="rose" accent="danger" value={money(stats.due)} label="মোট বাকি" />
+        <PhoneKpi tone="sky" accent="info" value={money(stats.adv)} label="মোট অগ্রিম" />
+        <PhoneKpi tone="rose" accent="danger" value={stats.dueCount} label="বাকি গ্রাহক" />
+        <PhoneKpi tone="sky" accent="info" value={stats.advCount} label="অগ্রিম গ্রাহক" />
       </PhoneKpiGrid>
 
-      <PhoneChipRow>
-        <PhoneChip active={filter === "all"} onClick={() => setFilter("all")}>All</PhoneChip>
-        <PhoneChip active={filter === "due"} onClick={() => setFilter("due")}>Due</PhoneChip>
-        <PhoneChip active={filter === "advance"} onClick={() => setFilter("advance")}>Advance</PhoneChip>
-      </PhoneChipRow>
+      <div className="mt-3 space-y-2.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="গ্রাহকের নাম বা ফোন দিয়ে খুঁজুন..."
+            className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs"
+          />
+        </div>
 
-      <div className="mt-3 space-y-3">
-        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">Loading…</p>}
+        <div className="phone-grid-keep grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
+          {(
+            [
+              { id: "all", label: `সব (${data.length})` },
+              { id: "due", label: `বাকি (${stats.dueCount})` },
+              { id: "advance", label: `অগ্রিম (${stats.advCount})` },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setFilter(t.id)}
+              className={cn(
+                "rounded-full py-1.5 text-[11px] font-semibold transition",
+                filter === t.id
+                  ? "bg-white text-[#0d5c46] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-3 space-y-2.5">
+        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">লোড হচ্ছে…</p>}
         {!isLoading && rows.length === 0 && (
-          <PhoneEmpty message="No customer found for this filter" />
+          <PhoneEmpty message="কোনো গ্রাহক পাওয়া যায়নি" />
         )}
         {rows.map((r) => {
           const b = Number(r.due_balance ?? 0);
           return (
-            <PhoneCard key={r.id}>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate font-bold text-foreground">{r.name}</p>
-                  <p className="truncate text-sm text-primary">{r.phone ?? "—"}</p>
+            <Link
+              key={r.id}
+              to={"/m/customer/$id" as never}
+              params={{ id: r.id } as never}
+              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_1px_4px_rgba(0,0,0,0.03)] active:scale-[0.99] transition hover:border-[#0d5c46]/40"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-50 text-[#0d5c46]">
+                  <UserRound className="h-5 w-5" />
                 </div>
-                <div className="shrink-0 text-right">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-extrabold text-slate-900">{r.name}</p>
+                  <p className="truncate text-xs text-slate-500">{r.phone ?? "ফোন নেই"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="text-right">
                   <p
-                    className={
-                      b > 0 ? "font-bold text-destructive" : b < 0 ? "font-bold text-primary" : "font-semibold"
-                    }
+                    className={cn(
+                      "text-sm font-extrabold",
+                      b > 0 ? "text-rose-600" : b < 0 ? "text-[#0d5c46]" : "text-slate-600",
+                    )}
                   >
                     {money(Math.abs(b))}
                   </p>
-                  {b !== 0 && (
-                    <p className={b > 0 ? "text-sm font-semibold text-destructive" : "text-sm font-semibold text-primary"}>
-                      {b > 0 ? "Due" : "Advance"}
-                    </p>
-                  )}
+                  <p
+                    className={cn(
+                      "text-[10px] font-bold",
+                      b > 0 ? "text-rose-600" : b < 0 ? "text-[#0d5c46]" : "text-slate-400",
+                    )}
+                  >
+                    {b > 0 ? "বাকি" : b < 0 ? "অগ্রিম" : "পরিশোধিত"}
+                  </p>
                 </div>
+                <ChevronRight className="h-4 w-4 text-slate-400" />
               </div>
-            </PhoneCard>
+            </Link>
           );
         })}
       </div>
