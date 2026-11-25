@@ -299,7 +299,7 @@ function MobileSaleReturns() {
 
       {/* Return Modal */}
       <Dialog open={!!selectedSale} onOpenChange={(o) => !o && setSelectedSale(null)}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto rounded-3xl">
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md max-h-[90vh] overflow-y-auto overflow-x-hidden rounded-3xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base font-bold text-[#0d5c46]">
               <Undo2 className="h-5 w-5" />
@@ -330,7 +330,7 @@ function MobileSaleReturns() {
                 </button>
               </div>
 
-              <div className="space-y-2 max-h-60 overflow-y-auto">
+              <div className="space-y-2 max-h-56 overflow-y-auto">
                 {items.map((it) => {
                   const maxRet = Math.max(0, it.qty - it.returned_qty);
                   const cur = returnQty[it.id] || 0;
@@ -338,49 +338,52 @@ function MobileSaleReturns() {
                   return (
                     <div
                       key={it.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 p-2.5 text-xs"
+                      className="rounded-xl border border-slate-200 p-2.5 text-xs space-y-2"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-bold text-slate-900 truncate">{name}</p>
+                      <div className="min-w-0">
+                        <p className="font-bold text-slate-900 break-words leading-snug">{name}</p>
                         <p className="text-[11px] text-slate-500">
                           বিক্রি: {it.qty} · বাকি রিটার্নযোগ্য: {maxRet} · ৳{it.unit_price}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          className="h-7 w-7 rounded-lg"
-                          disabled={cur <= 0}
-                          onClick={() =>
-                            setReturnQty((prev) => ({ ...prev, [it.id]: Math.max(0, cur - 1) }))
-                          }
-                        >
-                          <Minus className="h-3 w-3" />
-                        </Button>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={maxRet}
-                          value={cur}
-                          onChange={(e) => {
-                            const v = Math.min(maxRet, Math.max(0, Number(e.target.value) || 0));
-                            setReturnQty((prev) => ({ ...prev, [it.id]: v }));
-                          }}
-                          className="h-7 w-12 px-1 text-center text-xs font-bold"
-                        />
-                        <Button
-                          type="button"
-                          size="icon"
-                          className="h-7 w-7 rounded-lg bg-[#0d5c46] text-white"
-                          disabled={cur >= maxRet}
-                          onClick={() =>
-                            setReturnQty((prev) => ({ ...prev, [it.id]: Math.min(maxRet, cur + 1) }))
-                          }
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                        <span className="text-[11px] font-medium text-slate-500">রিটার্ন পরিমাণ</span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="outline"
+                            className="h-7 w-7 rounded-lg"
+                            disabled={cur <= 0}
+                            onClick={() =>
+                              setReturnQty((prev) => ({ ...prev, [it.id]: Math.max(0, cur - 1) }))
+                            }
+                          >
+                            <Minus className="h-3 w-3" />
+                          </Button>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={maxRet}
+                            value={cur}
+                            onChange={(e) => {
+                              const v = Math.min(maxRet, Math.max(0, Number(e.target.value) || 0));
+                              setReturnQty((prev) => ({ ...prev, [it.id]: v }));
+                            }}
+                            className="h-7 w-12 px-1 text-center text-xs font-bold"
+                          />
+                          <Button
+                            type="button"
+                            size="icon"
+                            className="h-7 w-7 rounded-lg bg-[#0d5c46] text-white"
+                            disabled={cur >= maxRet}
+                            onClick={() =>
+                              setReturnQty((prev) => ({ ...prev, [it.id]: Math.min(maxRet, cur + 1) }))
+                            }
+                          >
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   );
