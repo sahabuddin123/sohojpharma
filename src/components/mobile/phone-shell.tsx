@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle, Settings } from "lucide-react";
+import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { SupportTicketDialog } from "./support-ticket-dialog";
@@ -21,8 +21,19 @@ export function PhoneHeader({
   back?: boolean;
   help?: ReactNode;
 }) {
-  const { memberships, currentTenantId } = useAuth();
+  const { memberships, currentTenantId, user } = useAuth();
   const [supportOpen, setSupportOpen] = useState(false);
+
+  const meta = (user?.user_metadata ?? {}) as { full_name?: string; avatar_url?: string };
+  const avatarUrl = meta.avatar_url;
+  const displayName = meta.full_name || user?.email || "User";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ?? "")
+      .join("") || "U";
   const tenantName =
     memberships.find((m) => m.tenant_id === currentTenantId)?.tenants?.name ?? "SohojPharma";
 
@@ -68,11 +79,19 @@ export function PhoneHeader({
             )}
             <Link
               to={"/m/settings" as never}
-              aria-label="সেটিংস ও প্রোফাইল"
-              title="সেটিংস ও প্রোফাইল"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/20"
+              aria-label="প্রোফাইল ও সেটিংস"
+              title="প্রোফাইল ও সেটিংস"
+              className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/20 text-xs font-extrabold tracking-wide text-white ring-2 ring-white/45 shadow-sm backdrop-blur-md active:scale-95 transition-transform hover:bg-white/30"
             >
-              <Settings className="h-4.5 w-4.5" />
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span>{initials}</span>
+              )}
             </Link>
           </div>
         </div>

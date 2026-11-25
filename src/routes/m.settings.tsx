@@ -1,6 +1,20 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { KeyRound, Loader2, LogOut, Save, Store, UserRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import {
+  Camera,
+  KeyRound,
+  Languages,
+  Loader2,
+  LogOut,
+  Moon,
+  Save,
+  ShieldCheck,
+  Store,
+  Sun,
+  Trash2,
+  UserRound,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -10,6 +24,8 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePharmacyProfile } from "@/hooks/use-pharmacy-profile";
+import { validateAndResizeAvatar } from "@/lib/image-security";
+import { useUIStore, type Language, type Theme } from "@/stores/ui-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/settings")({
@@ -64,15 +80,29 @@ function MobileSettings() {
   }, [profile]);
 
   // User profile form
-  const meta = (user?.user_metadata ?? {}) as { full_name?: string; phone?: string };
+  const meta = (user?.user_metadata ?? {}) as {
+    full_name?: string;
+    phone?: string;
+    avatar_url?: string;
+  };
   const [fullName, setFullName] = useState(meta.full_name ?? "");
   const [userPhone, setUserPhone] = useState(meta.phone ?? "");
+  const [avatarUrl, setAvatarUrl] = useState(meta.avatar_url ?? "");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarScanNote, setAvatarScanNote] = useState<string | null>(null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const { i18n } = useTranslation();
+  const { theme, setTheme, language, setLanguage } = useUIStore();
+  const activeLanguage: Language =
+    ((i18n.resolvedLanguage ?? language) === "bn" ? "bn" : "en");
 
   useEffect(() => {
     setFullName(meta.full_name ?? "");
     setUserPhone(meta.phone ?? "");
-  }, [meta.full_name, meta.phone]);
+    setAvatarUrl(meta.avatar_url ?? "");
+  }, [meta.full_name, meta.phone, meta.avatar_url]);
 
   // Password change form
   const [newPassword, setNewPassword] = useState("");
@@ -118,6 +148,86 @@ function MobileSettings() {
     }
   }
 
+  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingAvatar(true);
+    setAvatarScanNote(null);
+    try {
+      // 1. Security scan (MIME, extension, magic bytes, script/polyglot scan) + 256x256 resize
+      const processed = await validateAndResizeAvatar(file);
+
+      let nextUrl = processed.dataUrl;
+      if (user?.id) {
+        const folder = tenantId || user.id;
+        const path = `${folder}/avatar-${user.id}-${Date.now()}.jpg`;
+        const { error: upErr } = await supabase.storage
+          .from("branding")
+          .upload(path, processed.blob, { upsert: false, contentType: "image/jpeg" });
+        if (!upErr) {
+          const { data: signed } = await supabase.storage
+            .from("branding")
+            .createSignedUrl(path, 60 * 60 * 24 * 365);
+          if (signed?.signedUrl) {
+            nextUrl = signed.signedUrl;
+          }
+        }
+      }
+
+      const { error: authErr } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName.trim(),
+          phone: userPhone.trim(),
+          avatar_url: nextUrl,
+        },
+      });
+      if (authErr) throw authErr;
+
+      setAvatarUrl(nextUrl);
+      const kb = Math.max(1, Math.round(processed.finalBytes / 1024));
+      setAvatarScanNote(`নিরাপত্তা যাচাই সম্পন্ন • ২৫৬×২৫৬ (${kb} KB)`);
+      toast.success("প্রোফাইল ছবি নিরাপদভাবে আপলোড হয়েছে!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ছবি আপলোড করা যায়নি");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          full_name: fullName.trim(),
+          phone: userPhone.trim(),
+          avatar_url: null,
+        },
+      });
+      if (error) throw error;
+      setAvatarUrl("");
+      setAvatarScanNote(null);
+      toast.success("প্রোফাইল ছবি সরানো হয়েছে");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ছবি সরানো যায়নি");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  function handleSelectTheme(next: Theme) {
+    setTheme(next);
+    toast.success(next === "dark" ? "ডার্ক থিম চালু হয়েছে" : "লাইট থিম চালু হয়েছে");
+  }
+
+  async function handleSelectLanguage(next: Language) {
+    setLanguage(next);
+    await i18n.changeLanguage(next).catch(() => {});
+    toast.success(next === "bn" ? "ভাষা বাংলা নির্ধারিত হয়েছে" : "Language set to English");
+  }
+
   async function handleSaveUserProfile(e: React.FormEvent) {
     e.preventDefault();
     setSavingProfile(true);
@@ -126,6 +236,7 @@ function MobileSettings() {
         data: {
           full_name: fullName.trim(),
           phone: userPhone.trim(),
+          avatar_url: avatarUrl || null,
         },
       });
       if (error) throw error;
@@ -323,16 +434,74 @@ function MobileSettings() {
       {tab === "profile" && (
         <form onSubmit={handleSaveUserProfile} className="mt-3 space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
           <div className="flex items-center gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-[#0d5c46] text-base font-extrabold text-white">
-              {(fullName || user?.email || "U").slice(0, 2).toUpperCase()}
+            <div className="relative shrink-0">
+              <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-full bg-[#0d5c46] text-lg font-extrabold text-white ring-2 ring-emerald-200">
+                {avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt={fullName || "Avatar"}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (fullName || user?.email || "U").slice(0, 2).toUpperCase()
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={uploadingAvatar}
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="প্রোফাইল ছবি আপলোড করুন"
+                className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full bg-[#0d5c46] text-white ring-2 ring-white shadow-sm hover:bg-[#094735] active:scale-95 transition"
+              >
+                {uploadingAvatar ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Camera className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleAvatarSelect}
+              />
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-900">{fullName || "Store User"}</p>
               <p className="truncate text-xs text-slate-500">{user?.email ?? "—"}</p>
-              <span className="mt-1 inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-[#0d5c46]">
-                {roleName}
-              </span>
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span className="inline-block rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase text-[#0d5c46]">
+                  {roleName}
+                </span>
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    disabled={uploadingAvatar}
+                    onClick={handleRemoveAvatar}
+                    className="inline-flex items-center gap-0.5 rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600 hover:bg-rose-100"
+                  >
+                    <Trash2 className="h-2.5 w-2.5" />
+                    ছবি সরান
+                  </button>
+                )}
+              </div>
             </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-[11px] text-[#0d5c46]">
+            <span className="flex items-center gap-1.5 font-medium">
+              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+              {avatarScanNote ?? "JPG/PNG/WebP • সিকিউরিটি স্ক্যান ও ২৫৬×২৫৬ অটো-রিসাইজ"}
+            </span>
+            <button
+              type="button"
+              disabled={uploadingAvatar}
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 font-bold underline underline-offset-2"
+            >
+              ছবি বদলান
+            </button>
           </div>
 
           <div className="space-y-1">
@@ -401,6 +570,82 @@ function MobileSettings() {
           </Button>
         </form>
       )}
+
+      {/* Theme & Language Preferences */}
+      <div className="mt-3 space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-slate-900">অ্যাপের থিম (Theme)</p>
+            <p className="text-[11px] text-slate-500">লাইট অথবা ডার্ক মোড বেছে নিন</p>
+          </div>
+          <div className="phone-grid-keep grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => handleSelectTheme("light")}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                theme === "light"
+                  ? "bg-white text-[#0d5c46] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              <Sun className="h-3.5 w-3.5" />
+              লাইট
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectTheme("dark")}
+              className={cn(
+                "flex items-center gap-1 rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                theme === "dark"
+                  ? "bg-slate-900 text-white shadow-xs"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              <Moon className="h-3.5 w-3.5" />
+              ডার্ক
+            </button>
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-100" />
+
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1 text-xs font-bold text-slate-900">
+              <Languages className="h-3.5 w-3.5 text-[#0d5c46]" />
+              ভাষা (Language)
+            </p>
+            <p className="text-[11px] text-slate-500">বাংলা অথবা English নির্বাচন করুন</p>
+          </div>
+          <div className="phone-grid-keep grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1">
+            <button
+              type="button"
+              onClick={() => handleSelectLanguage("bn")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                activeLanguage === "bn"
+                  ? "bg-white text-[#0d5c46] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              বাংলা
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectLanguage("en")}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
+                activeLanguage === "en"
+                  ? "bg-white text-[#0d5c46] shadow-xs"
+                  : "text-slate-600 hover:text-slate-900",
+              )}
+            >
+              English
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* Logout Button */}
       <div className="mt-4">
