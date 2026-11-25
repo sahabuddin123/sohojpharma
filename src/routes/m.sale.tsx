@@ -504,7 +504,7 @@ type CustomerLite = {
   id: string;
   name: string;
   phone: string | null;
-  current_balance?: number | null;
+  due_balance?: number | null;
 };
 
 function BillingSheet({
@@ -558,17 +558,17 @@ function BillingSheet({
     queryFn: async (): Promise<CustomerLite[]> => {
       let q = supabase
         .from("customers")
-        .select("id, name, phone, current_balance")
+        .select("id, name, phone, due_balance")
         .eq("tenant_id", tenantId)
-        .is("deleted_at", null)
+        .eq("is_active", true)
         .order("name")
-        .limit(15);
+        .limit(20);
       const term = custQuery.trim();
       if (term) {
         q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
       }
       const { data, error } = await q;
-      if (error) return [];
+      if (error) throw error;
       return (data ?? []) as CustomerLite[];
     },
   });
@@ -596,7 +596,7 @@ function BillingSheet({
         id: (created as any).id,
         name: (created as any).name ?? newCustName.trim(),
         phone: (created as any).phone ?? newCustPhone.trim(),
-        current_balance: 0,
+        due_balance: 0,
       };
       setSelectedCustomer(cust);
       setShowAddCust(false);
@@ -707,8 +707,8 @@ function BillingSheet({
                     <p className="text-xs font-bold text-slate-900 truncate">{selectedCustomer.name}</p>
                     <p className="text-[11px] text-slate-500">
                       {selectedCustomer.phone || "ফোন নেই"}
-                      {Number(selectedCustomer.current_balance ?? 0) > 0 &&
-                        ` · পূর্বের বাকি: ৳${Number(selectedCustomer.current_balance).toFixed(0)}`}
+                      {Number(selectedCustomer.due_balance ?? 0) > 0 &&
+                        ` · পূর্বের বাকি: ৳${Number(selectedCustomer.due_balance).toFixed(0)}`}
                     </p>
                   </div>
                   <button
@@ -758,7 +758,7 @@ function BillingSheet({
                     placeholder="নাম বা ফোন দিয়ে খুঁজুন (ঐচ্ছিক — সাধারণ গ্রাহক)..."
                     className="h-9 bg-white text-xs"
                   />
-                  {customerList.length > 0 && (
+                  {customerList.length > 0 ? (
                     <div className="max-h-28 overflow-y-auto space-y-1 rounded-lg border border-slate-200 bg-white p-1">
                       {customerList.map((c) => (
                         <button
@@ -775,7 +775,11 @@ function BillingSheet({
                         </button>
                       ))}
                     </div>
-                  )}
+                  ) : custQuery.trim().length > 0 ? (
+                    <p className="px-2 py-1 text-[11px] text-slate-500">
+                      "{custQuery.trim()}" নামে কোনো গ্রাহক পাওয়া যায়নি
+                    </p>
+                  ) : null}
                 </div>
               )}
             </div>
