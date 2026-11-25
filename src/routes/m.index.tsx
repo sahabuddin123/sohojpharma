@@ -100,7 +100,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
       { to: "/m/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
       { to: "/m/income", label: "আয়", icon: PiggyBank, tone: "emerald" },
       { to: "/m/credit-adjustment", label: "ক্রেডিট অ্যাডজাস্ট", icon: Scale, tone: "amber" },
-      { to: "/dena-paona", label: "দেনা-পাওনা", icon: BookOpenCheck, tone: "indigo" },
+      { to: "/m/dena-paona", label: "দেনা-পাওনা", icon: BookOpenCheck, tone: "indigo" },
       { to: "/m/settings", label: "সেটিংস ও প্রোফাইল", icon: Settings, tone: "teal" },
     ],
   },
