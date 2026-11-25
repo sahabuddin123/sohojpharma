@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Home, PieChart, ClipboardList, CloudDownload, ChevronLeft, HelpCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { SupportTicketDialog } from "./support-ticket-dialog";
 
 const tabs: Array<{ to: string; label: string; icon: typeof Home; exact?: boolean }> = [
   { to: "/m", label: "Home", icon: Home, exact: true },
@@ -21,6 +22,7 @@ export function PhoneHeader({
   help?: ReactNode;
 }) {
   const { memberships, currentTenantId } = useAuth();
+  const [supportOpen, setSupportOpen] = useState(false);
   const tenantName =
     memberships.find((m) => m.tenant_id === currentTenantId)?.tenants?.name ?? "SohojPharma";
 
@@ -46,11 +48,18 @@ export function PhoneHeader({
           )}
         </div>
         {help ?? (
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground">
+          <button
+            type="button"
+            onClick={() => setSupportOpen(true)}
+            aria-label="সাপোর্ট টিকেট"
+            title="সাপোর্ট টিকেট"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
+          >
             <HelpCircle className="h-5 w-5" />
-          </span>
+          </button>
         )}
       </div>
+      <SupportTicketDialog open={supportOpen} onOpenChange={setSupportOpen} />
     </header>
   );
 }
