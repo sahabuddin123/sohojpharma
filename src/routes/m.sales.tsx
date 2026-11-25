@@ -207,7 +207,7 @@ function MobileSaleRecord() {
           />
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5 rounded-xl bg-slate-100 p-1">
+        <div className="phone-grid-keep grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
           {(
             [
               ["all", "সব"],
@@ -220,7 +220,7 @@ function MobileSaleRecord() {
               type="button"
               onClick={() => setStatusTab(key)}
               className={cn(
-                "rounded-lg py-1.5 text-[11px] font-semibold transition",
+                "rounded-full py-1.5 text-[11px] font-semibold transition",
                 statusTab === key
                   ? "bg-white text-[#0d5c46] shadow-xs"
                   : "text-slate-600 hover:text-slate-900",
@@ -279,7 +279,7 @@ function MobileSaleRecord() {
                 </div>
               </div>
 
-              <div className="mt-2.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-center">
+              <div className="phone-grid-keep mt-2.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-center">
                 <div className="rounded-lg bg-slate-50 px-1.5 py-1.5">
                   <p className="text-[10px] text-slate-500">মোট বিল</p>
                   <p className="text-xs font-bold text-slate-900">{money(s.total)}</p>
