@@ -10,7 +10,7 @@ import {
   ShoppingCart, Package, AlertTriangle, Users, Plus, TrendingUp, Wallet, Building2,
   CalendarX, Loader2, Banknote, ArrowUpRight, ArrowRight,
   ShieldAlert, Truck, ClipboardList, FileCheck2, PackageSearch, UserPlus,
-  Boxes, RefreshCw,
+  Boxes, RefreshCw, HandCoins, ReceiptText, Undo2,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -24,6 +24,7 @@ import { useState, useEffect } from "react";
 import { WarehouseFilter } from "@/components/inventory/warehouse-filter";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 import { StoreSetupBanner } from "@/components/store/store-setup-banner";
+import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 export const Route = createFileRoute("/store")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -195,6 +196,14 @@ function StoreDashboard() {
   const { currentTenantId, setCurrentTenantId, memberships, adminTenants, isAppAdmin, user } = useAuth();
   const { t } = useTranslation();
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
+  const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("today");
+
+  const todayIso = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const effFrom = preset === "all" ? "2020-01-01" : (from ?? todayIso);
+  const effTo = preset === "all" ? todayIso : (to ?? effFrom);
 
   useEffect(() => {
     if (!currentTenantId) {
@@ -206,9 +215,18 @@ function StoreDashboard() {
   }, [currentTenantId, memberships, adminTenants, isAppAdmin, setCurrentTenantId]);
   const fetchDashboard = useServerFn(getStoreDashboard);
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["store-dashboard", currentTenantId, warehouseId ?? "all"],
+    queryKey: ["store-dashboard", currentTenantId, warehouseId ?? "all", effFrom, effTo],
     enabled: !!currentTenantId,
-    queryFn: () => fetchDashboard({ data: { tenant_id: currentTenantId!, warehouse_id: warehouseId } }),
+    queryFn: () =>
+      fetchDashboard({
+        data: {
+          tenant_id: currentTenantId!,
+          warehouse_id: warehouseId,
+          from_date: effFrom,
+          to_date: effTo,
+        },
+      }),
+    placeholderData: (prev) => prev,
     staleTime: 60_000,
   });
 
@@ -271,8 +289,15 @@ function StoreDashboard() {
               {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
           </div>
-          <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
-            <WarehouseFilter value={warehouseId} onChange={setWarehouseId} className="min-w-0 flex-1 sm:w-[200px] sm:flex-none" />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0">
+            <ModernDateRangeFilter
+              preset={preset}
+              from={from}
+              to={to}
+              onPresetChange={setPreset}
+              onCustomChange={setCustom}
+            />
+            <WarehouseFilter value={warehouseId} onChange={setWarehouseId} className="min-w-0 flex-1 sm:w-[190px] sm:flex-none" />
             <Button variant="outline" size="sm" className="shrink-0" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">{t("dashboard.refresh")}</span>
             </Button>
@@ -284,15 +309,101 @@ function StoreDashboard() {
         <OnboardingChecklist />
 
         {/* SECTION 1 — Owner Overview */}
-        <section>
-          <SectionTitle title={t("dashboard.sectionOwnerOverview")} hint={t("dashboard.sectionOwnerOverviewHint")} />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-            <KpiTile label={t("dashboard.kpiTodaySales")} value={bdt(k.todaySales)} icon={ShoppingCart} tone="primary" to="/sales" />
-            <KpiTile label={t("dashboard.kpiTodayProfit")} value={bdt(k.todayProfit)} icon={TrendingUp} tone="success" />
-            <KpiTile label={t("dashboard.kpiCustomerDue")} value={bdt(k.customerDueTotal)} sub={t("dashboard.subCustomers", { count: data.customerDueTop.length })} icon={Wallet} tone="warning" to="/customers" />
-            <KpiTile label={t("dashboard.kpiSupplierDue")} value={bdt(k.supplierDueTotal)} sub={t("dashboard.subSuppliers", { count: data.supplierDueTop.length })} icon={Building2} tone="warning" to="/suppliers" />
-            <KpiTile label={t("dashboard.kpiLowStock")} value={num(k.lowStock)} sub={t("dashboard.subBelowReorder")} icon={Package} tone={k.lowStock > 0 ? "destructive" : "muted"} to="/inventory" />
-            <KpiTile label={t("dashboard.kpiExpired")} value={num(k.expired)} sub={t("dashboard.subPastExpiry")} icon={CalendarX} tone={k.expired > 0 ? "destructive" : "muted"} to="/inventory" />
+        <section className={isFetching ? "opacity-70 transition-opacity" : "transition-opacity"}>
+          <SectionTitle
+            title={t("dashboard.sectionOwnerOverview")}
+            hint={preset === "today" ? t("dashboard.sectionOwnerOverviewHint") : `${effFrom} → ${effTo}`}
+          />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+            <KpiTile
+              label={preset === "today" ? t("dashboard.kpiTodaySales") : "মোট বিক্রি"}
+              value={bdt(k.todaySales)}
+              sub={`নগদ: ${bdt(k.todayCashSale ?? 0)}`}
+              icon={ShoppingCart}
+              tone="primary"
+              to="/sales"
+            />
+            <KpiTile
+              label="নগদ বিক্রি"
+              value={bdt(k.todayCashSale ?? 0)}
+              icon={Banknote}
+              tone="success"
+              to="/sales"
+            />
+            <KpiTile
+              label="বাকি বিক্রি"
+              value={bdt(k.todayDueSale ?? 0)}
+              icon={Wallet}
+              tone={(k.todayDueSale ?? 0) > 0 ? "warning" : "muted"}
+              to="/sales/due-collections"
+            />
+            <KpiTile
+              label="বাকি আদায়"
+              value={bdt(k.dueCollection)}
+              icon={HandCoins}
+              tone="success"
+              to="/sales/due-collections"
+            />
+            <KpiTile
+              label={preset === "today" ? "আজকের খরচ" : "মোট খরচ"}
+              value={bdt(k.todayExpense ?? 0)}
+              icon={ReceiptText}
+              tone={(k.todayExpense ?? 0) > 0 ? "destructive" : "muted"}
+              to="/accounts/expenses"
+            />
+            <KpiTile
+              label={preset === "today" ? t("dashboard.kpiTodayProfit") : "নিট মুনাফা"}
+              value={bdt(k.todayProfit)}
+              icon={TrendingUp}
+              tone={k.todayProfit < 0 ? "destructive" : "success"}
+            />
+            <KpiTile
+              label="দৈনিক হাতে ক্যাশ"
+              value={bdt(k.dailyCashInHand ?? 0)}
+              sub="নগদ + আদায় − খরচ"
+              icon={Banknote}
+              tone={(k.dailyCashInHand ?? 0) < 0 ? "destructive" : "success"}
+              to="/accounts/cashbook"
+            />
+            <KpiTile
+              label="বিক্রি রিটার্ন"
+              value={bdt(k.todayReturn ?? 0)}
+              icon={Undo2}
+              tone={(k.todayReturn ?? 0) > 0 ? "warning" : "muted"}
+              to="/sales/returns"
+            />
+            <KpiTile
+              label={t("dashboard.kpiCustomerDue")}
+              value={bdt(k.customerDueTotal)}
+              sub={t("dashboard.subCustomers", { count: data.customerDueTop.length })}
+              icon={Wallet}
+              tone="warning"
+              to="/customers"
+            />
+            <KpiTile
+              label={t("dashboard.kpiSupplierDue")}
+              value={bdt(k.supplierDueTotal)}
+              sub={t("dashboard.subSuppliers", { count: data.supplierDueTop.length })}
+              icon={Building2}
+              tone="warning"
+              to="/suppliers"
+            />
+            <KpiTile
+              label={t("dashboard.kpiLowStock")}
+              value={num(k.lowStock)}
+              sub={t("dashboard.subBelowReorder")}
+              icon={Package}
+              tone={k.lowStock > 0 ? "destructive" : "muted"}
+              to="/inventory"
+            />
+            <KpiTile
+              label={t("dashboard.kpiExpired")}
+              value={num(k.expired)}
+              sub={t("dashboard.subPastExpiry")}
+              icon={CalendarX}
+              tone={k.expired > 0 ? "destructive" : "muted"}
+              to="/inventory"
+            />
           </div>
         </section>
 
@@ -312,7 +423,7 @@ function StoreDashboard() {
           <SectionTitle title={t("dashboard.sectionFinancial")} hint={t("dashboard.sectionFinancialHint")} />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             <KpiTile label={t("dashboard.kpiCashInHand")} value={bdt(k.cashInHand)} sub={t("dashboard.subTodayLower")} icon={Banknote} tone="success" to="/accounts/cashbook" />
-            <KpiTile label={t("dashboard.kpiBankBalance")} value={bdt(k.bankBalance)} icon={Building2} tone="secondary" to="/accounts/banks" />
+            <KpiTile label={t("dashboard.kpiBankBalance")} value={bdt(k.bankBalance)} icon={Building2} tone="primary" to="/accounts/banks" />
             <KpiTile label={t("dashboard.kpiReceivable")} value={bdt(k.customerDueTotal)} icon={ArrowUpRight} tone="warning" />
             <KpiTile label={t("dashboard.kpiPayable")} value={bdt(k.supplierDueTotal)} icon={ArrowUpRight} tone="warning" />
             <KpiTile label={t("dashboard.kpiInventoryValue")} value={bdt(k.inventoryValue)} sub={t("dashboard.subAtCost")} icon={Boxes} tone="primary" to="/inventory" />
