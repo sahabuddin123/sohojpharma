@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Search, Trash2, Plus, Minus } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { Search, Trash2, Plus, Minus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -10,6 +11,7 @@ import { PhoneCard, PhoneEmpty, PhoneKpi, PhoneKpiGrid, money } from "@/componen
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -57,16 +59,23 @@ const today = () => new Date().toISOString().slice(0, 10);
 const num = (v: string) => (v === "" ? 0 : Number(v) || 0);
 
 function MobilePurchase() {
+  const { i18n } = useTranslation();
+  const isBn = i18n.language !== "en";
+  const tr = (bn: string, en: string) => (isBn ? bn : en);
+
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
   const { branchId } = useActiveBranch();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const createPO = useServerFn(createPurchaseOrder);
   const receivePO = useServerFn(receivePurchaseOrder);
   const updateStatus = useServerFn(updatePOStatus);
   const payPO = useServerFn(recordSupplierPayment);
 
   const [supplierId, setSupplierId] = useState("");
+  const [addSupOpen, setAddSupOpen] = useState(false);
+  const [supForm, setSupForm] = useState({ name: "", phone: "", address: "" });
   const [invoiceNo, setInvoiceNo] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [paid, setPaid] = useState(0);
@@ -74,6 +83,33 @@ function MobilePurchase() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const addSupplierMut = useMutation({
+    mutationFn: async () => {
+      if (!supForm.name.trim()) throw new Error(tr("সরবরাহকারীর নাম আবশ্যক", "Supplier name is required"));
+      const { data, error } = await supabase
+        .from("suppliers")
+        .insert({
+          tenant_id: tenantId,
+          name: supForm.name.trim(),
+          phone: supForm.phone.trim() || null,
+          address: supForm.address.trim() || null,
+          is_active: true,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+      return data.id as string;
+    },
+    onSuccess: (id) => {
+      toast.success(tr("নতুন সরবরাহকারী যোগ হয়েছে", "Supplier added"));
+      qc.invalidateQueries({ queryKey: ["suppliers-active", tenantId] });
+      setSupplierId(id);
+      setSupForm({ name: "", phone: "", address: "" });
+      setAddSupOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query.trim()), 250);
@@ -136,19 +172,19 @@ function MobilePurchase() {
 
   const errors = useMemo(() => {
     const errs: string[] = [];
-    if (!supplierId) errs.push("Select a supplier");
-    if (!lines.length) errs.push("Add at least one product");
+    if (!supplierId) errs.push(tr("সরবরাহকারী নির্বাচন করুন", "Select a supplier"));
+    if (!lines.length) errs.push(tr("অন্তত একটি পণ্য যোগ করুন", "Add at least one product"));
     const t = today();
     lines.forEach((l, i) => {
-      if (!l.batch_no.trim()) errs.push(`Row ${i + 1}: batch number required`);
-      if (!l.expiry_date) errs.push(`Row ${i + 1}: expiry date required`);
-      else if (l.expiry_date <= t) errs.push(`Row ${i + 1}: expiry must be in the future`);
-      if (l.qty <= 0) errs.push(`Row ${i + 1}: quantity must be > 0`);
-      if (l.purchase_price <= 0) errs.push(`Row ${i + 1}: purchase price must be > 0`);
-      if (l.sale_price < l.purchase_price) errs.push(`Row ${i + 1}: sale price must be ≥ purchase price`);
+      if (!l.batch_no.trim()) errs.push(tr(`সারি ${i + 1}: ব্যাচ নম্বর দিন`, `Row ${i + 1}: batch number required`));
+      if (!l.expiry_date) errs.push(tr(`সারি ${i + 1}: মেয়াদ দিন`, `Row ${i + 1}: expiry date required`));
+      else if (l.expiry_date <= t) errs.push(tr(`সারি ${i + 1}: মেয়াদ ভবিষ্যতের হতে হবে`, `Row ${i + 1}: expiry must be in the future`));
+      if (l.qty <= 0) errs.push(tr(`সারি ${i + 1}: পরিমাণ ০-এর বেশি হতে হবে`, `Row ${i + 1}: quantity must be > 0`));
+      if (l.purchase_price <= 0) errs.push(tr(`সারি ${i + 1}: ক্রয়মূল্য ০-এর বেশি হতে হবে`, `Row ${i + 1}: purchase price must be > 0`));
+      if (l.sale_price < l.purchase_price) errs.push(tr(`সারি ${i + 1}: বিক্রয়মূল্য ক্রয়মূল্যের সমান বা বেশি হতে হবে`, `Row ${i + 1}: sale price must be ≥ purchase price`));
     });
     return errs;
-  }, [supplierId, lines]);
+  }, [supplierId, lines, isBn]);
 
   async function handleSave() {
     if (errors.length || !tenantId) return toast.error(errors[0] ?? "Cannot save");
@@ -209,18 +245,34 @@ function MobilePurchase() {
   }
 
   return (
-    <PhoneShell title="New Purchase" back>
+    <PhoneShell title={tr("নতুন ক্রয়", "New Purchase")} back>
       <PhoneKpiGrid>
-        <PhoneKpi tone="sky" accent="info" value={money(grandTotal)} label="Grand Total" />
-        <PhoneKpi tone="rose" accent="danger" value={money(due)} label="Due" />
+        <PhoneKpi tone="sky" accent="info" value={money(grandTotal)} label={tr("মোট বিল", "Grand Total")} />
+        <PhoneKpi tone="rose" accent="danger" value={money(due)} label={tr("বাকি", "Due")} />
       </PhoneKpiGrid>
 
       <PhoneCard className="mt-3 space-y-3">
         <div className="space-y-1.5">
-          <Label>Supplier *</Label>
+          <div className="flex items-center justify-between">
+            <Label>{tr("সরবরাহকারী *", "Supplier *")}</Label>
+            <button
+              type="button"
+              onClick={() => setAddSupOpen(true)}
+              className="flex items-center gap-1 rounded-lg bg-[#0d5c46] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#094735]"
+            >
+              <UserPlus className="h-3 w-3" />
+              {tr("+ নতুন সরবরাহকারী", "+ Add Supplier")}
+            </button>
+          </div>
           <Select value={supplierId} onValueChange={setSupplierId}>
             <SelectTrigger className="h-11">
-              <SelectValue placeholder={suppliers.length ? "Select supplier" : "No suppliers yet"} />
+              <SelectValue
+                placeholder={
+                  suppliers.length
+                    ? tr("সরবরাহকারী নির্বাচন করুন", "Select supplier")
+                    : tr("কোনো সরবরাহকারী নেই — নতুন যোগ করুন", "No suppliers yet — add one")
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {suppliers.map((s) => (
@@ -230,18 +282,18 @@ function MobilePurchase() {
           </Select>
           {supplier && (
             <p className="text-xs text-muted-foreground">
-              Due: {money(Number(supplier.due_balance ?? 0))}
+              {tr("বাকি", "Due")}: {money(Number(supplier.due_balance ?? 0))}
               {supplier.phone ? ` · ${supplier.phone}` : ""}
             </p>
           )}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label>Invoice no.</Label>
+            <Label>{tr("ইনভয়েস নং", "Invoice no.")}</Label>
             <Input className="h-11" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="INV-1024" />
           </div>
           <div className="space-y-1.5">
-            <Label>Due date</Label>
+            <Label>{tr("পরিশোধের তারিখ", "Due date")}</Label>
             <Input className="h-11" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
           </div>
         </div>
@@ -252,14 +304,14 @@ function MobilePurchase() {
         <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search product to add…"
+          placeholder={tr("পণ্য যোগ করতে খুঁজুন…", "Search product to add…")}
           className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
         />
       </div>
 
       {debounced.length >= 1 && (
         <div className="mt-2 space-y-2">
-          {isFetching && <p className="text-center text-sm text-muted-foreground">Searching…</p>}
+          {isFetching && <p className="text-center text-sm text-muted-foreground">{tr("খোঁজা হচ্ছে…", "Searching…")}</p>}
           {results.map((p) => (
             <button
               key={p.id}
@@ -270,7 +322,7 @@ function MobilePurchase() {
               <span className="min-w-0">
                 <span className="block font-semibold text-foreground">{buildProductDisplayName(p)}</span>
                 <span className="block text-xs text-muted-foreground">
-                  Stock {Number(p.qty_on_hand ?? 0)} · Cost {money(Number(p.purchase_price ?? 0))}
+                  {tr("স্টক", "Stock")} {Number(p.qty_on_hand ?? 0)} · {tr("ক্রয়", "Cost")} {money(Number(p.purchase_price ?? 0))}
                 </span>
               </span>
               <Plus className="h-5 w-5 shrink-0 text-primary" />
@@ -280,7 +332,12 @@ function MobilePurchase() {
       )}
 
       <div className="mt-3 space-y-3 pb-28">
-        {lines.length === 0 && <PhoneEmpty message="Search and add products to this purchase" />}
+        {lines.length === 0 && (
+          <PhoneEmpty
+            title={tr("ক্রয় শুরু করুন", "Start Purchase")}
+            message={tr("এই ক্রয়ে যোগ করতে ওপরের বক্সে পণ্য খুঁজুন", "Search and add products to this purchase")}
+          />
+        )}
         {lines.map((l, idx) => (
           <PhoneCard key={l.uid} className="space-y-3">
             <div className="flex items-start justify-between gap-2">
@@ -292,27 +349,27 @@ function MobilePurchase() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Batch *</Label>
+                <Label className="text-xs">{tr("ব্যাচ *", "Batch *")}</Label>
                 <Input className="h-11" value={l.batch_no} onChange={(e) => update(l.uid, { batch_no: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Expiry *</Label>
+                <Label className="text-xs">{tr("মেয়াদ *", "Expiry *")}</Label>
                 <Input className="h-11" type="date" value={l.expiry_date} onChange={(e) => update(l.uid, { expiry_date: e.target.value })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Cost</Label>
+                <Label className="text-xs">{tr("ক্রয়মূল্য", "Cost")}</Label>
                 <Input className="h-11" type="number" inputMode="decimal" value={l.purchase_price} onChange={(e) => update(l.uid, { purchase_price: num(e.target.value) })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">MRP</Label>
+                <Label className="text-xs">{tr("বিক্রয়মূল্য (MRP)", "MRP")}</Label>
                 <Input className="h-11" type="number" inputMode="decimal" value={l.sale_price} onChange={(e) => update(l.uid, { sale_price: num(e.target.value) })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Bonus</Label>
+                <Label className="text-xs">{tr("বোনাস", "Bonus")}</Label>
                 <Input className="h-11" type="number" inputMode="numeric" value={l.bonus} onChange={(e) => update(l.uid, { bonus: num(e.target.value) })} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Discount</Label>
+                <Label className="text-xs">{tr("ডিসকাউন্ট", "Discount")}</Label>
                 <Input className="h-11" type="number" inputMode="decimal" value={l.discount} onChange={(e) => update(l.uid, { discount: num(e.target.value) })} />
               </div>
             </div>
@@ -342,7 +399,7 @@ function MobilePurchase() {
 
         {lines.length > 0 && (
           <PhoneCard className="space-y-2">
-            <Label className="text-xs">Paid now</Label>
+            <Label className="text-xs">{tr("নগদ পরিশোধ", "Paid now")}</Label>
             <Input className="h-11" type="number" inputMode="decimal" value={paid} onChange={(e) => setPaid(num(e.target.value))} />
             {errors.length > 0 && <p className="text-xs text-destructive">{errors[0]}</p>}
           </PhoneCard>
@@ -351,13 +408,62 @@ function MobilePurchase() {
 
       <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-20 mx-auto max-w-md px-4">
         <Button
-          className="h-12 w-full rounded-2xl text-base font-bold"
+          className="h-12 w-full rounded-2xl text-base font-bold bg-[#0d5c46] hover:bg-[#094735] text-white"
           disabled={saving || !!errors.length}
           onClick={handleSave}
         >
-          {saving ? "Saving…" : `Save & receive · ${money(grandTotal)}`}
+          {saving ? tr("সেভ হচ্ছে…", "Saving…") : `${tr("সেভ ও রিসিভ করুন", "Save & receive")} · ${money(grandTotal)}`}
         </Button>
       </div>
+
+      <Dialog open={addSupOpen} onOpenChange={setAddSupOpen}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>{tr("নতুন সরবরাহকারী যোগ করুন", "Add New Supplier")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="space-y-1">
+              <Label className="text-xs">{tr("নাম *", "Name *")}</Label>
+              <Input
+                value={supForm.name}
+                onChange={(e) => setSupForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder={tr("সরবরাহকারীর নাম", "Supplier name")}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{tr("ফোন নম্বর", "Phone")}</Label>
+              <Input
+                value={supForm.phone}
+                onChange={(e) => setSupForm((p) => ({ ...p, phone: e.target.value }))}
+                placeholder="01XXXXXXXXX"
+                inputMode="tel"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">{tr("ঠিকানা", "Address")}</Label>
+              <Input
+                value={supForm.address}
+                onChange={(e) => setSupForm((p) => ({ ...p, address: e.target.value }))}
+                placeholder={tr("ঠিকানা (ঐচ্ছিক)", "Address (optional)")}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setAddSupOpen(false)}>
+              {tr("বাতিল", "Cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={() => addSupplierMut.mutate()}
+              disabled={addSupplierMut.isPending}
+              className="bg-[#0d5c46] hover:bg-[#094735] text-white"
+            >
+              {addSupplierMut.isPending ? tr("সেভ হচ্ছে…", "Saving…") : tr("সেভ করুন", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </PhoneShell>
   );
 }
