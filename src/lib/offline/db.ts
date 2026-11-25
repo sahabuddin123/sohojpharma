@@ -18,8 +18,37 @@ export interface OutboxOp<T = unknown> {
 }
 
 const DB_NAME = "pharma-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE = "outbox";
+const PRODUCTS_STORE = "products_cache";
+const CUSTOMERS_STORE = "customers_cache";
+
+export interface CachedProduct {
+  key: string; // `${tenantId}:${id}`
+  tenantId: string;
+  id: string;
+  name: string;
+  form?: string | null;
+  strength?: string | null;
+  cost: number;
+  price: number;
+  vat_rate: number;
+  stock: number;
+  hasStrip: boolean;
+  pcsPerStrip: number;
+  pcsPerBox: number;
+  updatedAt: number;
+}
+
+export interface CachedCustomer {
+  key: string; // `${tenantId}:${id}`
+  tenantId: string;
+  id: string;
+  name: string;
+  phone: string | null;
+  due_balance: number;
+  updatedAt: number;
+}
 
 let dbPromise: Promise<IDBPDatabase> | null = null;
 
@@ -34,6 +63,14 @@ function getDb() {
           const store = db.createObjectStore(STORE, { keyPath: "id" });
           store.createIndex("status", "status");
           store.createIndex("nextAttemptAt", "nextAttemptAt");
+        }
+        if (!db.objectStoreNames.contains(PRODUCTS_STORE)) {
+          const pStore = db.createObjectStore(PRODUCTS_STORE, { keyPath: "key" });
+          pStore.createIndex("tenantId", "tenantId");
+        }
+        if (!db.objectStoreNames.contains(CUSTOMERS_STORE)) {
+          const cStore = db.createObjectStore(CUSTOMERS_STORE, { keyPath: "key" });
+          cStore.createIndex("tenantId", "tenantId");
         }
       },
     });
@@ -115,4 +152,61 @@ function notify() {
   listeners.forEach((fn) => {
     try { fn(); } catch { /* ignore */ }
   });
+}
+
+// --- Offline catalog cache (products & customers) ---
+export async function cacheProducts(tenantId: string, rows: Array<Omit<CachedProduct, "key" | "tenantId" | "updatedAt">>): Promise<void> {
+  if (!tenantId || rows.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(PRODUCTS_STORE, "readwrite");
+  const now = Date.now();
+  await Promise.all([
+    ...rows.map((r) =>
+      tx.store.put({
+        ...r,
+        key: `${tenantId}:${r.id}`,
+        tenantId,
+        updatedAt: now,
+      } satisfies CachedProduct),
+    ),
+    tx.done,
+  ]);
+}
+
+export async function searchCachedProducts(tenantId: string, query: string): Promise<CachedProduct[]> {
+  if (!tenantId) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(PRODUCTS_STORE, "tenantId", tenantId)) as CachedProduct[];
+  const q = query.trim().toLowerCase();
+  if (!q) return all.slice(0, 30);
+  return all.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 30);
+}
+
+export async function cacheCustomers(tenantId: string, rows: Array<Omit<CachedCustomer, "key" | "tenantId" | "updatedAt">>): Promise<void> {
+  if (!tenantId || rows.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(CUSTOMERS_STORE, "readwrite");
+  const now = Date.now();
+  await Promise.all([
+    ...rows.map((r) =>
+      tx.store.put({
+        ...r,
+        key: `${tenantId}:${r.id}`,
+        tenantId,
+        updatedAt: now,
+      } satisfies CachedCustomer),
+    ),
+    tx.done,
+  ]);
+}
+
+export async function searchCachedCustomers(tenantId: string, query: string): Promise<CachedCustomer[]> {
+  if (!tenantId) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(CUSTOMERS_STORE, "tenantId", tenantId)) as CachedCustomer[];
+  const q = query.trim().toLowerCase();
+  if (!q) return all.slice(0, 20);
+  return all
+    .filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? "").toLowerCase().includes(q))
+    .slice(0, 20);
 }

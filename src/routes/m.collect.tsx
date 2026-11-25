@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { recordPayment } from "@/lib/api/collections.functions";
+import { cacheCustomers, searchCachedCustomers } from "@/lib/offline/db";
+import { queueCollection } from "@/lib/offline/queue";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/collect")({
@@ -240,20 +242,29 @@ function MobileCashCollect() {
     enabled: !!tenantId && directOpen && !selectedCust && custQuery.trim().length > 0,
     queryFn: async () => {
       const term = custQuery.trim();
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id,name,phone,due_balance")
-        .eq("tenant_id", tenantId)
-        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
-        .order("due_balance", { ascending: false })
-        .limit(20);
-      if (error) throw error;
-      return ((data ?? []) as Array<{ id: string; name: string; phone: string | null; due_balance: number | null }>).map((c) => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        due_balance: Number(c.due_balance ?? 0),
-      }));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await searchCachedCustomers(tenantId, term);
+      }
+      try {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id,name,phone,due_balance")
+          .eq("tenant_id", tenantId)
+          .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+          .order("due_balance", { ascending: false })
+          .limit(20);
+        if (error) throw error;
+        const rows = ((data ?? []) as Array<{ id: string; name: string; phone: string | null; due_balance: number | null }>).map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          due_balance: Number(c.due_balance ?? 0),
+        }));
+        void cacheCustomers(tenantId, rows).catch(() => {});
+        return rows;
+      } catch {
+        return await searchCachedCustomers(tenantId, term);
+      }
     },
   });
 
@@ -281,21 +292,53 @@ function MobileCashCollect() {
       }
       const amt = Math.round((Number(directAmount) || 0) * 100) / 100;
       if (amt <= 0) throw new Error("সঠিক টাকার পরিমাণ দিন");
-      return await payFn({
-        data: {
-          tenantId,
-          branchId,
+      const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+      const noteText = directNotes.trim() || `Direct collection (${selectedCust.name})`;
+      if (isOffline) {
+        await queueCollection({
+          tenant_id: tenantId,
           customer_id: selectedCust.id,
-          sale_id: null,
           amount: amt,
           method: directMethod,
-          notes: directNotes.trim() || `Direct collection (${selectedCust.name})`,
-        },
-      });
+          notes: noteText,
+        });
+        return { offline: true, remaining_due: Math.max(0, totalCustDue - amt) };
+      }
+      try {
+        return await payFn({
+          data: {
+            tenantId,
+            branchId,
+            customer_id: selectedCust.id,
+            sale_id: null,
+            amount: amt,
+            method: directMethod,
+            notes: noteText,
+          },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if ((typeof navigator !== "undefined" && !navigator.onLine) || /failed to fetch|network|offline|load failed/i.test(msg)) {
+          await queueCollection({
+            tenant_id: tenantId,
+            customer_id: selectedCust.id,
+            amount: amt,
+            method: directMethod,
+            notes: noteText,
+          });
+          return { offline: true, remaining_due: Math.max(0, totalCustDue - amt) };
+        }
+        throw err;
+      }
     },
     onSuccess: (res) => {
+      const offline = Boolean((res as { offline?: boolean } | undefined)?.offline);
       const rem = Number((res as { remaining_due?: number } | undefined)?.remaining_due ?? currentDueAfter);
-      toast.success(`আদায় সম্পন্ন হয়েছে! বর্তমান বাকি: ${money(rem)}`);
+      toast.success(
+        offline
+          ? "অফলাইনে কালেকশন সেভ হয়েছে! অনলাইনে এলে অটো সিঙ্ক হবে।"
+          : `আদায় সম্পন্ন হয়েছে! বর্তমান বাকি: ${money(rem)}`,
+      );
       qc.invalidateQueries({ queryKey: ["m-collect", tenantId] });
       qc.invalidateQueries({ queryKey: ["m-home-kpi", tenantId] });
       qc.invalidateQueries({ queryKey: ["m-collect-customers", tenantId] });

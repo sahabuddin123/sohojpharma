@@ -36,6 +36,13 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { createCustomer } from "@/lib/api/customer-crud.functions";
+import {
+  cacheCustomers,
+  cacheProducts,
+  searchCachedCustomers,
+  searchCachedProducts,
+} from "@/lib/offline/db";
+import { queueSale } from "@/lib/offline/queue";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRegister } from "@/hooks/use-active-register";
 import {
@@ -111,52 +118,111 @@ function MobileSale() {
     queryKey: ["m-pos-search", tenantId, debounced],
     enabled: !!tenantId && debounced.length >= 1,
     queryFn: async (): Promise<Line[]> => {
-      const { data, error } = await supabase.rpc("search_products" as never, {
-        _tenant_id: tenantId,
-        _query: debounced,
-        _branch_id: null,
-        _limit: 30,
-        _warehouse_id: null,
-        _offset: 0,
-      } as never);
-      if (error) throw error;
-      const list = (data ?? []) as SearchRow[];
-      const ids = list.map((p) => p.id);
-      const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
-      if (ids.length > 0) {
-        const { data: packRows } = await supabase
-          .from("products")
-          .select("id, pack_size, qty_per_box")
-          .in("id", ids);
-        for (const pr of (packRows ?? []) as any[]) {
-          packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
-        }
-      }
-      return list.map((p) => {
-        const pk = packMap.get(p.id);
-        const cfg = resolvePackConfig({
-          medicine_type: p.medicine_type,
-          name: p.name,
-          pack_size: pk?.pack_size,
-          qty_per_box: pk?.qty_per_box,
-        });
-        return {
-          product_id: p.id,
-          name: p.name,
-          form: p.medicine_type,
-          strength: p.strength,
-          cost: Number(p.purchase_price ?? 0),
-          price: Number(p.effective_price ?? p.retail_price ?? 0),
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        const cached = await searchCachedProducts(tenantId, debounced);
+        return cached.map((c) => ({
+          product_id: c.id,
+          name: c.name,
+          form: c.form ?? null,
+          strength: c.strength ?? null,
+          cost: c.cost,
+          price: c.price,
           discount: 0,
-          vat_rate: Number(p.vat_rate ?? 0),
-          stock: Number(p.qty_on_hand ?? 0),
+          vat_rate: c.vat_rate,
+          stock: c.stock,
           qty: 0,
           unitMode: "pc" as MedicineUnitMode,
-          hasStrip: cfg.hasStrip,
-          pcsPerStrip: cfg.pcsPerStrip,
-          pcsPerBox: cfg.pcsPerBox,
-        };
-      });
+          hasStrip: c.hasStrip,
+          pcsPerStrip: c.pcsPerStrip,
+          pcsPerBox: c.pcsPerBox,
+        }));
+      }
+      try {
+        const { data, error } = await supabase.rpc("search_products" as never, {
+          _tenant_id: tenantId,
+          _query: debounced,
+          _branch_id: null,
+          _limit: 30,
+          _warehouse_id: null,
+          _offset: 0,
+        } as never);
+        if (error) throw error;
+        const list = (data ?? []) as SearchRow[];
+        const ids = list.map((p) => p.id);
+        const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
+        if (ids.length > 0) {
+          const { data: packRows } = await supabase
+            .from("products")
+            .select("id, pack_size, qty_per_box")
+            .in("id", ids);
+          for (const pr of (packRows ?? []) as any[]) {
+            packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
+          }
+        }
+        const mapped = list.map((p) => {
+          const pk = packMap.get(p.id);
+          const cfg = resolvePackConfig({
+            medicine_type: p.medicine_type,
+            name: p.name,
+            pack_size: pk?.pack_size,
+            qty_per_box: pk?.qty_per_box,
+          });
+          return {
+            product_id: p.id,
+            name: p.name,
+            form: p.medicine_type,
+            strength: p.strength,
+            cost: Number(p.purchase_price ?? 0),
+            price: Number(p.effective_price ?? p.retail_price ?? 0),
+            discount: 0,
+            vat_rate: Number(p.vat_rate ?? 0),
+            stock: Number(p.qty_on_hand ?? 0),
+            qty: 0,
+            unitMode: "pc" as MedicineUnitMode,
+            hasStrip: cfg.hasStrip,
+            pcsPerStrip: cfg.pcsPerStrip,
+            pcsPerBox: cfg.pcsPerBox,
+          };
+        });
+        void cacheProducts(
+          tenantId,
+          mapped.map((m) => ({
+            id: m.product_id,
+            name: m.name,
+            form: m.form,
+            strength: m.strength,
+            cost: m.cost,
+            price: m.price,
+            vat_rate: m.vat_rate,
+            stock: m.stock,
+            hasStrip: m.hasStrip,
+            pcsPerStrip: m.pcsPerStrip,
+            pcsPerBox: m.pcsPerBox,
+          })),
+        ).catch(() => {});
+        return mapped;
+      } catch (err) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const cached = await searchCachedProducts(tenantId, debounced);
+          return cached.map((c) => ({
+            product_id: c.id,
+            name: c.name,
+            form: c.form ?? null,
+            strength: c.strength ?? null,
+            cost: c.cost,
+            price: c.price,
+            discount: 0,
+            vat_rate: c.vat_rate,
+            stock: c.stock,
+            qty: 0,
+            unitMode: "pc" as MedicineUnitMode,
+            hasStrip: c.hasStrip,
+            pcsPerStrip: c.pcsPerStrip,
+            pcsPerBox: c.pcsPerBox,
+          }));
+        }
+        throw err;
+      }
     },
   });
 
@@ -733,20 +799,37 @@ function BillingSheet({
     queryKey: ["m-pos-customers", tenantId, custQuery.trim()],
     enabled: open && !!tenantId && !selectedCustomer && !showAddCust && custQuery.trim().length > 0,
     queryFn: async (): Promise<CustomerLite[]> => {
-      let q = supabase
-        .from("customers")
-        .select("id, name, phone, due_balance")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("name")
-        .limit(20);
       const term = custQuery.trim();
-      if (term) {
-        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await searchCachedCustomers(tenantId, term);
       }
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as CustomerLite[];
+      try {
+        let q = supabase
+          .from("customers")
+          .select("id, name, phone, due_balance")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name")
+          .limit(20);
+        if (term) {
+          q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data ?? []) as CustomerLite[];
+        void cacheCustomers(
+          tenantId,
+          rows.map((c) => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            due_balance: Number(c.due_balance ?? 0),
+          })),
+        ).catch(() => {});
+        return rows;
+      } catch {
+        return await searchCachedCustomers(tenantId, term);
+      }
     },
   });
 
@@ -806,7 +889,8 @@ function BillingSheet({
 
   async function submit() {
     if (!tenantId || !userId) return;
-    if (!registerId) {
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    if (!isOffline && !registerId) {
       toast.error("প্রথমে ক্যাশ রেজিস্টার ওপেন করুন");
       return;
     }
@@ -815,12 +899,14 @@ function BillingSheet({
       const items = cart.map((l) => {
         const mult = getUnitMultiplier(l.unitMode, l.pcsPerStrip, l.pcsPerBox);
         const pcsQty = l.qty * mult;
+        const vat = Math.round(Math.max(0, pcsQty * l.price - (l.discount || 0)) * (l.vat_rate / 100) * 100) / 100;
         return {
           product_id: l.product_id,
           qty: pcsQty,
           unit_price: l.price,
           discount: l.discount || 0,
-          vat: Math.round(Math.max(0, pcsQty * l.price - (l.discount || 0)) * (l.vat_rate / 100) * 100) / 100,
+          vat,
+          line_total: Math.round((pcsQty * l.price - (l.discount || 0) + vat) * 100) / 100,
           allow_stock_override: true,
         };
       });
@@ -828,39 +914,95 @@ function BillingSheet({
       if (paid > 0) payments.push({ method, amount: Math.min(paid, finalPrice) });
       if (due > 0) payments.push({ method: "due", amount: due });
 
-      const { data, error } = await supabase.rpc("pos_checkout", {
-        _tenant_id: tenantId,
-        _customer_id: (selectedCustomer?.id ?? null) as unknown as string,
-        _cashier_id: userId,
-        _invoice_no: null as unknown as string,
-        _discount: discountAmount,
-        _notes: note || undefined,
-        _client_op_id: crypto.randomUUID(),
-        _items: items as never,
-        _payments: payments as never,
-        _register_id: registerId,
-        _warehouse_id: null,
-      } as never);
-      if (error) throw new Error(error.message);
-      const sale = data as unknown as { id: string; invoice_no: string };
-      const itemsSummary = cart.map((l) => `${l.name} (${l.qty})`).join(", ");
-      setDoneSale({
-        id: sale.id,
-        invoice_no: sale.invoice_no,
-        share: {
-          invoiceNo: sale.invoice_no,
-          shopName,
-          itemsSummary,
+      const enqueueOfflineSale = async () => {
+        const op = await queueSale({
+          tenant_id: tenantId,
+          customer_id: selectedCustomer?.id ?? null,
+          subtotal: total,
+          discount: discountAmount,
+          tax: 0,
           total: finalPrice,
-          paid,
+          paid: Math.min(paid, finalPrice),
           due,
-          customerName: selectedCustomer?.name ?? null,
-          customerPhone: selectedCustomer?.phone ?? null,
-        },
-      });
-      setSelectedCustomer(null);
-      setCustQuery("");
-      toast.success(`বিক্রি সম্পন্ন — ${sale.invoice_no}`);
+          payment_method: method,
+          notes: note || undefined,
+          items: items.map((it) => ({
+            product_id: it.product_id,
+            qty: it.qty,
+            unit_price: it.unit_price,
+            discount: it.discount,
+            tax: it.vat,
+            line_total: it.line_total,
+          })),
+        });
+        const offlineInv = `OFFLINE-${op.id.slice(0, 6).toUpperCase()}`;
+        const itemsSummary = cart.map((l) => `${l.name} (${l.qty})`).join(", ");
+        setDoneSale({
+          id: op.id,
+          invoice_no: offlineInv,
+          share: {
+            invoiceNo: offlineInv,
+            shopName,
+            itemsSummary,
+            total: finalPrice,
+            paid,
+            due,
+            customerName: selectedCustomer?.name ?? null,
+            customerPhone: selectedCustomer?.phone ?? null,
+          },
+        });
+        setSelectedCustomer(null);
+        setCustQuery("");
+        toast.success(`অফলাইনে বিক্রি সেভ হয়েছে (${offlineInv})! অনলাইনে এলে অটো সিঙ্ক হবে।`);
+      };
+
+      if (isOffline) {
+        await enqueueOfflineSale();
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase.rpc("pos_checkout", {
+          _tenant_id: tenantId,
+          _customer_id: (selectedCustomer?.id ?? null) as unknown as string,
+          _cashier_id: userId,
+          _invoice_no: null as unknown as string,
+          _discount: discountAmount,
+          _notes: note || undefined,
+          _client_op_id: crypto.randomUUID(),
+          _items: items.map(({ line_total: _lt, ...rest }) => rest) as never,
+          _payments: payments as never,
+          _register_id: registerId!,
+          _warehouse_id: null,
+        } as never);
+        if (error) throw new Error(error.message);
+        const sale = data as unknown as { id: string; invoice_no: string };
+        const itemsSummary = cart.map((l) => `${l.name} (${l.qty})`).join(", ");
+        setDoneSale({
+          id: sale.id,
+          invoice_no: sale.invoice_no,
+          share: {
+            invoiceNo: sale.invoice_no,
+            shopName,
+            itemsSummary,
+            total: finalPrice,
+            paid,
+            due,
+            customerName: selectedCustomer?.name ?? null,
+            customerPhone: selectedCustomer?.phone ?? null,
+          },
+        });
+        setSelectedCustomer(null);
+        setCustQuery("");
+        toast.success(`বিক্রি সম্পন্ন — ${sale.invoice_no}`);
+      } catch (rpcErr) {
+        const msg = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
+        if ((typeof navigator !== "undefined" && !navigator.onLine) || /failed to fetch|network|offline|load failed/i.test(msg)) {
+          await enqueueOfflineSale();
+          return;
+        }
+        throw rpcErr;
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "বিক্রি সম্পন্ন করতে সমস্যা হয়েছে");
     } finally {
