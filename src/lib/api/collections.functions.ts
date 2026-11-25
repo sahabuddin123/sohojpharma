@@ -80,6 +80,7 @@ export const recordPayment = createServerFn({ method: "POST" })
     const payloadAmount = Math.round(data.amount * 100) / 100;
     if (payloadAmount !== data.amount) throw new Error("Amount mismatch");
 
+    const bdToday = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const { data: beforeDue } = await context.supabase.rpc("customer_due_summary", { p_customer_id: data.customer_id });
     const { data: pay, error } = await context.supabase.rpc("collect_customer_due", {
       _tenant_id: data.tenantId,
@@ -88,7 +89,7 @@ export const recordPayment = createServerFn({ method: "POST" })
       _method: data.method,
       _reference: data.reference || undefined,
       _notes: data.notes || undefined,
-      _payment_date: data.payment_date ?? new Date().toISOString().slice(0, 10),
+      _payment_date: data.payment_date ?? bdToday,
       _sale_id: data.sale_id || undefined,
       _register_id: undefined,
       _client_op_id: crypto.randomUUID(),

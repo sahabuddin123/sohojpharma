@@ -207,7 +207,7 @@ export const createExpense = createServerFn({ method: "POST" })
         tenant_id: data.tenant_id,
         branch_id: data.branch_id!,
         expense_no: data.expense_no,
-        expense_date: data.expense_date ?? new Date().toISOString().slice(0, 10),
+        expense_date: data.expense_date ?? new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10),
         account_id: acc.id,
         amount: data.amount,
         payment_method: data.payment_method,
@@ -284,7 +284,7 @@ export const updateExpense = createServerFn({ method: "POST" })
       .from("expenses")
       .update({
         expense_no: data.expense_no,
-        expense_date: data.expense_date ?? new Date().toISOString().slice(0, 10),
+        expense_date: data.expense_date ?? new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10),
         account_id: acc.id,
         amount: data.amount,
         payment_method: data.payment_method,
@@ -448,7 +448,7 @@ export const createIncome = createServerFn({ method: "POST" })
         tenant_id: data.tenant_id,
         branch_id: data.branch_id!,
         income_no: data.income_no,
-        income_date: data.income_date ?? new Date().toISOString().slice(0, 10),
+        income_date: data.income_date ?? new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10),
         account_id: acc.id,
         amount: data.amount,
         payment_method: data.payment_method,
@@ -494,7 +494,7 @@ export const updateIncome = createServerFn({ method: "POST" })
       .from("incomes")
       .update({
         income_no: data.income_no,
-        income_date: data.income_date ?? new Date().toISOString().slice(0, 10),
+        income_date: data.income_date ?? new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10),
         account_id: acc.id,
         amount: data.amount,
         payment_method: data.payment_method,

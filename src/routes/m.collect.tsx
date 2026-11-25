@@ -151,8 +151,8 @@ function MobileCashCollect() {
         .neq("status", "void")
         .order("created_at", { ascending: false })
         .limit(300);
-      if (dateRange.from) q = q.gte("created_at", `${dateRange.from}T00:00:00`);
-      if (dateRange.to) q = q.lte("created_at", `${dateRange.to}T23:59:59.999`);
+      if (dateRange.from) q = q.gte("created_at", `${dateRange.from}T00:00:00+06:00`);
+      if (dateRange.to) q = q.lte("created_at", `${dateRange.to}T23:59:59.999+06:00`);
       const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as unknown as SaleRow[];
