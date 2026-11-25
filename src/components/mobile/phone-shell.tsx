@@ -1,15 +1,15 @@
 import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, PieChart, ClipboardList, CloudDownload, ChevronLeft, HelpCircle, Settings } from "lucide-react";
+import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { SupportTicketDialog } from "./support-ticket-dialog";
 
 const tabs: Array<{ to: string; label: string; icon: typeof Home; exact?: boolean }> = [
-  { to: "/m", label: "Home", icon: Home, exact: true },
-  { to: "/m/analytics", label: "Analytics", icon: PieChart },
-  { to: "/m/report", label: "Report", icon: ClipboardList },
-  { to: "/m/subscription", label: "Subscription", icon: CloudDownload },
+  { to: "/m", label: "হোম", icon: Home, exact: true },
+  { to: "/m/analytics", label: "অ্যানালিটিক্স", icon: PieChart },
+  { to: "/m/report", label: "রিপোর্ট", icon: FileBarChart2 },
+  { to: "/m/subscription", label: "প্ল্যান", icon: Crown },
 ];
 
 export function PhoneHeader({
@@ -27,46 +27,54 @@ export function PhoneHeader({
     memberships.find((m) => m.tenant_id === currentTenantId)?.tenants?.name ?? "SohojPharma";
 
   return (
-    <header className="sticky top-0 z-30 bg-brand-gradient text-primary-foreground shadow-[var(--shadow-elevated)]">
-      <div className="h-[env(safe-area-inset-top)]" />
-      <div className="mx-auto flex min-h-14 max-w-md items-center gap-3 px-4 py-3 sm:max-w-3xl">
-        {back ? (
-          <Link
-            to="/m"
-            aria-label="Back"
-            className="-ml-1 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
-          >
-            <ChevronLeft className="h-6 w-6" />
-          </Link>
-        ) : null}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-lg font-extrabold leading-tight text-primary-foreground">
-            {title ?? tenantName}
-          </p>
-          {!title && (
-            <p className="truncate text-xs text-primary-foreground/80">Pharmacy owner</p>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {help ?? (
-            <button
-              type="button"
-              onClick={() => setSupportOpen(true)}
-              aria-label="সাপোর্ট টিকেট"
-              title="সাপোর্ট টিকেট"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
+    <header className="sticky top-0 z-30 mx-auto max-w-md sm:max-w-3xl">
+      <div className="rounded-b-[22px] bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#0f766e] text-white shadow-[0_6px_20px_rgba(9,71,53,0.18)]">
+        <div className="h-[env(safe-area-inset-top)]" />
+        <div className="flex min-h-14 items-center gap-3 px-4 py-3">
+          {back ? (
+            <Link
+              to="/m"
+              aria-label="Back"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md active:scale-95 transition-transform"
             >
-              <HelpCircle className="h-5 w-5" />
-            </button>
+              <ChevronLeft className="h-5 w-5" />
+            </Link>
+          ) : (
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-xs font-black tracking-tight text-white ring-1 ring-white/25 backdrop-blur-md">
+              {tenantName.slice(0, 2).toUpperCase()}
+            </div>
           )}
-          <Link
-            to={"/m/settings" as never}
-            aria-label="সেটিংস ও প্রোফাইল"
-            title="সেটিংস ও প্রোফাইল"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
-          >
-            <Settings className="h-5 w-5" />
-          </Link>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[17px] font-extrabold leading-tight tracking-tight text-white">
+              {title ?? tenantName}
+            </p>
+            {!title && (
+              <p className="mt-0.5 truncate text-[11px] font-medium text-emerald-100/85">
+                ফার্মেসি ওনার পোর্টাল
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {help ?? (
+              <button
+                type="button"
+                onClick={() => setSupportOpen(true)}
+                aria-label="সাপোর্ট টিকেট"
+                title="সাপোর্ট টিকেট"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/20"
+              >
+                <HelpCircle className="h-4.5 w-4.5" />
+              </button>
+            )}
+            <Link
+              to={"/m/settings" as never}
+              aria-label="সেটিংস ও প্রোফাইল"
+              title="সেটিংস ও প্রোফাইল"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/20"
+            >
+              <Settings className="h-4.5 w-4.5" />
+            </Link>
+          </div>
         </div>
       </div>
       <SupportTicketDialog open={supportOpen} onOpenChange={setSupportOpen} />
@@ -78,33 +86,24 @@ export function PhoneHeader({
 export function PhoneTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-card/95 shadow-[var(--shadow-elevated)] backdrop-blur supports-[backdrop-filter]:bg-card/80">
-      <ul className="mx-auto grid max-w-md grid-cols-[repeat(4,minmax(0,1fr))] px-2 pt-2">
+    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))]">
+      <ul className="pointer-events-auto grid grid-cols-4 items-center rounded-2xl border border-slate-200/80 bg-white/92 p-1.5 shadow-[0_8px_30px_rgba(13,92,70,0.14)] backdrop-blur-xl">
         {tabs.map(({ to, label, icon: Icon, exact }) => {
           const active = exact ? pathname === to : pathname.startsWith(to);
           return (
             <li key={to} className="flex justify-center">
               <Link
                 to={to as never}
-                className="flex flex-col items-center gap-1 pb-2 active:scale-95 transition-transform"
+                className={cn(
+                  "flex w-full flex-col items-center gap-0.5 rounded-xl py-1.5 transition-all active:scale-95",
+                  active
+                    ? "bg-gradient-to-r from-[#094735] to-[#0d5c46] text-white shadow-[0_4px_12px_rgba(13,92,70,0.28)]"
+                    : "text-slate-500 hover:text-slate-800",
+                )}
                 aria-current={active ? "page" : undefined}
               >
-                <span
-                  className={cn(
-                    "grid h-9 w-16 place-items-center rounded-2xl transition-colors",
-                    active
-                      ? "bg-brand-gradient text-primary-foreground shadow-[var(--shadow-glow)]"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  <Icon className={cn("h-5 w-5", active && "stroke-[2.4]")} />
-                </span>
-                <span
-                  className={cn(
-                    "text-[11px] font-semibold",
-                    active ? "text-primary" : "text-muted-foreground",
-                  )}
-                >
+                <Icon className={cn("h-4.5 w-4.5", active ? "stroke-[2.3]" : "stroke-[1.9]")} />
+                <span className={cn("text-[10px] font-bold tracking-tight", active ? "text-white" : "text-slate-500")}>
                   {label}
                 </span>
               </Link>
@@ -112,7 +111,6 @@ export function PhoneTabBar() {
           );
         })}
       </ul>
-      <div className="h-[env(safe-area-inset-bottom)]" />
     </nav>
   );
 }
