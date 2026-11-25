@@ -3,11 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Search, Trash2, Plus, Minus, UserPlus, X } from "lucide-react";
+import { Search, Trash2, Plus, Minus, UserPlus, X, ScanBarcode, Camera, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneCard, PhoneEmpty, PhoneKpi, PhoneKpiGrid, money } from "@/components/mobile/phone-ui";
+import { PurchaseCartonScanner, type ScannedCartonResult } from "@/components/mobile/purchase-carton-scanner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -86,6 +87,9 @@ function MobilePurchase() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [saving, setSaving] = useState(false);
+  const [filterByCompany, setFilterByCompany] = useState(true);
+  const [cartonScannerOpen, setCartonScannerOpen] = useState(false);
+  const [scanTargetUid, setScanTargetUid] = useState<string | null>(null);
 
   const { data: companyResults = [] } = useQuery({
     queryKey: ["m-purchase-companies", tenantId, companyQuery.trim()],
@@ -160,6 +164,31 @@ function MobilePurchase() {
     },
   });
   const supplier = suppliers.find((s) => s.id === supplierId) ?? null;
+  const supplierCompanyName = useMemo(() => {
+    if (!supplier?.name) return null;
+    const m = supplier.name.match(/\(([^)]+)\)\s*$/);
+    return m ? m[1].trim() : null;
+  }, [supplier?.name]);
+
+  const { data: supplierManufacturerId = null } = useQuery({
+    queryKey: ["m-purchase-mfr", tenantId, supplierCompanyName],
+    enabled: !!tenantId && !!supplierCompanyName,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("manufacturers")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .ilike("name", supplierCompanyName!)
+        .limit(1)
+        .maybeSingle();
+      return (data?.id as string | undefined) ?? null;
+    },
+  });
+
+  useEffect(() => {
+    setFilterByCompany(true);
+  }, [supplierId]);
+
   const filteredSuppliers = useMemo(() => {
     const q = supplierQuery.trim().toLowerCase();
     if (!q) return [];
@@ -171,9 +200,27 @@ function MobilePurchase() {
   }, [suppliers, supplierQuery]);
 
   const { data: results = [], isFetching } = useQuery({
-    queryKey: ["m-purchase-search", tenantId, debounced],
+    queryKey: ["m-purchase-search", tenantId, debounced, filterByCompany ? supplierManufacturerId : null],
     enabled: !!tenantId && debounced.length >= 1,
     queryFn: async () => {
+      if (filterByCompany && supplierManufacturerId) {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, sku, barcode, purchase_price, retail_price, strength, medicine_type, volume, pack_size, batches(qty_on_hand)")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .eq("manufacturer_id", supplierManufacturerId)
+          .ilike("name", `%${debounced}%`)
+          .order("name")
+          .limit(20);
+        if (error) throw error;
+        return ((data ?? []) as any[]).map((r) => ({
+          ...r,
+          qty_on_hand: Array.isArray(r.batches)
+            ? r.batches.reduce((s: number, b: any) => s + Number(b.qty_on_hand ?? 0), 0)
+            : 0,
+        })) as SearchRow[];
+      }
       const { data, error } = await supabase.rpc("search_products" as never, {
         _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 15,
       } as never);
@@ -199,6 +246,37 @@ function MobilePurchase() {
       },
     ]);
     setQuery("");
+  }
+
+  function handleCartonScanned(res: ScannedCartonResult) {
+    if (scanTargetUid) {
+      update(scanTargetUid, {
+        ...(res.batch_no ? { batch_no: res.batch_no } : {}),
+        ...(res.expiry_date ? { expiry_date: res.expiry_date } : {}),
+        ...(res.mrp ? { sale_price: res.mrp } : {}),
+      });
+      setScanTargetUid(null);
+      toast.success(tr("কার্টনের ব্যাচ/মেয়াদ/MRP বসানো হয়েছে", "Carton details applied"));
+      return;
+    }
+
+    if (res.product) {
+      setLines((prev) => [
+        {
+          uid: `${res.product!.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          productId: res.product!.id,
+          name: res.product!.name,
+          batch_no: res.batch_no,
+          expiry_date: res.expiry_date,
+          purchase_price: res.product!.purchase_price,
+          sale_price: res.mrp ?? res.product!.retail_price,
+          qty: 1,
+          bonus: 0,
+          discount: 0,
+        },
+        ...prev,
+      ]);
+    }
   }
 
   const update = (uid: string, patch: Partial<Line>) =>
@@ -375,14 +453,46 @@ function MobilePurchase() {
         </div>
       </PhoneCard>
 
-      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-3">
-        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <Input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={tr("পণ্য যোগ করতে খুঁজুন…", "Search product to add…")}
-          className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
-        />
+      {/* Product Search + Carton Camera Scanner */}
+      <div className="mt-3 space-y-2">
+        {supplierCompanyName && supplierManufacturerId && (
+          <div className="flex items-center justify-between px-1">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold text-[#0d5c46]">
+              <Building2 className="h-3 w-3" />
+              {filterByCompany ? supplierCompanyName : tr("সব কোম্পানি", "All companies")}
+            </span>
+            <button
+              type="button"
+              onClick={() => setFilterByCompany((v) => !v)}
+              className="text-[11px] font-semibold text-[#0d5c46] underline"
+            >
+              {filterByCompany ? tr("সব কোম্পানি দেখুন", "Show all") : tr("শুধু এই কোম্পানি", "Only this company")}
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-xs">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={tr("পণ্য যোগ করতে খুঁজুন…", "Search product to add…")}
+              className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+            />
+          </div>
+          <Button
+            type="button"
+            onClick={() => {
+              setScanTargetUid(null);
+              setCartonScannerOpen(true);
+            }}
+            className="h-11 shrink-0 rounded-2xl bg-[#0d5c46] hover:bg-[#094735] px-3.5 text-white font-semibold gap-1.5 shadow-xs"
+          >
+            <ScanBarcode className="h-4.5 w-4.5" />
+            <span className="text-xs">{tr("কার্টন", "Scan")}</span>
+          </Button>
+        </div>
       </div>
 
       {debounced.length >= 1 && (
@@ -418,9 +528,23 @@ function MobilePurchase() {
           <PhoneCard key={l.uid} className="space-y-3">
             <div className="flex items-start justify-between gap-2">
               <p className="min-w-0 font-bold text-foreground">{idx + 1}. {l.name}</p>
-              <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-destructive" onClick={() => remove(l.uid)}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-[#0d5c46]"
+                  title={tr("কার্টন স্ক্যান করে ব্যাচ/মেয়াদ বসান", "Scan carton for batch/expiry")}
+                  onClick={() => {
+                    setScanTargetUid(l.uid);
+                    setCartonScannerOpen(true);
+                  }}
+                >
+                  <Camera className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => remove(l.uid)}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -491,6 +615,17 @@ function MobilePurchase() {
           {saving ? tr("সেভ হচ্ছে…", "Saving…") : `${tr("সেভ ও রিসিভ করুন", "Save & receive")} · ${money(grandTotal)}`}
         </Button>
       </div>
+
+      <PurchaseCartonScanner
+        open={cartonScannerOpen}
+        onOpenChange={(v) => {
+          setCartonScannerOpen(v);
+          if (!v) setScanTargetUid(null);
+        }}
+        tenantId={tenantId}
+        manufacturerId={filterByCompany ? supplierManufacturerId : null}
+        onScanned={handleCartonScanned}
+      />
 
       <Dialog open={addSupOpen} onOpenChange={setAddSupOpen}>
         <DialogContent className="max-w-sm rounded-3xl">
