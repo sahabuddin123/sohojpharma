@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
-import { Search, Trash2, Plus, Minus, UserPlus } from "lucide-react";
+import { Search, Trash2, Plus, Minus, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -75,6 +75,8 @@ function MobilePurchase() {
 
   const [supplierId, setSupplierId] = useState("");
   const [addSupOpen, setAddSupOpen] = useState(false);
+  const [companyQuery, setCompanyQuery] = useState("");
+  const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string } | null>(null);
   const [supForm, setSupForm] = useState({ name: "", phone: "", address: "" });
   const [invoiceNo, setInvoiceNo] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -84,14 +86,38 @@ function MobilePurchase() {
   const [debounced, setDebounced] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const { data: companyResults = [] } = useQuery({
+    queryKey: ["m-purchase-companies", tenantId, companyQuery.trim()],
+    enabled: addSupOpen && !!tenantId && !selectedCompany && companyQuery.trim().length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("manufacturers")
+        .select("id,name")
+        .eq("tenant_id", tenantId)
+        .ilike("name", `%${companyQuery.trim()}%`)
+        .order("name")
+        .limit(15);
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+
   const addSupplierMut = useMutation({
     mutationFn: async () => {
-      if (!supForm.name.trim()) throw new Error(tr("সরবরাহকারীর নাম আবশ্যক", "Supplier name is required"));
+      const repName = supForm.name.trim();
+      if (!repName && !selectedCompany) {
+        throw new Error(tr("কোম্পানি অথবা সরবরাহকারীর নাম দিন", "Company or supplier name is required"));
+      }
+      const fullName = selectedCompany
+        ? repName
+          ? `${repName} (${selectedCompany.name})`
+          : selectedCompany.name
+        : repName;
       const { data, error } = await supabase
         .from("suppliers")
         .insert({
           tenant_id: tenantId,
-          name: supForm.name.trim(),
+          name: fullName,
           phone: supForm.phone.trim() || null,
           address: supForm.address.trim() || null,
           is_active: true,
@@ -106,6 +132,8 @@ function MobilePurchase() {
       qc.invalidateQueries({ queryKey: ["suppliers-active", tenantId] });
       setSupplierId(id);
       setSupForm({ name: "", phone: "", address: "" });
+      setSelectedCompany(null);
+      setCompanyQuery("");
       setAddSupOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -423,12 +451,58 @@ function MobilePurchase() {
           </DialogHeader>
           <div className="space-y-3 py-1">
             <div className="space-y-1">
+              <Label className="text-xs">{tr("কোম্পানি নির্বাচন (ঐচ্ছিক)", "Select Company (Optional)")}</Label>
+              {selectedCompany ? (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2">
+                  <span className="text-xs font-bold text-slate-900 truncate">{selectedCompany.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCompany(null)}
+                    className="rounded-full p-0.5 text-slate-500 hover:bg-white"
+                    aria-label="Clear company"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <Input
+                    value={companyQuery}
+                    onChange={(e) => setCompanyQuery(e.target.value)}
+                    placeholder={tr("কোম্পানির নাম লিখে খুঁজুন...", "Search company name...")}
+                    autoFocus
+                  />
+                  {companyQuery.trim().length > 0 && companyResults.length > 0 ? (
+                    <div className="max-h-32 overflow-y-auto space-y-1 rounded-lg border border-slate-200 bg-white p-1">
+                      {companyResults.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedCompany(c);
+                            setCompanyQuery("");
+                          }}
+                          className="block w-full rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-slate-900 hover:bg-emerald-50"
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                    </div>
+                  ) : companyQuery.trim().length > 0 ? (
+                    <p className="px-1 text-[11px] text-slate-500">
+                      {tr("কোনো কোম্পানি পাওয়া যায়নি", "No company found")}
+                    </p>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1">
               <Label className="text-xs">{tr("নাম *", "Name *")}</Label>
               <Input
                 value={supForm.name}
                 onChange={(e) => setSupForm((p) => ({ ...p, name: e.target.value }))}
                 placeholder={tr("সরবরাহকারীর নাম", "Supplier name")}
-                autoFocus
               />
             </div>
             <div className="space-y-1">
