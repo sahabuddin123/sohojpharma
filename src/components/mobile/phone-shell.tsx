@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, PieChart, ClipboardList, CloudDownload, ChevronLeft, HelpCircle } from "lucide-react";
+import { Home, PieChart, ClipboardList, CloudDownload, ChevronLeft, HelpCircle, Settings } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { SupportTicketDialog } from "./support-ticket-dialog";
@@ -47,17 +47,27 @@ export function PhoneHeader({
             <p className="truncate text-xs text-primary-foreground/80">Pharmacy owner</p>
           )}
         </div>
-        {help ?? (
-          <button
-            type="button"
-            onClick={() => setSupportOpen(true)}
-            aria-label="সাপোর্ট টিকেট"
-            title="সাপোর্ট টিকেট"
+        <div className="flex items-center gap-2 shrink-0">
+          {help ?? (
+            <button
+              type="button"
+              onClick={() => setSupportOpen(true)}
+              aria-label="সাপোর্ট টিকেট"
+              title="সাপোর্ট টিকেট"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
+            >
+              <HelpCircle className="h-5 w-5" />
+            </button>
+          )}
+          <Link
+            to={"/m/settings" as never}
+            aria-label="সেটিংস ও প্রোফাইল"
+            title="সেটিংস ও প্রোফাইল"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
           >
-            <HelpCircle className="h-5 w-5" />
-          </button>
-        )}
+            <Settings className="h-5 w-5" />
+          </Link>
+        </div>
       </div>
       <SupportTicketDialog open={supportOpen} onOpenChange={setSupportOpen} />
     </header>
