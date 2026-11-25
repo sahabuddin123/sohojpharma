@@ -88,8 +88,48 @@ function MobilePurchase() {
   const [debounced, setDebounced] = useState("");
   const [saving, setSaving] = useState(false);
   const [filterByCompany, setFilterByCompany] = useState(true);
+  const [loadingCompanyAll, setLoadingCompanyAll] = useState(false);
+  const [companyBulkLoaded, setCompanyBulkLoaded] = useState(false);
+  const [draftLoadedFor, setDraftLoadedFor] = useState<string | null>(null);
   const [cartonScannerOpen, setCartonScannerOpen] = useState(false);
   const [scanTargetUid, setScanTargetUid] = useState<string | null>(null);
+
+  const draftKey = tenantId ? `sohojpharma:m-purchase-draft:${tenantId}` : "";
+
+  // Restore draft on mount / tenant switch so reload never loses added products
+  useEffect(() => {
+    if (!draftKey || draftLoadedFor === draftKey) return;
+    setDraftLoadedFor(draftKey);
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved.supplierId === "string") setSupplierId(saved.supplierId);
+      if (typeof saved.invoiceNo === "string") setInvoiceNo(saved.invoiceNo);
+      if (typeof saved.dueDate === "string") setDueDate(saved.dueDate);
+      if (typeof saved.paid === "number") setPaid(saved.paid);
+      if (Array.isArray(saved.lines) && saved.lines.length > 0) setLines(saved.lines);
+    } catch {
+      // ignore corrupted draft
+    }
+  }, [draftKey, draftLoadedFor]);
+
+  // Persist draft whenever purchase fields or lines change
+  useEffect(() => {
+    if (!draftKey || draftLoadedFor !== draftKey) return;
+    try {
+      if (!supplierId && !invoiceNo && !dueDate && paid === 0 && lines.length === 0) {
+        localStorage.removeItem(draftKey);
+      } else {
+        localStorage.setItem(
+          draftKey,
+          JSON.stringify({ supplierId, invoiceNo, dueDate, paid, lines }),
+        );
+      }
+    } catch {
+      // ignore storage quota errors
+    }
+  }, [draftKey, draftLoadedFor, supplierId, invoiceNo, dueDate, paid, lines]);
 
   const { data: companyResults = [] } = useQuery({
     queryKey: ["m-purchase-companies", tenantId, companyQuery.trim()],
@@ -187,7 +227,59 @@ function MobilePurchase() {
 
   useEffect(() => {
     setFilterByCompany(true);
+    setCompanyBulkLoaded(false);
   }, [supplierId]);
+
+  async function handleToggleCompanyProducts() {
+    if (companyBulkLoaded || lines.length > 0) {
+      setLines([]);
+      setCompanyBulkLoaded(false);
+      toast.info(tr("তালিকার সব পণ্য সরানো হয়েছে", "All products removed from list"));
+      return;
+    }
+    if (!tenantId || !supplierManufacturerId) return;
+    setLoadingCompanyAll(true);
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id, name, purchase_price, retail_price, strength, medicine_type, volume, pack_size")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true)
+        .eq("manufacturer_id", supplierManufacturerId)
+        .order("name")
+        .limit(500);
+      if (error) throw error;
+      const fetched = (data ?? []) as any[];
+      if (fetched.length === 0) {
+        toast.info(tr("এই কোম্পানির কোনো পণ্য পাওয়া যায়নি", "No products found for this company"));
+        return;
+      }
+      setLines((prev) => {
+        const existingIds = new Set(prev.map((l) => l.productId));
+        const added: Line[] = fetched
+          .filter((p) => !existingIds.has(p.id))
+          .map((p) => ({
+            uid: `${p.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            productId: p.id,
+            name: buildProductDisplayName(p),
+            batch_no: "",
+            expiry_date: "",
+            purchase_price: Number(p.purchase_price ?? 0),
+            sale_price: Number(p.retail_price ?? 0),
+            qty: 0,
+            bonus: 0,
+            discount: 0,
+          }));
+        return [...prev, ...added];
+      });
+      setCompanyBulkLoaded(true);
+      toast.success(tr(`${fetched.length}টি পণ্য লোড হয়েছে — পরিমাণ দিন`, `${fetched.length} products loaded — enter qty`));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : tr("পণ্য লোড করা যায়নি", "Failed to load products"));
+    } finally {
+      setLoadingCompanyAll(false);
+    }
+  }
 
   const filteredSuppliers = useMemo(() => {
     const q = supplierQuery.trim().toLowerCase();
@@ -283,24 +375,24 @@ function MobilePurchase() {
     setLines((ls) => ls.map((l) => (l.uid === uid ? { ...l, ...patch } : l)));
   const remove = (uid: string) => setLines((ls) => ls.filter((l) => l.uid !== uid));
 
-  const grandTotal = lines.reduce((s, l) => s + Math.max(0, l.qty * l.purchase_price - l.discount), 0);
+  const activeLines = useMemo(() => lines.filter((l) => l.qty > 0), [lines]);
+  const grandTotal = activeLines.reduce((s, l) => s + Math.max(0, l.qty * l.purchase_price - l.discount), 0);
   const due = Math.max(0, grandTotal - paid);
 
   const errors = useMemo(() => {
     const errs: string[] = [];
     if (!supplierId) errs.push(tr("সরবরাহকারী নির্বাচন করুন", "Select a supplier"));
-    if (!lines.length) errs.push(tr("অন্তত একটি পণ্য যোগ করুন", "Add at least one product"));
+    if (!activeLines.length) errs.push(tr("অন্তত একটি পণ্যে পরিমাণ (Qty) দিন", "Enter quantity for at least one product"));
     const t = today();
-    lines.forEach((l, i) => {
-      if (!l.batch_no.trim()) errs.push(tr(`সারি ${i + 1}: ব্যাচ নম্বর দিন`, `Row ${i + 1}: batch number required`));
-      if (!l.expiry_date) errs.push(tr(`সারি ${i + 1}: মেয়াদ দিন`, `Row ${i + 1}: expiry date required`));
-      else if (l.expiry_date <= t) errs.push(tr(`সারি ${i + 1}: মেয়াদ ভবিষ্যতের হতে হবে`, `Row ${i + 1}: expiry must be in the future`));
-      if (l.qty <= 0) errs.push(tr(`সারি ${i + 1}: পরিমাণ ০-এর বেশি হতে হবে`, `Row ${i + 1}: quantity must be > 0`));
-      if (l.purchase_price <= 0) errs.push(tr(`সারি ${i + 1}: ক্রয়মূল্য ০-এর বেশি হতে হবে`, `Row ${i + 1}: purchase price must be > 0`));
-      if (l.sale_price < l.purchase_price) errs.push(tr(`সারি ${i + 1}: বিক্রয়মূল্য ক্রয়মূল্যের সমান বা বেশি হতে হবে`, `Row ${i + 1}: sale price must be ≥ purchase price`));
+    activeLines.forEach((l, i) => {
+      if (!l.batch_no.trim()) errs.push(tr(`${l.name}: ব্যাচ নম্বর দিন`, `Item ${i + 1}: batch number required`));
+      if (!l.expiry_date) errs.push(tr(`${l.name}: মেয়াদ দিন`, `Item ${i + 1}: expiry date required`));
+      else if (l.expiry_date <= t) errs.push(tr(`${l.name}: মেয়াদ ভবিষ্যতের হতে হবে`, `Item ${i + 1}: expiry must be in the future`));
+      if (l.purchase_price <= 0) errs.push(tr(`${l.name}: ক্রয়মূল্য ০-এর বেশি হতে হবে`, `Item ${i + 1}: purchase price must be > 0`));
+      if (l.sale_price < l.purchase_price) errs.push(tr(`${l.name}: বিক্রয়মূল্য ক্রয়মূল্যের সমান বা বেশি হতে হবে`, `Item ${i + 1}: sale price must be ≥ purchase price`));
     });
     return errs;
-  }, [supplierId, lines, isBn]);
+  }, [supplierId, activeLines, isBn]);
 
   async function handleSave() {
     if (errors.length || !tenantId) return toast.error(errors[0] ?? "Cannot save");
@@ -314,7 +406,7 @@ function MobilePurchase() {
           supplier_id: supplierId,
           expected_delivery_date: dueDate || undefined,
           notes: invoiceNo ? `Invoice: ${invoiceNo}` : undefined,
-          items: lines.map((l) => ({
+          items: activeLines.map((l) => ({
             product_id: l.productId,
             qty_ordered: l.qty + l.bonus,
             unit_cost: l.purchase_price,
@@ -333,7 +425,7 @@ function MobilePurchase() {
       if (itErr) throw new Error(itErr.message);
 
       const used = new Set<string>();
-      const recvLines = lines.map((l) => {
+      const recvLines = activeLines.map((l) => {
         const match = (items ?? []).find((it) => it.product_id === l.productId && !used.has(it.id));
         if (!match) throw new Error(`Could not link product ${l.name}`);
         used.add(match.id);
@@ -350,8 +442,9 @@ function MobilePurchase() {
         });
       }
 
-      toast.success("Purchase saved — stock & ledger updated");
-      setLines([]); setPaid(0); setInvoiceNo("");
+      toast.success(tr("ক্রয় সেভ হয়েছে — স্টক ও লেজার আপডেট হয়েছে", "Purchase saved — stock & ledger updated"));
+      setLines([]); setPaid(0); setInvoiceNo(""); setDueDate(""); setCompanyBulkLoaded(false);
+      if (draftKey) localStorage.removeItem(draftKey);
       navigate({ to: "/m/purchases" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
@@ -456,17 +549,31 @@ function MobilePurchase() {
       {/* Product Search + Carton Camera Scanner */}
       <div className="mt-3 space-y-2">
         {supplierCompanyName && supplierManufacturerId && (
-          <div className="flex items-center justify-between px-1">
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold text-[#0d5c46]">
-              <Building2 className="h-3 w-3" />
-              {filterByCompany ? supplierCompanyName : tr("সব কোম্পানি", "All companies")}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-semibold text-[#0d5c46] truncate">
+              <Building2 className="h-3 w-3 shrink-0" />
+              <span className="truncate">{filterByCompany ? supplierCompanyName : tr("সব কোম্পানি", "All companies")}</span>
             </span>
+
+            <button
+              type="button"
+              onClick={() => void handleToggleCompanyProducts()}
+              disabled={loadingCompanyAll}
+              className="shrink-0 rounded-full bg-[#0d5c46] hover:bg-[#094735] px-3 py-1 text-[11px] font-semibold text-white shadow-xs active:scale-95 transition"
+            >
+              {loadingCompanyAll
+                ? tr("লোড হচ্ছে...", "Loading...")
+                : companyBulkLoaded || lines.length > 0
+                  ? tr("সব সরান", "Remove all")
+                  : tr("সব পণ্য আনুন", "Load all")}
+            </button>
+
             <button
               type="button"
               onClick={() => setFilterByCompany((v) => !v)}
-              className="text-[11px] font-semibold text-[#0d5c46] underline"
+              className="shrink-0 text-[11px] font-semibold text-[#0d5c46] underline"
             >
-              {filterByCompany ? tr("সব কোম্পানি দেখুন", "Show all") : tr("শুধু এই কোম্পানি", "Only this company")}
+              {filterByCompany ? tr("সব কোম্পানি", "Show all") : tr("এই কোম্পানি", "This company")}
             </button>
           </div>
         )}
@@ -576,7 +683,7 @@ function MobilePurchase() {
 
             <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
               <div className="flex items-center gap-2">
-                <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => update(l.uid, { qty: Math.max(1, l.qty - 1) })}>
+                <Button size="icon" variant="outline" className="h-10 w-10" onClick={() => update(l.uid, { qty: Math.max(0, l.qty - 1) })}>
                   <Minus className="h-4 w-4" />
                 </Button>
                 <Input
