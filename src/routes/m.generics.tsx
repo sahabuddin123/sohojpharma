@@ -100,7 +100,7 @@ function MobileGenerics() {
         },
       }),
     onSuccess: () => {
-      toast.success(editing ? "Generic updated" : "Generic added");
+      toast.success(editing ? "জেনেরিক আপডেট হয়েছে" : "নতুন জেনেরিক যোগ হয়েছে");
       setFormOpen(false);
       setEditing(null);
       setName("");
@@ -113,47 +113,47 @@ function MobileGenerics() {
   const delMut = useMutation({
     mutationFn: (id: string) => remove({ data: { tenantId, id } }),
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success("জেনেরিক মুছে ফেলা হয়েছে");
       invalidate();
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <PhoneShell title="Generics" back contentClassName="sm:max-w-3xl">
+    <PhoneShell title="জেনেরিক তালিকা" back contentClassName="sm:max-w-3xl">
       <PhoneKpiGrid>
-        <PhoneKpi tone="sky" accent="info" value={total.toLocaleString()} label="Total generics" />
-        <PhoneKpi tone="mint" accent="success" value={rows.length} label="On this page" />
+        <PhoneKpi tone="sky" accent="info" value={total.toLocaleString()} label="মোট জেনেরিক" />
+        <PhoneKpi tone="mint" accent="success" value={`${page} / ${pages}`} label="পৃষ্ঠা" />
       </PhoneKpiGrid>
 
-      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-3">
-        <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="mt-3 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-xs">
+        <Search className="h-4 w-4 shrink-0 text-slate-400" />
         <Input
           value={term}
           onChange={(e) => setTerm(e.target.value)}
-          placeholder="Search generic name…"
-          className="h-11 border-0 bg-transparent px-0 shadow-none focus-visible:ring-0"
+          placeholder="জেনেরিকের নাম লিখে খুঁজুন…"
+          className="h-11 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
         />
       </div>
 
       {!formOpen ? (
-        <Button className="mt-3 h-12 w-full rounded-2xl" onClick={startNew}>
-          <Plus className="mr-2 h-4 w-4" /> New generic
+        <Button className="mt-3 h-11 w-full rounded-2xl bg-[#0d5c46] hover:bg-[#094735] text-white font-bold" onClick={startNew}>
+          <Plus className="mr-1.5 h-4 w-4" /> নতুন জেনেরিক যোগ করুন
         </Button>
       ) : (
         <PhoneCard className="mt-3 space-y-3">
-          <p className="text-sm font-bold">{editing ? "Edit generic" : "New generic"}</p>
+          <p className="text-sm font-bold">{editing ? "জেনেরিক এডিট করুন" : "নতুন জেনেরিক"}</p>
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Generic name *"
+            placeholder="জেনেরিকের নাম *"
             className="h-11"
           />
           <Textarea
             rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Description (optional)"
+            placeholder="বিবরণ (ঐচ্ছিক)"
           />
           <div className="flex gap-2">
             <Button
@@ -167,11 +167,11 @@ function MobileGenerics() {
               Cancel
             </Button>
             <Button
-              className="h-11 flex-1"
+              className="h-11 flex-1 bg-[#0d5c46] hover:bg-[#094735] text-white"
               disabled={!name.trim() || saveMut.isPending}
               onClick={() => saveMut.mutate()}
             >
-              {saveMut.isPending ? "Saving…" : "Save"}
+              {saveMut.isPending ? "সেভ হচ্ছে…" : "সেভ করুন"}
             </Button>
           </div>
         </PhoneCard>
@@ -179,11 +179,11 @@ function MobileGenerics() {
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {q.isLoading && (
-          <p className="py-10 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">Loading…</p>
+          <p className="py-10 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">লোড হচ্ছে…</p>
         )}
         {!q.isLoading && rows.length === 0 && (
           <div className="sm:col-span-2 lg:col-span-3">
-            <PhoneEmpty message="No generic found" />
+            <PhoneEmpty message="কোনো জেনেরিক পাওয়া যায়নি" />
           </div>
         )}
         {rows.map((r) => (
@@ -191,22 +191,24 @@ function MobileGenerics() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-bold leading-snug text-foreground">{r.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{r.description || "—"}</p>
+                {r.description && (
+                  <p className="mt-0.5 text-xs text-muted-foreground">{r.description}</p>
+                )}
               </div>
               <Badge variant={r.status === "active" ? "default" : "secondary"} className="shrink-0">
-                {r.status}
+                {r.status === "active" ? "সক্রিয়" : r.status}
               </Badge>
             </div>
             <div className="mt-2 flex justify-end gap-2 border-t border-border pt-2">
               <Button size="sm" variant="outline" onClick={() => startEdit(r)}>
-                <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+                <Pencil className="mr-1 h-3.5 w-3.5" /> এডিট
               </Button>
               <Button
                 size="sm"
                 variant="ghost"
                 disabled={delMut.isPending}
                 onClick={() => {
-                  if (confirm(`Delete ${r.name}?`)) delMut.mutate(r.id);
+                  if (confirm(`"${r.name}" মুছে ফেলবেন?`)) delMut.mutate(r.id);
                 }}
               >
                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -218,14 +220,14 @@ function MobileGenerics() {
 
       {pages > 1 && (
         <div className="mt-4 flex items-center justify-between gap-3">
-          <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Previous
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            আগে
           </Button>
-          <span className="text-sm text-muted-foreground">
-            {page} / {pages}
+          <span className="text-xs font-semibold text-muted-foreground">
+            পৃষ্ঠা {page} / {pages}
           </span>
-          <Button variant="outline" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
-            Next
+          <Button variant="outline" size="sm" disabled={page >= pages} onClick={() => setPage((p) => p + 1)}>
+            পরে
           </Button>
         </div>
       )}
