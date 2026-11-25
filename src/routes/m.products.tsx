@@ -1,10 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, AlertTriangle, Loader2, Search, X } from "lucide-react";
+import { AlertTriangle, Loader2, Search, X } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
-import { PhoneTabBar } from "@/components/mobile/phone-shell";
+import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneEmpty } from "@/components/mobile/phone-ui";
 import {
   getMobileProductAccounting,
@@ -129,6 +129,14 @@ function formatNum(val: number | string | null | undefined): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(val ?? 0));
 }
 
+function buildTitleSuffix(name: string, strength?: string | null, medicineType?: string | null): string {
+  const lower = name.toLowerCase();
+  const parts: string[] = [];
+  if (strength && !lower.includes(strength.toLowerCase())) parts.push(strength);
+  if (medicineType && !lower.includes(medicineType.toLowerCase())) parts.push(medicineType);
+  return parts.join(" ");
+}
+
 function formatQtyDisplay(qty: number, qtyPerBox: number, unit?: string | null): string {
   const rounded = Math.round(qty);
   if (qtyPerBox > 1 && rounded >= qtyPerBox) {
@@ -204,46 +212,33 @@ function MobileProducts() {
       : `${formatDisplayDate(dateRange.from)} → ${formatDisplayDate(dateRange.to)}`;
 
   return (
-    <div className="min-h-screen bg-[#f6f8f6] text-slate-900 pb-28">
-      {/* Clean Top Header */}
-      <header className="sticky top-0 z-30 bg-[#f6f8f6]/95 backdrop-blur border-b border-slate-200/70">
-        <div className="h-[env(safe-area-inset-top)]" />
-        <div className="mx-auto flex max-w-md items-center justify-between gap-3 px-4 py-3 sm:max-w-2xl">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              to="/m"
-              aria-label="Back"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-slate-800 hover:bg-slate-200/60 active:scale-95 transition"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Link>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold leading-tight text-slate-900 truncate">
-                পণ্যের হিসাব
-              </h1>
-              <p className="text-xs text-slate-500 truncate">
-                {mode === "stuck"
-                  ? `${summary.stuckBrandCount}টি ব্র্যান্ড পড়ে আছে`
-                  : `${summary.soldBrandCount}টি ব্র্যান্ড বিক্রি হয়েছে`}
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowSearch((s) => !s);
-              if (showSearch) setTerm("");
-            }}
-            aria-label="অনুসন্ধান"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 active:scale-95 transition"
-          >
-            {showSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-          </button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-md px-4 pt-3 sm:max-w-2xl space-y-3.5">
+    <PhoneShell
+      title="পণ্যের হিসাব"
+      back
+      help={
+        <button
+          type="button"
+          onClick={() => {
+            setShowSearch((s) => !s);
+            if (showSearch) setTerm("");
+          }}
+          aria-label="অনুসন্ধান"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
+        >
+          {showSearch ? <X className="h-4.5 w-4.5" /> : <Search className="h-4.5 w-4.5" />}
+        </button>
+      }
+      contentClassName="space-y-3.5"
+    >
+      {/* Subtitle bar */}
+      <div className="flex items-center justify-between px-0.5 text-xs text-slate-500">
+        <span>
+          {mode === "stuck"
+            ? `${summary.stuckBrandCount}টি ব্র্যান্ড পড়ে আছে`
+            : `${summary.soldBrandCount}টি ব্র্যান্ড বিক্রি হয়েছে`}
+        </span>
+        <span className="font-medium">{dateRangeLabel}</span>
+      </div>
         {/* Optional Search Input */}
         {showSearch && (
           <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 shadow-xs">
@@ -304,29 +299,26 @@ function MobileProducts() {
           </div>
         )}
 
-        {/* Active Date Range Caption */}
-        <p className="text-center text-xs font-medium text-slate-500">{dateRangeLabel}</p>
-
         {/* Summary Card */}
         <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-[0_1px_4px_rgba(0,0,0,0.03)]">
           {mode === "stuck" ? (
             <>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div>
+              <div className="phone-grid-keep grid grid-cols-3 divide-x divide-slate-100 text-center">
+                <div className="px-1">
                   <p className="text-[11px] text-slate-500">আটকে আছে</p>
-                  <p className="mt-1 text-lg font-extrabold text-[#854d0e]">
+                  <p className="mt-1 text-base font-extrabold text-[#854d0e]">
                     ৳{formatNum(summary.totalStuckValue)}
                   </p>
                 </div>
-                <div>
+                <div className="px-1">
                   <p className="text-[11px] text-slate-500">ব্র্যান্ড</p>
-                  <p className="mt-1 text-lg font-extrabold text-slate-900">
+                  <p className="mt-1 text-base font-extrabold text-slate-900">
                     {summary.stuckBrandCount}
                   </p>
                 </div>
-                <div>
+                <div className="px-1">
                   <p className="text-[11px] text-slate-500">পরের ফেরত</p>
-                  <p className="mt-1 text-lg font-extrabold text-slate-900">
+                  <p className="mt-1 text-base font-extrabold text-slate-900">
                     {formatMonthYear(summary.nextExpiry)}
                   </p>
                 </div>
@@ -336,22 +328,22 @@ function MobileProducts() {
               </p>
             </>
           ) : (
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div>
+            <div className="phone-grid-keep grid grid-cols-3 divide-x divide-slate-100 text-center">
+              <div className="px-1">
                 <p className="text-[11px] text-slate-500">মোট বিক্রি</p>
-                <p className="mt-1 text-lg font-extrabold text-slate-900">
+                <p className="mt-1 text-base font-extrabold text-slate-900">
                   ৳{formatNum(summary.totalRevenue)}
                 </p>
               </div>
-              <div>
+              <div className="px-1">
                 <p className="text-[11px] text-slate-500">মোট লাভ</p>
-                <p className="mt-1 text-lg font-extrabold text-[#0d6e4e]">
+                <p className="mt-1 text-base font-extrabold text-[#0d6e4e]">
                   ৳{formatNum(summary.totalProfit)}
                 </p>
               </div>
-              <div>
+              <div className="px-1">
                 <p className="text-[11px] text-slate-500">বিক্রিত পিস</p>
-                <p className="mt-1 text-lg font-extrabold text-slate-900">
+                <p className="mt-1 text-base font-extrabold text-slate-900">
                   {formatNum(summary.totalSoldQty)}
                 </p>
               </div>
@@ -361,7 +353,7 @@ function MobileProducts() {
 
         {/* Segmented Mode Bar + Dead Stock Pill */}
         <div className="flex items-center justify-between gap-2">
-          <div className="grid grid-cols-3 flex-1 rounded-full bg-[#e9eeea] p-1">
+          <div className="phone-grid-keep grid grid-cols-3 flex-1 rounded-full bg-[#e9eeea] p-1">
             {(
               [
                 { id: "sales", label: "বিক্রি" },
@@ -419,7 +411,7 @@ function MobileProducts() {
             />
           ) : mode === "stuck" ? (
             (rows as MobileProductStuckRow[]).map((r) => {
-              const titleSuffix = [r.strength, r.medicine_type].filter(Boolean).join(" ");
+              const titleSuffix = buildTitleSuffix(r.name, r.strength, r.medicine_type);
               const subLine = [
                 r.manufacturer_name,
                 `${formatQtyDisplay(r.stock_qty, r.qty_per_box, r.unit)} দোকানে আছে`,
@@ -467,7 +459,7 @@ function MobileProducts() {
             })
           ) : (
             (rows as MobileProductSalesRow[]).map((r) => {
-              const titleSuffix = [r.strength, r.medicine_type].filter(Boolean).join(" ");
+              const titleSuffix = buildTitleSuffix(r.name, r.strength, r.medicine_type);
               const subLine = [r.manufacturer_name, r.generic_name].filter(Boolean).join(" · ") || "—";
               const outOfStock = r.stock_qty <= 0;
 
@@ -494,7 +486,7 @@ function MobileProducts() {
                     </div>
                   </div>
 
-                  <div className="mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
+                  <div className="phone-grid-keep mt-3 grid grid-cols-3 gap-2 border-t border-slate-100 pt-3">
                     <div>
                       <p className="text-[11px] text-slate-500">বিক্রি</p>
                       <p className="mt-0.5 text-sm font-bold text-slate-900">
@@ -558,9 +550,6 @@ function MobileProducts() {
             </Button>
           </div>
         )}
-      </main>
-
-      <PhoneTabBar />
-    </div>
+    </PhoneShell>
   );
 }
