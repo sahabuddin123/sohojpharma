@@ -95,6 +95,8 @@ function MobilePurchase() {
   const [invoiceNo, setInvoiceNo] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [paid, setPaid] = useState(0);
+  const [payMethod, setPayMethod] = useState<"cash" | "bank" | "bkash" | "nagad" | "rocket" | "card">("cash");
+  const [payModalOpen, setPayModalOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
@@ -496,13 +498,14 @@ function MobilePurchase() {
       if (paid > 0) {
         await payPO({
           data: {
-            tenantId, branch_id: branchId, supplierId, amount: paid, method: "cash",
+            tenantId, branch_id: branchId, supplierId, amount: paid, method: payMethod,
             reference: invoiceNo || undefined, notes: `Payment on PO ${poId}`,
           },
         });
       }
 
       toast.success(tr("ক্রয় সেভ হয়েছে — স্টক ও লেজার আপডেট হয়েছে", "Purchase saved — stock & ledger updated"));
+      setPayModalOpen(false);
       setLines([]); setPaid(0); setInvoiceNo(""); setDueDate(""); setCompanyBulkLoaded(false);
       if (draftKey) localStorage.removeItem(draftKey);
       navigate({ to: "/m/purchases" });
@@ -887,7 +890,16 @@ function MobilePurchase() {
 
         {lines.length > 0 && (
           <PhoneCard className="space-y-2">
-            <Label className="text-xs">{tr("নগদ পরিশোধ", "Paid now")}</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">{tr("পরিশোধের পরিমাণ", "Paid now")}</Label>
+              <button
+                type="button"
+                onClick={() => setPaid(Math.round(grandTotal * 100) / 100)}
+                className="text-[11px] font-semibold text-[#0d5c46] underline"
+              >
+                {tr("সম্পূর্ণ পরিশোধ", "Full Pay")}
+              </button>
+            </div>
             <Input className="h-11" type="number" inputMode="decimal" value={paid} onChange={(e) => setPaid(num(e.target.value))} />
             {errors.length > 0 && <p className="text-xs text-destructive">{errors[0]}</p>}
           </PhoneCard>
@@ -898,11 +910,109 @@ function MobilePurchase() {
         <Button
           className="h-12 w-full rounded-2xl text-base font-bold bg-[#0d5c46] hover:bg-[#094735] text-white"
           disabled={saving || !!errors.length}
-          onClick={handleSave}
+          onClick={() => {
+            if (errors.length) return toast.error(errors[0] ?? "Cannot save");
+            setPayModalOpen(true);
+          }}
         >
           {saving ? tr("সেভ হচ্ছে…", "Saving…") : `${tr("সেভ ও রিসিভ করুন", "Save & receive")} · ${money(grandTotal)}`}
         </Button>
       </div>
+
+      {/* Payment Confirmation Modal */}
+      <Dialog open={payModalOpen} onOpenChange={setPayModalOpen}>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md rounded-2xl p-4">
+          <DialogHeader>
+            <DialogTitle className="text-base">{tr("পেমেন্ট নিশ্চিত করুন", "Confirm Purchase Payment")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-slate-500">{tr("মোট বিল:", "Grand Total:")}</span>
+                <span className="font-extrabold text-slate-900">{money(grandTotal)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">{tr("বাকি থাকবে:", "Due Balance:")}</span>
+                <span className={due > 0 ? "font-extrabold text-rose-600" : "font-extrabold text-[#0d5c46]"}>
+                  {money(due)}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">{tr("কত টাকা পরিশোধ করবেন?", "Amount to pay")}</Label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaid(Math.round(grandTotal * 100) / 100)}
+                    className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-[#0d5c46] hover:bg-emerald-100"
+                  >
+                    {tr("পুরো নগদ", "Full Pay")}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaid(0)}
+                    className="rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-600 hover:bg-rose-100"
+                  >
+                    {tr("বাকি (৳০)", "Full Due")}
+                  </button>
+                </div>
+              </div>
+              <Input
+                className="h-11 text-base font-bold"
+                type="number"
+                step="0.01"
+                inputMode="decimal"
+                value={paid}
+                onChange={(e) => setPaid(num(e.target.value))}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">{tr("পেমেন্ট মাধ্যম", "Payment Method")}</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    ["cash", "নগদ"],
+                    ["bkash", "বিকাশ"],
+                    ["nagad", "নগদ অ্যাপ"],
+                    ["bank", "ব্যাংক"],
+                    ["card", "কার্ড"],
+                    ["rocket", "রকেট"],
+                  ] as const
+                ).map(([mKey, mLabel]) => (
+                  <button
+                    key={mKey}
+                    type="button"
+                    onClick={() => setPayMethod(mKey)}
+                    className={`rounded-xl border py-2 text-xs font-semibold transition ${
+                      payMethod === mKey
+                        ? "border-[#0d5c46] bg-[#0d5c46] text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {mLabel}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setPayModalOpen(false)} disabled={saving}>
+              {tr("বাতিল", "Cancel")}
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-[#0d5c46] hover:bg-[#094735] text-white font-bold"
+            >
+              {saving ? tr("সেভ হচ্ছে…", "Saving…") : tr("নিশ্চিত ও সেভ করুন", "Confirm & Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <PurchaseCartonScanner
         open={cartonScannerOpen}

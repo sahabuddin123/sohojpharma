@@ -36,7 +36,7 @@ export const recordSupplierPayment = createServerFn({ method: "POST" })
         method: data.method,
         reference: refNo,
         notes: data.notes ?? null,
-        payment_date: data.payment_date ?? new Date().toISOString().slice(0, 10),
+        payment_date: data.payment_date ?? new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString().slice(0, 10),
         paid_by: userId,
         branch_id: data.branch_id ?? null,
       } as never)
