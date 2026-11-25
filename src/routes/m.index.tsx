@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -28,6 +29,7 @@ import {
   Plus,
   Undo2,
   RotateCcw,
+  Calendar,
 } from "lucide-react";
 
 export const Route = createFileRoute("/m/")({
@@ -106,14 +108,50 @@ function formatMoney(v: number | undefined | null): string {
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Number(v ?? 0));
 }
 
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+type DatePreset = "today" | "yesterday" | "7d" | "month" | "custom";
+
 function PhoneHome() {
   const { currentTenantId } = useAuth();
   const fetchDashboard = useServerFn(getStoreDashboard);
-  const { data } = useQuery({
-    queryKey: ["m-home-kpi", currentTenantId],
+  const todayStr = toYmd(new Date());
+  const [preset, setPreset] = useState<DatePreset>("today");
+  const [customFrom, setCustomFrom] = useState(todayStr);
+  const [customTo, setCustomTo] = useState(todayStr);
+
+  const getRange = (): { from: string; to: string } => {
+    const now = new Date();
+    if (preset === "today") return { from: todayStr, to: todayStr };
+    if (preset === "yesterday") {
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
+      const yStr = toYmd(y);
+      return { from: yStr, to: yStr };
+    }
+    if (preset === "7d") {
+      const s = new Date(now);
+      s.setDate(s.getDate() - 6);
+      return { from: toYmd(s), to: todayStr };
+    }
+    if (preset === "month") {
+      return { from: `${todayStr.slice(0, 7)}-01`, to: todayStr };
+    }
+    return { from: customFrom || todayStr, to: customTo || customFrom || todayStr };
+  };
+
+  const { from, to } = getRange();
+
+  const { data, isFetching } = useQuery({
+    queryKey: ["m-home-kpi", currentTenantId, from, to],
     enabled: !!currentTenantId,
     staleTime: 60_000,
-    queryFn: () => fetchDashboard({ data: { tenant_id: currentTenantId! } }),
+    queryFn: () => fetchDashboard({ data: { tenant_id: currentTenantId!, from_date: from, to_date: to } }),
   });
 
   const badgeValue = (key?: Tile["badge"]) => {
@@ -128,6 +166,62 @@ function PhoneHome() {
 
       {/* Today's Live Snapshot + Quick Actions */}
       <div className="mb-5 rounded-2xl border border-slate-200/90 bg-white p-3.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] space-y-2.5">
+        {/* Date Filter Bar */}
+        <div className="space-y-2 border-b border-slate-100 pb-2.5">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
+            {(
+              [
+                ["today", "আজ"],
+                ["yesterday", "গতকাল"],
+                ["7d", "৭ দিন"],
+                ["month", "এই মাস"],
+                ["custom", "তারিখ"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPreset(key)}
+                className={cn(
+                  "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold transition",
+                  preset === key
+                    ? "bg-[#0d5c46] text-white shadow-xs"
+                    : "bg-slate-100 text-slate-600 hover:bg-slate-200",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {preset === "custom" && (
+            <div className="grid grid-cols-2 gap-2">
+              <label className="block">
+                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শুরু</span>
+                <input
+                  type="date"
+                  value={customFrom}
+                  max={customTo || todayStr}
+                  onChange={(e) => setCustomFrom(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-800 outline-none focus:border-[#0d5c46]"
+                />
+              </label>
+              <label className="block">
+                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শেষ</span>
+                <input
+                  type="date"
+                  value={customTo}
+                  min={customFrom}
+                  max={todayStr}
+                  onChange={(e) => setCustomTo(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-800 outline-none focus:border-[#0d5c46]"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
+        <div className={cn("space-y-2.5 transition-opacity", isFetching && "opacity-60")}>
         {/* Row 1: Total Sale, Cash Sale, Due Sale */}
         <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
           <div className="rounded-xl bg-slate-50 px-1.5 py-2">
@@ -159,7 +253,9 @@ function PhoneHome() {
             </p>
           </div>
           <div className="rounded-xl bg-rose-50/70 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">আজকের খরচ</p>
+            <p className="text-[10px] font-medium text-slate-500">
+              {preset === "today" ? "আজকের খরচ" : "মোট খরচ"}
+            </p>
             <p className="mt-0.5 text-sm font-extrabold text-rose-600">
               ৳{formatMoney(data?.kpi.todayExpense)}
             </p>
@@ -184,6 +280,7 @@ function PhoneHome() {
           <span className="text-base font-extrabold text-[#0d5c46]">
             ৳{formatMoney(data?.kpi.cashInHand)}
           </span>
+        </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-2.5">

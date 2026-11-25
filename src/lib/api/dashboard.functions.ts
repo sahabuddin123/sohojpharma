@@ -2,7 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const Input = z.object({ tenant_id: z.string().uuid(), warehouse_id: z.string().uuid().nullable().optional() });
+const Input = z.object({
+  tenant_id: z.string().uuid(),
+  warehouse_id: z.string().uuid().nullable().optional(),
+  from_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
 
 type DayBucket = { day: string; sales: number; profit: number };
 type MonthBucket = { m: string; sales: number; purchase: number; profit: number };
@@ -202,31 +207,54 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     }
 
     const todayStr = new Date().toISOString().slice(0, 10);
-    const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }] = await Promise.all([
+    const fromDate = data.from_date ?? todayStr;
+    const toDate = data.to_date ?? fromDate;
+    const isCustomRange = fromDate !== todayStr || toDate !== todayStr;
+
+    const [{ data: expRows }, { data: todaySaleItems }, { data: todaySalesRows }, { data: duePayRows }] = await Promise.all([
       context.supabase
         .from("expenses")
         .select("amount")
         .eq("tenant_id", data.tenant_id)
-        .eq("expense_date", todayStr),
+        .gte("expense_date", fromDate)
+        .lte("expense_date", toDate),
       context.supabase
         .from("sale_items")
         .select("qty, returned_qty, unit_cost, line_total, product:products(purchase_price), sale:sales!inner(status)")
         .eq("tenant_id", data.tenant_id)
-        .gte("created_at", `${todayStr}T00:00:00`)
+        .gte("created_at", `${fromDate}T00:00:00`)
+        .lte("created_at", `${toDate}T23:59:59.999`)
         .neq("sale.status", "void"),
       context.supabase
         .from("sales")
         .select("total, paid, due")
         .eq("tenant_id", data.tenant_id)
-        .gte("created_at", `${todayStr}T00:00:00`)
+        .gte("created_at", `${fromDate}T00:00:00`)
+        .lte("created_at", `${toDate}T23:59:59.999`)
         .neq("status", "void"),
+      isCustomRange
+        ? context.supabase
+            .from("customer_payments")
+            .select("amount")
+            .eq("tenant_id", data.tenant_id)
+            .gte("payment_date", fromDate)
+            .lte("payment_date", toDate)
+        : Promise.resolve({ data: null }),
     ]);
 
+    let rangeTotalSales = 0;
     let todayCashSale = 0;
     let todayDueSale = 0;
     for (const s of todaySalesRows ?? []) {
+      rangeTotalSales += Number(s.total ?? 0);
       todayCashSale += Number(s.paid ?? 0);
       todayDueSale += Number(s.due ?? 0);
+    }
+    if (isCustomRange) {
+      result.kpi.todaySales = Number(rangeTotalSales.toFixed(2));
+      result.kpi.dueCollection = Number(
+        (duePayRows ?? []).reduce((sum, r) => sum + Number(r.amount ?? 0), 0).toFixed(2),
+      );
     }
     result.kpi.todayCashSale = Number(todayCashSale.toFixed(2));
     result.kpi.todayDueSale = Number(todayDueSale.toFixed(2));
@@ -236,9 +264,9 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     );
     result.kpi.todayExpense = todayExpense;
 
-    // Recompute today's profit accurately:
+    // Recompute profit accurately for the selected range:
     // use sale_items.unit_cost when > 0, otherwise fall back to products.purchase_price,
-    // then subtract today's operating expenses for true net profit.
+    // then subtract operating expenses for true net profit.
     let todayRev = 0;
     let todayCogs = 0;
     for (const item of (todaySaleItems ?? []) as any[]) {
@@ -252,7 +280,7 @@ export const getStoreDashboard = createServerFn({ method: "POST" })
     }
     const grossProfitToday = todaySaleItems && todaySaleItems.length > 0
       ? todayRev - todayCogs
-      : result.kpi.todayProfit;
+      : (isCustomRange ? 0 : result.kpi.todayProfit);
     result.kpi.todayProfit = Number((grossProfitToday - todayExpense).toFixed(2));
 
     return result;
