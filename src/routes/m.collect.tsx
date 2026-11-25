@@ -217,7 +217,14 @@ function MobileCashCollect() {
       setAmount("");
       setNotes("");
     },
-    onError: (e: Error) => toast.error(e.message || "আদায় করতে সমস্যা হয়েছে"),
+    onError: (e: Error) => {
+      const msg = e.message || "";
+      toast.error(
+        msg.trimStart().startsWith("<") || /<!doctype\s+html/i.test(msg)
+          ? "সার্ভার আপডেট হয়েছে — অনুগ্রহ করে পেজটি রিফ্রেশ করে আবার চেষ্টা করুন"
+          : msg || "আদায় করতে সমস্যা হয়েছে",
+      );
+    },
   });
 
   const openCollect = (s: SaleRow) => {
@@ -227,22 +234,19 @@ function MobileCashCollect() {
     setNotes("");
   };
 
-  // Search customers for Direct Collection
+  // Search customers for Direct Collection (only when user types a query)
   const { data: custResults = [], isFetching: searchingCust } = useQuery({
     queryKey: ["m-collect-customers", tenantId, custQuery],
-    enabled: !!tenantId && directOpen && !selectedCust,
+    enabled: !!tenantId && directOpen && !selectedCust && custQuery.trim().length > 0,
     queryFn: async () => {
-      let q = supabase
+      const term = custQuery.trim();
+      const { data, error } = await supabase
         .from("customers")
         .select("id,name,phone,due_balance")
         .eq("tenant_id", tenantId)
+        .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
         .order("due_balance", { ascending: false })
         .limit(20);
-      const term = custQuery.trim();
-      if (term) {
-        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
-      }
-      const { data, error } = await q;
       if (error) throw error;
       return ((data ?? []) as Array<{ id: string; name: string; phone: string | null; due_balance: number | null }>).map((c) => ({
         id: c.id,
@@ -301,7 +305,14 @@ function MobileCashCollect() {
       setDirectAmount("");
       setDirectNotes("");
     },
-    onError: (e: Error) => toast.error(e.message || "আদায় করতে সমস্যা হয়েছে"),
+    onError: (e: Error) => {
+      const msg = e.message || "";
+      toast.error(
+        msg.trimStart().startsWith("<") || /<!doctype\s+html/i.test(msg)
+          ? "সার্ভার আপডেট হয়েছে — অনুগ্রহ করে পেজটি রিফ্রেশ করে আবার চেষ্টা করুন"
+          : msg || "আদায় করতে সমস্যা হয়েছে",
+      );
+    },
   });
 
   const openDirectModal = () => {
@@ -627,38 +638,44 @@ function MobileCashCollect() {
                     className="h-10 rounded-xl pl-9 text-xs"
                   />
                 </div>
-                <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-1.5">
-                  {searchingCust && (
-                    <p className="py-4 text-center text-xs text-slate-500">খুঁজছে...</p>
-                  )}
-                  {!searchingCust && custResults.length === 0 && (
-                    <p className="py-4 text-center text-xs text-slate-500">কোনো গ্রাহক পাওয়া যায়নি</p>
-                  )}
-                  {custResults.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedCust(c);
-                        setDirectAmount(c.due_balance > 0 ? String(c.due_balance.toFixed(2)) : "");
-                      }}
-                      className="flex w-full items-center justify-between rounded-lg border border-transparent bg-white px-3 py-2 text-left text-xs shadow-2xs hover:border-[#0d5c46]/40 active:scale-[0.99] transition"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-bold text-slate-900">{c.name}</p>
-                        <p className="text-[11px] text-slate-500">{c.phone || "ফোন নেই"}</p>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold",
-                          c.due_balance > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-[#0d5c46]",
-                        )}
+                {custQuery.trim().length === 0 ? (
+                  <p className="py-4 text-center text-xs text-slate-400">
+                    গ্রাহকের নাম বা মোবাইল নম্বর লিখলে এখানে ফলাফল দেখাবে
+                  </p>
+                ) : (
+                  <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-1.5">
+                    {searchingCust && (
+                      <p className="py-4 text-center text-xs text-slate-500">খুঁজছে...</p>
+                    )}
+                    {!searchingCust && custResults.length === 0 && (
+                      <p className="py-4 text-center text-xs text-slate-500">কোনো গ্রাহক পাওয়া যায়নি</p>
+                    )}
+                    {custResults.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedCust(c);
+                          setDirectAmount(c.due_balance > 0 ? String(c.due_balance.toFixed(2)) : "");
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg border border-transparent bg-white px-3 py-2 text-left text-xs shadow-2xs hover:border-[#0d5c46]/40 active:scale-[0.99] transition"
                       >
-                        বাকি: {money(c.due_balance)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
+                        <div className="min-w-0">
+                          <p className="truncate font-bold text-slate-900">{c.name}</p>
+                          <p className="text-[11px] text-slate-500">{c.phone || "ফোন নেই"}</p>
+                        </div>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold",
+                            c.due_balance > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-[#0d5c46]",
+                          )}
+                        >
+                          বাকি: {money(c.due_balance)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : (
               <>
