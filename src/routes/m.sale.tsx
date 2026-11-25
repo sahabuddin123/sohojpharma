@@ -561,7 +561,7 @@ function BillingSheet({
 
   const { data: customerList = [] } = useQuery({
     queryKey: ["m-pos-customers", tenantId, custQuery.trim()],
-    enabled: open && !!tenantId && !selectedCustomer && !showAddCust,
+    enabled: open && !!tenantId && !selectedCustomer && !showAddCust && custQuery.trim().length > 0,
     queryFn: async (): Promise<CustomerLite[]> => {
       let q = supabase
         .from("customers")
@@ -779,7 +779,7 @@ function BillingSheet({
                     placeholder="নাম বা ফোন দিয়ে খুঁজুন (ঐচ্ছিক — সাধারণ গ্রাহক)..."
                     className="h-9 bg-white text-xs"
                   />
-                  {customerList.length > 0 ? (
+                  {custQuery.trim().length > 0 && customerList.length > 0 ? (
                     <div className="max-h-28 overflow-y-auto space-y-1 rounded-lg border border-slate-200 bg-white p-1">
                       {customerList.map((c) => (
                         <button
