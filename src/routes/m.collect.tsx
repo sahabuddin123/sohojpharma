@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { CheckCircle2, HandCoins, Loader2, Search, UserRound } from "lucide-react";
+import { CheckCircle2, HandCoins, Loader2, Plus, Search, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -38,6 +38,13 @@ type SaleRow = {
   paid: number | null;
   due: number | null;
   customers: { name: string | null; phone: string | null } | null;
+};
+
+type CustomerOption = {
+  id: string;
+  name: string;
+  phone: string | null;
+  due_balance: number;
 };
 
 type FilterTab = "due" | "all" | "paid";
@@ -119,6 +126,14 @@ function MobileCashCollect() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"cash" | "bkash" | "nagad" | "rocket" | "bank" | "card" | "other">("cash");
   const [notes, setNotes] = useState("");
+
+  // Direct Customer Collection modal state
+  const [directOpen, setDirectOpen] = useState(false);
+  const [custQuery, setCustQuery] = useState("");
+  const [selectedCust, setSelectedCust] = useState<CustomerOption | null>(null);
+  const [directAmount, setDirectAmount] = useState("");
+  const [directMethod, setDirectMethod] = useState<"cash" | "bkash" | "nagad" | "rocket" | "bank" | "card" | "other">("cash");
+  const [directNotes, setDirectNotes] = useState("");
 
   const dateRange = useMemo(
     () => getPresetRange(preset, customFrom, customTo),
@@ -212,6 +227,92 @@ function MobileCashCollect() {
     setNotes("");
   };
 
+  // Search customers for Direct Collection
+  const { data: custResults = [], isFetching: searchingCust } = useQuery({
+    queryKey: ["m-collect-customers", tenantId, custQuery],
+    enabled: !!tenantId && directOpen && !selectedCust,
+    queryFn: async () => {
+      let q = supabase
+        .from("customers")
+        .select("id,name,phone,due_balance")
+        .eq("tenant_id", tenantId)
+        .order("due_balance", { ascending: false })
+        .limit(20);
+      const term = custQuery.trim();
+      if (term) {
+        q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return ((data ?? []) as Array<{ id: string; name: string; phone: string | null; due_balance: number | null }>).map((c) => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        due_balance: Number(c.due_balance ?? 0),
+      }));
+    },
+  });
+
+  // Authoritative live total due for selected customer
+  const { data: liveCustDue } = useQuery({
+    queryKey: ["m-collect-cust-due", selectedCust?.id],
+    enabled: !!selectedCust?.id && directOpen,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("customer_due_summary", {
+        p_customer_id: selectedCust!.id,
+      });
+      if (error) return selectedCust!.due_balance;
+      return Number(data ?? selectedCust!.due_balance);
+    },
+  });
+
+  const totalCustDue = liveCustDue ?? selectedCust?.due_balance ?? 0;
+  const enteredDirectAmt = Math.max(0, Number(directAmount) || 0);
+  const currentDueAfter = Math.max(0, Math.round((totalCustDue - enteredDirectAmt) * 100) / 100);
+
+  const directMut = useMutation({
+    mutationFn: async () => {
+      if (!selectedCust || !tenantId || !branchId) {
+        throw new Error("গ্রাহক, স্টোর বা শাখা নির্বাচন করুন");
+      }
+      const amt = Math.round((Number(directAmount) || 0) * 100) / 100;
+      if (amt <= 0) throw new Error("সঠিক টাকার পরিমাণ দিন");
+      return await payFn({
+        data: {
+          tenantId,
+          branchId,
+          customer_id: selectedCust.id,
+          sale_id: null,
+          amount: amt,
+          method: directMethod,
+          notes: directNotes.trim() || `Direct collection (${selectedCust.name})`,
+        },
+      });
+    },
+    onSuccess: (res) => {
+      const rem = Number((res as { remaining_due?: number } | undefined)?.remaining_due ?? currentDueAfter);
+      toast.success(`আদায় সম্পন্ন হয়েছে! বর্তমান বাকি: ${money(rem)}`);
+      qc.invalidateQueries({ queryKey: ["m-collect", tenantId] });
+      qc.invalidateQueries({ queryKey: ["m-home-kpi", tenantId] });
+      qc.invalidateQueries({ queryKey: ["m-collect-customers", tenantId] });
+      setDirectOpen(false);
+      setSelectedCust(null);
+      setCustQuery("");
+      setDirectAmount("");
+      setDirectNotes("");
+    },
+    onError: (e: Error) => toast.error(e.message || "আদায় করতে সমস্যা হয়েছে"),
+  });
+
+  const openDirectModal = () => {
+    setSelectedCust(null);
+    setCustQuery("");
+    setDirectAmount("");
+    setDirectMethod("cash");
+    setDirectNotes("");
+    setDirectOpen(true);
+  };
+
   return (
     <PhoneShell title="ক্যাশ কালেক্ট (বাকি আদায়)" back>
       {/* Summary KPIs */}
@@ -227,6 +328,16 @@ function MobileCashCollect() {
           <p className="mt-1 text-lg font-extrabold text-rose-600">{money(stats.due)}</p>
         </div>
       </div>
+
+      {/* Direct Collection Button */}
+      <button
+        type="button"
+        onClick={openDirectModal}
+        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0d5c46] py-3 text-sm font-bold text-white shadow-xs hover:bg-[#094735] active:scale-[0.98] transition"
+      >
+        <Plus className="h-4 w-4" />
+        ডাইরেক্ট কালেকশন (গ্রাহক থেকে আদায়)
+      </button>
 
       {/* Date Filter + Search + Status Tabs */}
       <div className="mt-3 space-y-2.5">
@@ -488,6 +599,179 @@ function MobileCashCollect() {
                 </>
               )}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Direct Customer Collection Dialog */}
+      <Dialog open={directOpen} onOpenChange={setDirectOpen}>
+        <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md rounded-2xl p-4">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <HandCoins className="h-5 w-5 text-[#0d5c46]" />
+              ডাইরেক্ট কালেকশন
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3 py-1">
+            {!selectedCust ? (
+              <div className="space-y-2">
+                <Label className="text-xs">গ্রাহকের নাম বা ফোন খুঁজুন *</Label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={custQuery}
+                    onChange={(e) => setCustQuery(e.target.value)}
+                    placeholder="গ্রাহকের নাম বা মোবাইল নম্বর লিখুন..."
+                    autoFocus
+                    className="h-10 rounded-xl pl-9 text-xs"
+                  />
+                </div>
+                <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50/70 p-1.5">
+                  {searchingCust && (
+                    <p className="py-4 text-center text-xs text-slate-500">খুঁজছে...</p>
+                  )}
+                  {!searchingCust && custResults.length === 0 && (
+                    <p className="py-4 text-center text-xs text-slate-500">কোনো গ্রাহক পাওয়া যায়নি</p>
+                  )}
+                  {custResults.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedCust(c);
+                        setDirectAmount(c.due_balance > 0 ? String(c.due_balance.toFixed(2)) : "");
+                      }}
+                      className="flex w-full items-center justify-between rounded-lg border border-transparent bg-white px-3 py-2 text-left text-xs shadow-2xs hover:border-[#0d5c46]/40 active:scale-[0.99] transition"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-bold text-slate-900">{c.name}</p>
+                        <p className="text-[11px] text-slate-500">{c.phone || "ফোন নেই"}</p>
+                      </div>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold",
+                          c.due_balance > 0 ? "bg-rose-50 text-rose-600" : "bg-emerald-50 text-[#0d5c46]",
+                        )}
+                      >
+                        বাকি: {money(c.due_balance)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate font-bold text-slate-900">{selectedCust.name}</p>
+                      {selectedCust.phone && (
+                        <p className="text-[11px] text-slate-500">{selectedCust.phone}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCust(null);
+                        setDirectAmount("");
+                      }}
+                      className="rounded-lg border border-slate-200 bg-white p-1 text-slate-500 hover:text-slate-800"
+                      title="গ্রাহক পরিবর্তন করুন"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="flex justify-between border-t border-slate-200/80 pt-1.5">
+                    <span className="text-slate-500">মোট বাকি (Total Due):</span>
+                    <span className="font-bold text-rose-600">{money(totalCustDue)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">আদায়ের পর বর্তমান বাকি:</span>
+                    <span className={cn("font-extrabold", currentDueAfter > 0 ? "text-amber-700" : "text-[#0d5c46]")}>
+                      {money(currentDueAfter)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">কালেকশন পরিমাণ *</Label>
+                    {totalCustDue > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setDirectAmount(String(totalCustDue.toFixed(2)))}
+                        className="text-[11px] font-semibold text-[#0d5c46] underline"
+                      >
+                        পুরো বাকি
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={directAmount}
+                    onChange={(e) => setDirectAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="h-11 text-base font-bold"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">পেমেন্ট মাধ্যম</Label>
+                  <Select value={directMethod} onValueChange={(v) => setDirectMethod(v as any)}>
+                    <SelectTrigger className="h-10 rounded-xl text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cash">নগদ (Cash)</SelectItem>
+                      <SelectItem value="bkash">বিকাশ (bKash)</SelectItem>
+                      <SelectItem value="nagad">নগদ অ্যাপ (Nagad)</SelectItem>
+                      <SelectItem value="rocket">রকেট (Rocket)</SelectItem>
+                      <SelectItem value="card">কার্ড (Card)</SelectItem>
+                      <SelectItem value="bank">ব্যাংক (Bank)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs">নোট (ঐচ্ছিক)</Label>
+                  <Input
+                    value={directNotes}
+                    onChange={(e) => setDirectNotes(e.target.value)}
+                    placeholder="প্রয়োজনীয় নোট..."
+                    className="h-10"
+                  />
+                </div>
+              </>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setDirectOpen(false)}>
+              বাতিল
+            </Button>
+            {selectedCust && (
+              <Button
+                type="button"
+                onClick={() => directMut.mutate()}
+                disabled={directMut.isPending || enteredDirectAmt <= 0}
+                className="bg-[#0d5c46] hover:bg-[#094735] text-white gap-1.5"
+              >
+                {directMut.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    সেভ হচ্ছে...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" />
+                    সেভ করুন
+                  </>
+                )}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
