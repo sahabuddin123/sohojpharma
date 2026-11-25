@@ -7,7 +7,7 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneEmpty, PhoneKpi, PhoneKpiGrid, money } from "@/components/mobile/phone-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { buildUnifiedCustomerLedger } from "@/lib/api/customer-ledger-unified";
+import { buildCustomerLedger } from "@/lib/api/customer-ledger-unified";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/customer/$id")({
@@ -45,7 +45,7 @@ function MobileCustomerLedger() {
           .order("created_at", { ascending: true }),
         supabase
           .from("customer_payments")
-          .select("id,payment_no,payment_date,created_at,amount,method,sale_id,notes")
+          .select("id,payment_date,amount,reference,sale_id")
           .eq("tenant_id", tenantId)
           .eq("customer_id", id)
           .order("created_at", { ascending: true }),
@@ -67,13 +67,15 @@ function MobileCustomerLedger() {
   });
 
   const ledger = useMemo(() => {
-    if (!data) return { entries: [], totalDebit: 0, totalCredit: 0, closing: 0 };
-    return buildUnifiedCustomerLedger({
-      openingBalance: Number(data.customer.opening_balance ?? 0),
+    if (!data) return { entries: [], totalDebit: 0, closing: 0 };
+    const res = buildCustomerLedger({
+      opening_balance: Number(data.customer.opening_balance ?? 0),
       sales: data.sales,
       payments: data.payments,
       returns: data.returns,
     });
+    const totalDebit = res.entries.reduce((s, e) => s + Number(e.debit ?? 0), 0);
+    return { entries: res.entries, totalDebit, closing: res.closing };
   }, [data]);
 
   const dueBal = Number(data?.customer.due_balance ?? 0);
@@ -152,7 +154,7 @@ function MobileCustomerLedger() {
                     <p className="text-xs font-extrabold text-slate-900">{label}</p>
                     <p className="truncate text-[11px] text-slate-500">{e.ref_no || "—"}</p>
                     <p className="text-[10px] text-slate-400">
-                      {new Date(e.date).toLocaleDateString("en-GB")}
+                      {new Date(e.entry_date).toLocaleDateString("en-GB")}
                     </p>
                   </div>
                 </div>
@@ -164,7 +166,7 @@ function MobileCustomerLedger() {
                     <p className="text-xs font-bold text-[#0d5c46]">−{money(e.credit)}</p>
                   )}
                   <p className="mt-0.5 text-[11px] font-semibold text-slate-500">
-                    জের: {money(e.running_balance)}
+                    জের: {money(e.balance)}
                   </p>
                 </div>
               </div>
