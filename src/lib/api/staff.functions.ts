@@ -104,8 +104,14 @@ export const upsertStaff = createServerFn({ method: "POST" })
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-      // Ensure caller is owner/manager of this tenant or platform admin
-      const [{ data: callerRole }, { data: adminRole }, { data: tenantRow }] = await Promise.all([
+      // Ensure caller is owner/manager of this tenant (user_roles or tenant_memberships) or platform app_admin
+      const [{ data: tenantRoleRows }, { data: membershipRow }, { data: isAdminRpc }] = await Promise.all([
+        supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", context.userId)
+          .eq("tenant_id", staffPayload.tenant_id)
+          .in("role", ["owner", "manager"]),
         supabaseAdmin
           .from("tenant_memberships")
           .select("role")
@@ -113,23 +119,13 @@ export const upsertStaff = createServerFn({ method: "POST" })
           .eq("user_id", context.userId)
           .eq("is_active", true)
           .maybeSingle(),
-        supabaseAdmin
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", context.userId)
-          .in("role", ["app_admin", "super_admin"])
-          .maybeSingle(),
-        supabaseAdmin
-          .from("tenants")
-          .select("owner_user_id")
-          .eq("id", staffPayload.tenant_id)
-          .maybeSingle(),
+        context.supabase.rpc("is_app_admin", { _user_id: context.userId }),
       ]);
 
       const isAuthorized =
-        Boolean(adminRole) ||
-        tenantRow?.owner_user_id === context.userId ||
-        Boolean(callerRole && ["owner", "manager"].includes(callerRole.role));
+        Boolean(isAdminRpc) ||
+        Boolean(tenantRoleRows && tenantRoleRows.length > 0) ||
+        Boolean(membershipRow && ["owner", "manager"].includes(String(membershipRow.role ?? "")));
 
       if (!isAuthorized) {
         throw new Error("শুধুমাত্র স্টোর Owner বা Manager নতুন স্টাফ লগইন তৈরি করতে পারবেন");
@@ -169,6 +165,14 @@ export const upsertStaff = createServerFn({ method: "POST" })
 
       if (staffUserId) {
         const role = access_role ?? "cashier";
+        await supabaseAdmin
+          .from("profiles")
+          .upsert({
+            id: staffUserId,
+            full_name: staffPayload.full_name,
+            email,
+            phone: staffPayload.phone ?? null,
+          });
         const { error: mErr } = await supabaseAdmin
           .from("tenant_memberships")
           .upsert(
@@ -181,6 +185,20 @@ export const upsertStaff = createServerFn({ method: "POST" })
             { onConflict: "tenant_id,user_id" },
           );
         if (mErr) throw new Error(mErr.message);
+        // Also assign role in user_roles (used by RLS & role guards)
+        await supabaseAdmin
+          .from("user_roles")
+          .delete()
+          .eq("tenant_id", staffPayload.tenant_id)
+          .eq("user_id", staffUserId);
+        const { error: rErr } = await supabaseAdmin
+          .from("user_roles")
+          .insert({
+            tenant_id: staffPayload.tenant_id,
+            user_id: staffUserId,
+            role,
+          });
+        if (rErr) throw new Error(rErr.message);
         staffPayload.user_id = staffUserId;
       }
     }
