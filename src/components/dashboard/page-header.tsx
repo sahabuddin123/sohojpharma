@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { useUIStore } from "@/stores/ui-store";
+import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
   title: string;
@@ -7,10 +9,23 @@ interface PageHeaderProps {
 }
 
 export function PageHeader({ title, description, actions }: PageHeaderProps) {
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   return (
-    <div className="mb-5 flex flex-col gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800/80 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4">
+    <div
+      className={cn(
+        "mb-5 flex flex-col gap-3 pb-4 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-4",
+        isV2
+          ? "border-b border-slate-400/20 dark:border-white/10"
+          : "border-b border-slate-200/80 dark:border-slate-800/80",
+      )}
+    >
       <div className="min-w-0">
-        <h1 className="text-xl font-bold leading-tight tracking-tight text-slate-900 dark:text-white sm:truncate sm:text-2xl">
+        <h1
+          className={cn(
+            "font-bold leading-tight tracking-tight text-slate-900 dark:text-white sm:truncate",
+            isV2 ? "text-2xl sm:text-[28px]" : "text-xl sm:text-2xl",
+          )}
+        >
           {title}
         </h1>
         {description && (

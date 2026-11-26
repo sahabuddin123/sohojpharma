@@ -429,3 +429,37 @@ html[data-desktop-ui="v2"] .sp-v2-canvas table tbody tr:hover {
 html.dark[data-desktop-ui="v2"] .sp-v2-canvas table tbody tr:hover {
   background: rgba(255, 255, 255, 0.04);
 }
+
+/* v2 Frosted Inputs, Textareas, Select Triggers & Dialogs */
+html[data-desktop-ui="v2"] .sp-v2-canvas input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+html[data-desktop-ui="v2"] .sp-v2-canvas textarea,
+html[data-desktop-ui="v2"] .sp-v2-canvas [role="combobox"] {
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(255, 255, 255, 0.9);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas input:not([type="checkbox"]):not([type="radio"]):not([type="color"]):not([type="file"]),
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas textarea,
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas [role="combobox"] {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* v2 Primary Teal Gradient Buttons & Frosted Outline Buttons */
+html[data-desktop-ui="v2"] .sp-v2-canvas button.bg-primary,
+html[data-desktop-ui="v2"] .sp-v2-canvas a.bg-primary {
+  background: linear-gradient(95deg, #0d8590 0%, #1ba7ad 100%);
+  border-radius: 9999px;
+  box-shadow: 0 8px 20px -6px rgba(13, 133, 144, 0.42);
+}
+html[data-desktop-ui="v2"] .sp-v2-canvas button.border-input,
+html[data-desktop-ui="v2"] .sp-v2-canvas a.border-input {
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(255, 255, 255, 0.88);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas button.border-input,
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas a.border-input {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
