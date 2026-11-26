@@ -1,10 +1,13 @@
 // B9.9 — expiry alerts (90/60/30/7 days).
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/expiry")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const today = new Date();
         let total = 0;

@@ -4,6 +4,21 @@ import { useAuth } from "@/hooks/use-auth";
 
 const PUBLIC_PATHS = ["/", "/auth", "/reset-password", "/blog", "/features", "/pricing", "/faq", "/contact", "/trust"];
 
+function sanitizeRedirect(url?: string): string {
+  if (!url) return "/dashboard";
+  const trimmed = url.trim();
+  if (
+    !trimmed.startsWith("/") ||
+    trimmed.startsWith("//") ||
+    trimmed.startsWith("/\\") ||
+    /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed) ||
+    trimmed.includes("\\")
+  ) {
+    return "/dashboard";
+  }
+  return trimmed;
+}
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const { loading, session } = useAuth();
   const navigate = useNavigate();
@@ -45,7 +60,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       if (typeof window !== "undefined" && (sessionStorage.getItem("just_registered") || window.location.search.includes("blocked"))) {
         return;
       }
-      navigate({ to: searchRedirect ?? "/dashboard", replace: true });
+      navigate({ to: sanitizeRedirect(searchRedirect), replace: true });
     }
   }, [effectiveLoading, session, isPublic, pathname, searchRedirect, navigate]);
 

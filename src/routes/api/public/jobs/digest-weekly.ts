@@ -1,10 +1,13 @@
 // Phase E15 — weekly digest: sales + purchases + profit per tenant.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/digest-weekly")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
         const { data: tenants, error } = await supabaseAdmin

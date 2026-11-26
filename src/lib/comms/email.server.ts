@@ -7,32 +7,35 @@ class SmtpProvider implements Provider<EmailMessage> {
   readonly name = "smtp";
 
   available() {
-    // Available if explicit SMTP env is provided or defaults are present
-    return Boolean(
-      (process.env.SMTP_HOST && process.env.SMTP_USER) ||
-      process.env.SMTP_USER ||
-      "support@sohojpharma.cloud"
-    );
+    return Boolean(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
   }
 
   async send(msg: EmailMessage): Promise<SendResult> {
-    const host = process.env.SMTP_HOST || "mail.sohojpharma.cloud";
+    const host = process.env.SMTP_HOST;
     const port = Number(process.env.SMTP_PORT || 587);
-    const user = process.env.SMTP_USER || "support@sohojpharma.cloud";
-    const pass = process.env.SMTP_PASS || "CHANGE_ME";
-    const isSecure = port === 465;
+    const user = process.env.SMTP_USER;
+    const pass = process.env.SMTP_PASS;
+    if (!host || !user || !pass) {
+      return { ok: false, provider: this.name, error: "SMTP configuration missing" };
+    }
+    const isSecure = process.env.SMTP_SECURE === "true" || port === 465;
+    const rejectUnauthorized =
+      process.env.SMTP_TLS_REJECT_UNAUTHORIZED === "false" ? false : host !== "127.0.0.1";
 
     try {
       const transporter = nodemailer.createTransport({
         host,
         port,
         secure: isSecure,
+        connectionTimeout: 10_000,
+        greetingTimeout: 10_000,
+        socketTimeout: 15_000,
         auth: {
           user,
           pass,
         },
         tls: {
-          rejectUnauthorized: false,
+          rejectUnauthorized,
         },
       });
 

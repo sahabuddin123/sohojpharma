@@ -1,10 +1,13 @@
 // B9.11 — subscription / trial expiring reminders.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/subscription-reminder")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const now = new Date();
         const in7 = new Date(now.getTime() + 7 * 86400_000).toISOString();

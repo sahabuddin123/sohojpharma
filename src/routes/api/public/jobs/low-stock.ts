@@ -1,10 +1,13 @@
 // B9.8 — low-stock alerts (batches with qty_on_hand at/below threshold).
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/low-stock")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: lowBatches, error } = await supabaseAdmin
           .from("batches")

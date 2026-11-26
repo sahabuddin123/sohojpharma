@@ -1,11 +1,14 @@
 // B9.12 — retry failed comm_log entries (max 3 attempts).
 import { createFileRoute } from "@tanstack/react-router";
 import { dispatch } from "@/lib/comms/dispatch.server";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/email-retry")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: rows } = await supabaseAdmin
           .from("comm_log")

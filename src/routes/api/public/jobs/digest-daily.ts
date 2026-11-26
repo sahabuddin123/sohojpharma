@@ -1,10 +1,13 @@
 // Phase E15 — daily digest: low stock + expiring + pending approvals per tenant.
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/jobs/digest-daily")({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const unauth = verifyCronRequest(request);
+        if (unauth) return unauth;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const { data: tenants, error } = await supabaseAdmin
           .from("tenants").select("id, name");
