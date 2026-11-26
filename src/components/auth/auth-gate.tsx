@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 
-const PUBLIC_PATHS = ["/", "/auth", "/reset-password", "/blog", "/features", "/pricing", "/faq", "/contact", "/trust"];
+const PUBLIC_PATHS = ["/", "/auth", "/register", "/reset-password", "/blog", "/features", "/pricing", "/faq", "/contact", "/trust"];
 
 function sanitizeRedirect(url?: string): string {
   if (!url) return "/dashboard";

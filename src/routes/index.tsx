@@ -127,7 +127,7 @@ function Navbar() {
           <div className="hidden md:flex items-center gap-3">
             <LangToggle />
             <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="text-sm font-bold text-slate-700 hover:text-[#0d5c46] px-3 py-2">{t("landing.nav.login")}</Link>
-            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95">
+            <Link to="/register" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95">
               {t("landing.nav.trial")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -142,7 +142,7 @@ function Navbar() {
             ))}
             <div className="pt-3 flex flex-col gap-3">
               <LangToggle />
-              <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="px-5 py-2.5 rounded-full text-sm font-bold text-white bg-[#0d5c46] text-center">{t("landing.nav.trial")}</Link>
+              <Link to="/register" className="px-5 py-2.5 rounded-full text-sm font-bold text-white bg-[#0d5c46] text-center">{t("landing.nav.trial")}</Link>
             </div>
           </div>
         )}
@@ -186,7 +186,7 @@ function Hero() {
         </h1>
         <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">{T(t("landing.hero.subtitle"))}</p>
         <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
-          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-white bg-[#0d5c46] hover:bg-[#094735] shadow-sm transition">
+          <Link to="/register" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-white bg-[#0d5c46] hover:bg-[#094735] shadow-sm transition">
             {t("landing.hero.ctaPrimary")} <ArrowRight className="w-4 h-4" />
           </Link>
           <a href="#contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 transition">
@@ -669,7 +669,7 @@ function Pricing() {
                     <span className="text-4xl sm:text-5xl font-black text-slate-900">{displayPrice}</span>
                     {displayPrice.startsWith("৳") && <span className="text-slate-500 font-semibold text-xs sm:text-sm">{t("landing.pricing.month")}</span>}
                   </div>
-                  <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className={`mt-6 block w-full py-3 rounded-full text-center text-sm font-bold transition ${popular ? "bg-[#0d5c46] text-white hover:bg-[#094735] shadow-md shadow-emerald-900/20" : "bg-slate-100 text-slate-900 hover:bg-slate-200"}`}>
+                  <Link to="/register" className={`mt-6 block w-full py-3 rounded-full text-center text-sm font-bold transition ${popular ? "bg-[#0d5c46] text-white hover:bg-[#094735] shadow-md shadow-emerald-900/20" : "bg-slate-100 text-slate-900 hover:bg-slate-200"}`}>
                     {t("landing.pricing.cta")}
                   </Link>
                   <ul className="mt-6 space-y-2.5">
@@ -698,7 +698,7 @@ function Banner() {
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
         <h2 className="text-3xl sm:text-5xl font-black leading-tight">{t("landing.banner.title")}</h2>
         <p className="mt-4 text-lg opacity-90">{t("landing.banner.subtitle")}</p>
-        <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-[#0d5c46] bg-white hover:scale-105 shadow-2xl transition">
+        <Link to="/register" className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-[#0d5c46] bg-white hover:scale-105 shadow-2xl transition">
           {t("landing.banner.cta")} <ArrowRight className="w-5 h-5" />
         </Link>
       </div>
@@ -836,7 +836,7 @@ function FinalCTA() {
         <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{t("landing.finalCta.title")}</h2>
         <p className="mt-4 text-lg text-slate-600">{t("landing.finalCta.subtitle")}</p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 shadow-xl shadow-emerald-900/25 transition hover:scale-105">
+          <Link to="/register" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 shadow-xl shadow-emerald-900/25 transition hover:scale-105">
             {t("landing.finalCta.primary")} <ArrowRight className="w-5 h-5" />
           </Link>
           <a href="#contact" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-900 bg-slate-100 hover:bg-slate-200 transition">
