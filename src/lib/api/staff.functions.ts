@@ -104,28 +104,24 @@ export const upsertStaff = createServerFn({ method: "POST" })
 
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-      // Ensure caller is owner/manager of this tenant (user_roles or tenant_memberships) or platform app_admin
-      const [{ data: tenantRoleRows }, { data: membershipRow }, { data: isAdminRpc }] = await Promise.all([
+      // Ensure caller is owner/manager of this tenant (user_roles) or platform app_admin
+      const [{ data: tenantRoleRows, error: roleError }, { data: isAdminRpc }] = await Promise.all([
         supabaseAdmin
           .from("user_roles")
           .select("role")
           .eq("user_id", context.userId)
           .eq("tenant_id", staffPayload.tenant_id)
-          .in("role", ["owner", "manager"]),
-        supabaseAdmin
-          .from("tenant_memberships")
-          .select("role")
-          .eq("tenant_id", staffPayload.tenant_id)
-          .eq("user_id", context.userId)
-          .eq("is_active", true)
-          .maybeSingle(),
+          .in("role", ["owner", "manager", "admin"]),
         context.supabase.rpc("is_app_admin", { _user_id: context.userId }),
       ]);
 
+      if (roleError) {
+        console.error("[upsertStaff] user_roles check failed:", roleError);
+      }
+
       const isAuthorized =
         Boolean(isAdminRpc) ||
-        Boolean(tenantRoleRows && tenantRoleRows.length > 0) ||
-        Boolean(membershipRow && ["owner", "manager"].includes(String(membershipRow.role ?? "")));
+        Boolean(tenantRoleRows && tenantRoleRows.length > 0);
 
       if (!isAuthorized) {
         throw new Error("শুধুমাত্র স্টোর Owner বা Manager নতুন স্টাফ লগইন তৈরি করতে পারবেন");
