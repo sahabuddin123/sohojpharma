@@ -71,7 +71,8 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   useThemeInit();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isBn = (i18n.resolvedLanguage ?? i18n.language ?? "en").startsWith("bn");
   const navigate = useNavigate();
   const search = Route.useSearch();
   const redirectTo = sanitizeRedirect(search.redirect);
@@ -465,11 +466,18 @@ function AuthPage() {
           <p className="max-w-md text-sm leading-relaxed text-emerald-100/85">{t("auth.subline")}</p>
 
           <div className="grid max-w-md grid-cols-3 gap-3 pt-2">
-            {[
-              { title: "দ্রুত POS", sub: "বারকোড ও বিলিং" },
-              { title: "অফলাইন PWA", sub: "নেট ছাড়াও বিক্রি" },
-              { title: "সিকিউর ক্লাউড", sub: "অটো ব্যাকআপ" },
-            ].map((item) => (
+            {(isBn
+              ? [
+                  { title: "দ্রুত POS", sub: "বারকোড ও বিলিং" },
+                  { title: "অফলাইন PWA", sub: "নেট ছাড়াও বিক্রি" },
+                  { title: "সিকিউর ক্লাউড", sub: "অটো ব্যাকআপ" },
+                ]
+              : [
+                  { title: "Fast POS", sub: "Barcode & Billing" },
+                  { title: "Offline PWA", sub: "Sell Without Net" },
+                  { title: "Secure Cloud", sub: "Auto Backup" },
+                ]
+            ).map((item) => (
               <div
                 key={item.title}
                 className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur-md"
@@ -499,7 +507,9 @@ function AuthPage() {
               </div>
               <div>
                 <h1 className="text-lg font-extrabold tracking-tight leading-none">{t("app.name")}</h1>
-                <span className="text-[10px] font-medium text-emerald-100/80">স্মার্ট ফার্মেসি পোর্টাল</span>
+                <span className="text-[10px] font-medium text-emerald-100/80">
+                  {isBn ? "স্মার্ট ফার্মেসি পোর্টাল" : "Smart Pharmacy Portal"}
+                </span>
               </div>
             </Link>
             <div className="rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur-md">
@@ -517,9 +527,11 @@ function AuthPage() {
             <div className="mb-5 hidden items-center justify-between lg:flex">
               <div>
                 <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
-                  স্বাগতম!
+                  {isBn ? "স্বাগতম!" : "Welcome!"}
                 </h2>
-                <p className="text-xs text-slate-500">আপনার ফার্মেসি অ্যাকাউন্টে প্রবেশ করুন</p>
+                <p className="text-xs text-slate-500">
+                  {isBn ? "আপনার ফার্মেসি অ্যাকাউন্টে প্রবেশ করুন" : "Sign in to your pharmacy account"}
+                </p>
               </div>
               <LanguageSwitcher />
             </div>
@@ -606,7 +618,7 @@ function AuthPage() {
                     className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300"
                   >
                     <ArrowLeft className="h-3.5 w-3.5" />
-                    {t("auth.signIn")} এ ফিরে যান
+                    {isBn ? `${t("auth.signIn")} এ ফিরে যান` : `Back to ${t("auth.signIn")}`}
                   </button>
                 </div>
 
@@ -616,9 +628,19 @@ function AuthPage() {
                       <Mail className="h-7 w-7" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">রিসেট লিংক পাঠানো হয়েছে!</h3>
+                      <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                        {isBn ? "রিসেট লিংক পাঠানো হয়েছে!" : "Reset link sent!"}
+                      </h3>
                       <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                        <strong className="font-semibold text-slate-900 dark:text-white">{forgotEmail}</strong> ঠিকানায় ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।
+                        {isBn ? (
+                          <>
+                            <strong className="font-semibold text-slate-900 dark:text-white">{forgotEmail}</strong> ঠিকানায় ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।
+                          </>
+                        ) : (
+                          <>
+                            Check the inbox or spam folder for <strong className="font-semibold text-slate-900 dark:text-white">{forgotEmail}</strong>.
+                          </>
+                        )}
                       </p>
                     </div>
                     <div className="pt-1 flex flex-col gap-2">
@@ -630,7 +652,7 @@ function AuthPage() {
                         }}
                         className="h-11 rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] font-bold text-white shadow-[0_10px_24px_-6px_rgba(13,92,70,0.45)]"
                       >
-                        সাইন ইন পেজে যান
+                        {isBn ? "সাইন ইন পেজে যান" : "Go to Sign In"}
                       </Button>
                       <Button
                         type="button"
@@ -638,7 +660,7 @@ function AuthPage() {
                         onClick={() => setForgotSuccess(false)}
                         className="text-xs text-slate-500"
                       >
-                        অন্য ইমেইল দিয়ে চেষ্টা করুন
+                        {isBn ? "অন্য ইমেইল দিয়ে চেষ্টা করুন" : "Try another email"}
                       </Button>
                     </div>
                   </div>
@@ -650,10 +672,10 @@ function AuthPage() {
                       </div>
                       <div>
                         <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                          পাসওয়ার্ড ভুলে গেছেন?
+                          {isBn ? "পাসওয়ার্ড ভুলে গেছেন?" : "Forgot Password?"}
                         </h3>
                         <p className="text-[11px] font-medium text-[#0d5c46] dark:text-emerald-300">
-                          ইমেইলের মাধ্যমে নিরাপদ পাসওয়ার্ড রিসেট
+                          {isBn ? "ইমেইলের মাধ্যমে নিরাপদ পাসওয়ার্ড রিসেট" : "Secure password reset via email"}
                         </p>
                       </div>
                     </div>
@@ -671,7 +693,6 @@ function AuthPage() {
                             type="email"
                             required
                             defaultValue={forgotEmail}
-                            placeholder="আপনার ইমেইল লিখুন"
                             className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
                           />
                         </div>
@@ -685,7 +706,7 @@ function AuthPage() {
                         {forgotBusy ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          "রিসেট লিংক পাঠান"
+                          isBn ? "রিসেট লিংক পাঠান" : "Send Reset Link"
                         )}
                       </Button>
                     </form>
@@ -726,7 +747,6 @@ function AuthPage() {
                           name="email"
                           type="email"
                           required
-                          placeholder="you@pharmacy.com"
                           className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
                         />
                       </div>
@@ -762,7 +782,6 @@ function AuthPage() {
                           name="password"
                           type={showPassword ? "text" : "password"}
                           required
-                          placeholder="••••••••"
                           className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 pr-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
                         />
                         <button
@@ -811,11 +830,13 @@ function AuthPage() {
                   <form className="space-y-3" onSubmit={handleSignUp}>
                     <div className="space-y-1">
                       <Label htmlFor="full_name" className="text-xs font-semibold">{t("auth.fullName")}</Label>
-                      <Input id="full_name" name="full_name" required placeholder="Dr. Rahim Khan" className="h-11 rounded-xl bg-slate-50/70" />
+                      <Input id="full_name" name="full_name" required className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
                     <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">
-                        <Label htmlFor="phone" className="text-xs font-semibold">মোবাইল নম্বর</Label>
+                        <Label htmlFor="phone" className="text-xs font-semibold">
+                          {isBn ? "মোবাইল নম্বর" : "Phone Number"}
+                        </Label>
                         <Input
                           id="phone"
                           name="phone"
@@ -824,37 +845,44 @@ function AuthPage() {
                           inputMode="tel"
                           autoComplete="tel"
                           pattern="^(?:\+?880|0)1[3-9]\d{8}$"
-                          placeholder="017XXXXXXXX"
                           title="Bangladesh mobile, e.g. 017XXXXXXXX"
                           className="h-11 rounded-xl bg-slate-50/70"
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="district" className="text-xs font-semibold">জেলা</Label>
-                        <Input id="district" name="district" placeholder="Dhaka" className="h-11 rounded-xl bg-slate-50/70" />
+                        <Label htmlFor="district" className="text-xs font-semibold">
+                          {isBn ? "জেলা" : "District"}
+                        </Label>
+                        <Input id="district" name="district" className="h-11 rounded-xl bg-slate-50/70" />
                       </div>
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="pharmacy_name" className="text-xs font-semibold">{t("auth.pharmacyName")}</Label>
-                      <Input id="pharmacy_name" name="pharmacy_name" required placeholder="MedPlus Dhanmondi" className="h-11 rounded-xl bg-slate-50/70" />
+                      <Input id="pharmacy_name" name="pharmacy_name" required className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
                     <div className="space-y-1">
                       <Label htmlFor="email2" className="text-xs font-semibold">{t("auth.email")}</Label>
-                      <Input id="email2" name="email" type="email" required placeholder="owner@pharmacy.com" className="h-11 rounded-xl bg-slate-50/70" />
+                      <Input id="email2" name="email" type="email" required className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="address" className="text-xs font-semibold">ঠিকানা</Label>
-                      <Input id="address" name="address" placeholder="Street, area" className="h-11 rounded-xl bg-slate-50/70" />
+                      <Label htmlFor="address" className="text-xs font-semibold">
+                        {isBn ? "ঠিকানা" : "Address"}
+                      </Label>
+                      <Input id="address" name="address" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="trade_license" className="text-xs font-semibold">ট্রেড লাইসেন্স (ঐচ্ছিক)</Label>
-                      <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" className="h-11 rounded-xl bg-slate-50/70" />
+                      <Label htmlFor="trade_license" className="text-xs font-semibold">
+                        {isBn ? "ট্রেড লাইসেন্স (ঐচ্ছিক)" : "Trade License (optional)"}
+                      </Label>
+                      <Input id="trade_license" name="trade_license" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
 
                     {/* Owner ID Card & Shop Image */}
                     <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">
-                        <Label className="text-xs font-semibold">মালিকের আইডি কার্ড *</Label>
+                        <Label className="text-xs font-semibold">
+                          {isBn ? "মালিকের আইডি কার্ড *" : "Owner ID Card *"}
+                        </Label>
                         {idCardDoc ? (
                           <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
                             <img src={idCardDoc.dataUrl} alt="Owner ID" className="h-full w-full object-cover" />
@@ -864,7 +892,7 @@ function AuthPage() {
                             <button
                               type="button"
                               onClick={() => setIdCardDoc(null)}
-                              aria-label="আইডি কার্ড ছবি সরান"
+                              aria-label={isBn ? "আইডি কার্ড ছবি সরান" : "Remove ID card image"}
                               className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/65 text-white hover:bg-black"
                             >
                               <X className="h-3.5 w-3.5" />
@@ -877,9 +905,11 @@ function AuthPage() {
                             ) : (
                               <>
                                 <IdCard className="h-5 w-5 text-[#0d5c46]" />
-                                <span className="text-[11px] font-semibold text-slate-600">আইডি কার্ডের ছবি</span>
+                                <span className="text-[11px] font-semibold text-slate-600">
+                                  {isBn ? "আইডি কার্ডের ছবি" : "ID Card Photo"}
+                                </span>
                                 <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
-                                  <Upload className="h-2.5 w-2.5" /> আপলোড
+                                  <Upload className="h-2.5 w-2.5" /> {isBn ? "আপলোড" : "Upload"}
                                 </span>
                               </>
                             )}
@@ -894,7 +924,9 @@ function AuthPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <Label className="text-xs font-semibold">দোকানের ছবি *</Label>
+                        <Label className="text-xs font-semibold">
+                          {isBn ? "দোকানের ছবি *" : "Shop Photo *"}
+                        </Label>
                         {shopPhotoDoc ? (
                           <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
                             <img src={shopPhotoDoc.dataUrl} alt="Shop" className="h-full w-full object-cover" />
@@ -904,7 +936,7 @@ function AuthPage() {
                             <button
                               type="button"
                               onClick={() => setShopPhotoDoc(null)}
-                              aria-label="দোকানের ছবি সরান"
+                              aria-label={isBn ? "দোকানের ছবি সরান" : "Remove shop photo"}
                               className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/65 text-white hover:bg-black"
                             >
                               <X className="h-3.5 w-3.5" />
@@ -917,9 +949,11 @@ function AuthPage() {
                             ) : (
                               <>
                                 <Store className="h-5 w-5 text-[#0d5c46]" />
-                                <span className="text-[11px] font-semibold text-slate-600">দোকানের ছবি</span>
+                                <span className="text-[11px] font-semibold text-slate-600">
+                                  {isBn ? "দোকানের ছবি" : "Shop Photo"}
+                                </span>
                                 <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
-                                  <Upload className="h-2.5 w-2.5" /> আপলোড
+                                  <Upload className="h-2.5 w-2.5" /> {isBn ? "আপলোড" : "Upload"}
                                 </span>
                               </>
                             )}
@@ -936,11 +970,13 @@ function AuthPage() {
                     <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">
                         <Label htmlFor="password2" className="text-xs font-semibold">{t("auth.password")}</Label>
-                        <Input id="password2" name="password" type="password" required minLength={8} placeholder="৮+ অক্ষর" className="h-11 rounded-xl bg-slate-50/70" />
+                        <Input id="password2" name="password" type="password" required minLength={8} className="h-11 rounded-xl bg-slate-50/70" />
                       </div>
                       <div className="space-y-1">
-                        <Label htmlFor="password_confirm" className="text-xs font-semibold">নিশ্চিত করুন</Label>
-                        <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} placeholder="পুনরায়" className="h-11 rounded-xl bg-slate-50/70" />
+                        <Label htmlFor="password_confirm" className="text-xs font-semibold">
+                          {isBn ? "নিশ্চিত করুন" : "Confirm Password"}
+                        </Label>
+                        <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} className="h-11 rounded-xl bg-slate-50/70" />
                       </div>
                     </div>
                     <Button

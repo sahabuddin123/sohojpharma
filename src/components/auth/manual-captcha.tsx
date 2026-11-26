@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { RefreshCw, ShieldCheck, AlertCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,8 @@ export function ManualCaptcha({
   error,
   errorMessage,
 }: ManualCaptchaProps) {
+  const { i18n } = useTranslation();
+  const isBn = (i18n.resolvedLanguage ?? i18n.language ?? "en").startsWith("bn");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [challenge, setChallenge] = useState<Challenge>({ text: "", answer: "" });
@@ -158,9 +161,9 @@ export function ManualCaptcha({
       <div className="flex items-center justify-between text-xs">
         <Label htmlFor="captcha-input" className="flex items-center gap-1.5 font-semibold text-foreground/90">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          সিকিউরিটি ক্যাপচা (CAPTCHA)
+          {isBn ? "সিকিউরিটি ক্যাপচা (CAPTCHA)" : "Security CAPTCHA"}
         </Label>
-        <span className="text-[11px] text-muted-foreground">বট সুরক্ষা</span>
+        <span className="text-[11px] text-muted-foreground">{isBn ? "বট সুরক্ষা" : "Bot Protection"}</span>
       </div>
 
       <div className="flex items-center gap-2">
@@ -170,7 +173,7 @@ export function ManualCaptcha({
             width={130}
             height={40}
             className="block select-none"
-            title="সিকিউরিটি কোড"
+            title={isBn ? "সিকিউরিটি কোড" : "Security Code"}
           />
         </div>
 
@@ -179,7 +182,7 @@ export function ManualCaptcha({
           variant="outline"
           size="icon"
           onClick={refresh}
-          title="নতুন ক্যাপচা কোড লোড করুন"
+          title={isBn ? "নতুন ক্যাপচা কোড লোড করুন" : "Refresh CAPTCHA"}
           className="h-10 w-10 shrink-0 rounded-lg hover:bg-muted"
         >
           <RefreshCw className={`h-4 w-4 text-muted-foreground ${isSpinning ? "animate-spin" : ""}`} />
@@ -194,7 +197,6 @@ export function ManualCaptcha({
           autoComplete="off"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="উত্তর লিখুন"
           className={`h-10 flex-1 rounded-lg text-center font-mono text-base font-bold tracking-wider transition-colors ${
             error
               ? "border-destructive ring-2 ring-destructive/20 bg-destructive/5 focus-visible:ring-destructive"
