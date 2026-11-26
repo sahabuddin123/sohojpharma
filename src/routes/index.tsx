@@ -506,44 +506,22 @@ function MobileApp() {
             </div>
           </div>
         </div>
-        <div className="flex justify-center gap-4">
-          <div className="w-56 h-[400px] bg-slate-900 rounded-[2.2rem] border-[6px] border-slate-800 shadow-2xl p-2.5 -rotate-3 hidden sm:block">
-            <div className="h-full bg-[#f4f7f5] rounded-[1.6rem] p-3 text-slate-900 flex flex-col gap-2">
-              <div className="rounded-xl bg-[#0d5c46] p-2.5 text-white">
-                <p className="text-[10px] opacity-80">{isBn ? "ফার্মেসি পোর্টাল" : "Pharmacy Portal"}</p>
-                <p className="text-xs font-bold mt-0.5">SohojPharma PWA</p>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5 mt-1">
-                {(isBn ? ["বিক্রি (POS)", "ইনভেন্টরি", "ক্যাশ কালেক্ট", "রিপোর্ট"] : ["POS Sale", "Inventory", "Cash Collect", "Reports"]).map((label) => (
-                  <div key={label} className="rounded-lg bg-white border border-slate-200/80 p-2 text-[10px] font-bold text-slate-700">
-                    {label}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-auto rounded-xl bg-white border border-slate-200/80 p-2.5">
-                <p className="text-[9px] text-slate-400">{isBn ? "অফলাইন সিঙ্ক" : "Offline Sync"}</p>
-                <p className="text-xs font-bold text-[#0d5c46]">{isBn ? "সক্রিয়" : "Ready"}</p>
-              </div>
-            </div>
+        <div className="flex justify-center items-center gap-4 sm:gap-6">
+          <div className="w-52 sm:w-56 overflow-hidden rounded-[2.2rem] border-[6px] border-slate-800 bg-slate-900 shadow-2xl -rotate-3 hidden sm:block">
+            <img
+              src="/images/app-products.png"
+              alt="SohojPharma Mobile Products"
+              className="w-full h-auto block rounded-[1.8rem]"
+              loading="lazy"
+            />
           </div>
-          <div className="w-56 h-[400px] bg-slate-900 rounded-[2.2rem] border-[6px] border-slate-800 shadow-2xl p-2.5 rotate-3 mt-6">
-            <div className="h-full bg-[#0d5c46] rounded-[1.6rem] p-3.5 text-white flex flex-col justify-between">
-              <div>
-                <p className="text-[10px] uppercase tracking-wider text-emerald-200/80">Live Snapshot</p>
-                <div className="text-2xl font-black mt-2">৳ 24,500</div>
-                <div className="text-xs text-emerald-100/80">{isBn ? "আজকের মোট বিক্রি" : "Today's sales"}</div>
-              </div>
-              <div className="space-y-2">
-                <div className="rounded-xl bg-white/10 p-2.5">
-                  <p className="text-[10px] text-emerald-100/75">{isBn ? "দৈনিক হাতে ক্যাশ" : "Hand Cash"}</p>
-                  <p className="text-sm font-bold">৳ 14,200</p>
-                </div>
-                <div className="rounded-xl bg-white/10 p-2.5">
-                  <p className="text-[10px] text-emerald-100/75">{isBn ? "স্টক ভ্যালু" : "Stock Value"}</p>
-                  <p className="text-sm font-bold">৳ 8,45,000</p>
-                </div>
-              </div>
-            </div>
+          <div className="w-56 sm:w-60 overflow-hidden rounded-[2.2rem] border-[6px] border-slate-800 bg-slate-900 shadow-2xl rotate-2 mt-4">
+            <img
+              src="/images/app-home.png"
+              alt="SohojPharma Mobile Home"
+              className="w-full h-auto block rounded-[1.8rem]"
+              loading="lazy"
+            />
           </div>
         </div>
       </div>
