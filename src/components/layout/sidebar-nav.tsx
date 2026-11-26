@@ -226,7 +226,12 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
           {groups.map((group) => (
             <div key={group.label} className="space-y-1">
               {!collapsed && (
-                <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                <p
+                  className={cn(
+                    "px-3 pb-1 font-semibold uppercase tracking-[0.08em] text-muted-foreground",
+                    isV2 ? "text-[11.5px]" : "text-[10px]",
+                  )}
+                >
                   {t(group.label, { defaultValue: group.label })}
                 </p>
               )}
@@ -240,9 +245,9 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
                     key={to}
                     to={to as never}
                     className={cn(
-                      "group relative flex items-center text-sm font-medium outline-none transition-all",
+                      "group relative flex items-center font-medium outline-none transition-all",
                       "focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                      isV2 ? "rounded-2xl" : "rounded-xl",
+                      isV2 ? "rounded-2xl text-[15px]" : "rounded-xl text-sm",
                       collapsed ? "h-10 justify-center" : isV2 ? "gap-3 px-3.5 py-2.5" : "gap-3 px-3 py-2",
                       isV2
                         ? active

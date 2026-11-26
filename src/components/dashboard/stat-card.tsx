@@ -38,14 +38,14 @@ export function StatCard({ label, value, delta, icon: Icon, tone = "primary" }: 
             <Icon className="h-[18px] w-[18px]" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <p className="truncate text-[13px] font-medium text-slate-600 dark:text-slate-300">
               {label}
             </p>
-            <p className="mt-0.5 truncate text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white sm:text-2xl">
+            <p className="mt-0.5 truncate text-2xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white sm:text-[26px]">
               {value}
             </p>
             {delta !== undefined && (
-              <p className={cn("mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold", positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
+              <p className={cn("mt-0.5 inline-flex items-center gap-1 text-xs font-semibold", positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400")}>
                 {positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
                 <span className="tabular-nums">{Math.abs(delta)}%</span>
               </p>

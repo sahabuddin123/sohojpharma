@@ -108,35 +108,35 @@ function KpiTile({
           : "bg-gradient-to-br from-[#094735] to-[#0d5c46] shadow-[0_12px_28px_-10px_rgba(13,92,70,0.45)]",
       )}
     >
-      <CardContent className="flex h-full flex-col justify-between gap-3 p-4 sm:p-5">
+      <CardContent className="flex h-full flex-col justify-between gap-3 p-5">
         <div className="flex items-start justify-between gap-2">
-          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider text-teal-50/90">
+          <span className={cn("min-w-0 font-semibold text-teal-50/95", isV2 ? "text-[13px]" : "text-[11px] uppercase tracking-wider")}>
             {label}
           </span>
-          <div className={cn("grid h-9 w-9 shrink-0 place-items-center bg-white/15 text-white", isV2 ? "rounded-full" : "rounded-xl")}>
-            <Icon className="h-4.5 w-4.5" />
+          <div className={cn("grid h-10 w-10 shrink-0 place-items-center bg-white/15 text-white", isV2 ? "rounded-full" : "rounded-xl")}>
+            <Icon className="h-5 w-5" />
           </div>
         </div>
         <div className="min-w-0">
-          <p className="truncate text-2xl font-extrabold tracking-tight tabular-nums sm:text-[26px]">{value}</p>
+          <p className="truncate text-2xl font-extrabold tracking-tight tabular-nums sm:text-[28px]">{value}</p>
           {sub != null && <p className="mt-1 truncate text-xs font-medium text-teal-50/85">{sub}</p>}
         </div>
       </CardContent>
     </Card>
   ) : isV2 ? (
     <Card className="group h-full overflow-hidden transition-all hover:-translate-y-0.5">
-      <CardContent className="flex h-full items-center gap-3.5 p-4 sm:p-5">
-        <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full", v2ToneMap[tone])}>
-          <Icon className="h-[18px] w-[18px]" />
+      <CardContent className="flex h-full items-center gap-4 p-5">
+        <div className={cn("grid h-12 w-12 shrink-0 place-items-center rounded-full", v2ToneMap[tone])}>
+          <Icon className="h-5 w-5" />
         </div>
         <div className="min-w-0 flex-1">
-          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <span className="block truncate text-[13px] font-medium text-slate-600 dark:text-slate-300">
             {label}
           </span>
-          <p className="mt-0.5 truncate text-xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-white">
+          <p className="mt-0.5 truncate text-2xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-white">
             {value}
           </p>
-          {sub != null && <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{sub}</p>}
+          {sub != null && <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{sub}</p>}
         </div>
       </CardContent>
     </Card>
@@ -162,11 +162,12 @@ function KpiTile({
 }
 
 function SectionTitle({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   return (
-    <div className="mb-3 flex items-end justify-between gap-3">
+    <div className="mb-3.5 flex items-end justify-between gap-3">
       <div className="min-w-0">
-        <h2 className="truncate text-sm font-semibold tracking-tight text-foreground sm:text-base">{title}</h2>
-        {hint && <p className="truncate text-xs text-muted-foreground">{hint}</p>}
+        <h2 className={cn("truncate font-bold tracking-tight text-foreground", isV2 ? "text-base sm:text-lg" : "text-sm sm:text-base")}>{title}</h2>
+        {hint && <p className={cn("truncate text-muted-foreground", isV2 ? "text-[13px]" : "text-xs")}>{hint}</p>}
       </div>
       {action}
     </div>
@@ -347,7 +348,7 @@ function StoreDashboard() {
         {/* Executive Header Bar */}
         <header
           className={cn(
-            "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+            "flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between",
             isV2
               ? "px-1 py-1"
               : "rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900",
@@ -356,7 +357,7 @@ function StoreDashboard() {
           <div className="min-w-0">
             <p
               className={cn(
-                "truncate text-[11px] font-bold uppercase tracking-wider",
+                "truncate text-xs font-semibold uppercase tracking-wider",
                 isV2 ? "text-[#0d8590] dark:text-teal-300" : "text-[#0d5c46] dark:text-emerald-400",
               )}
             >
@@ -364,13 +365,13 @@ function StoreDashboard() {
             </p>
             <h1
               className={cn(
-                "mt-0.5 truncate font-extrabold tracking-tight text-slate-900 dark:text-white",
-                isV2 ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
+                "mt-0.5 font-extrabold tracking-tight text-slate-900 dark:text-white",
+                isV2 ? "text-2xl sm:text-[30px] leading-tight" : "truncate text-xl sm:text-2xl",
               )}
             >
               {greeting}, {displayName}
             </h1>
-            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-0.5 truncate text-[13px] text-slate-500 dark:text-slate-400">
               {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
           </div>
