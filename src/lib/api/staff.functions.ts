@@ -107,7 +107,7 @@ export const upsertStaff = createServerFn({ method: "POST" })
         .from("tenant_memberships")
         .select("role")
         .eq("tenant_id", staffPayload.tenant_id)
-        .eq("user_id", context.user.id)
+        .eq("user_id", context.userId)
         .eq("is_active", true)
         .maybeSingle();
       if (!callerRole || !["owner", "manager"].includes(callerRole.role)) {
