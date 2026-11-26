@@ -287,20 +287,43 @@ function TrustedBy() {
   const items = tenants.length > 0 ? tenants : fallback;
   const loop = [...items, ...items];
   return (
-    <section className="py-14 bg-white border-y border-slate-100 overflow-hidden">
+    <section className="py-12 bg-white border-b border-slate-100 overflow-hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-500 mb-8">{t("landing.trust.title")}</p>
-        <div className="relative">
-          <div className="flex gap-12 animate-[marquee_30s_linear_infinite] items-center">
-            {loop.map((it, i) => (
-              <div key={`${it.id}-${i}`} className="flex items-center gap-3 text-slate-500 font-bold text-lg whitespace-nowrap shrink-0">
-                {it.logo_url ? (
-                  <img src={it.logo_url} alt={it.name} className="h-10 w-auto max-w-[140px] object-contain grayscale hover:grayscale-0 transition" loading="lazy" />
-                ) : (
-                  <><Building2 className="w-5 h-5" /> {it.name}</>
-                )}
-              </div>
-            ))}
+        <p className="text-center text-xs font-bold uppercase tracking-widest text-slate-400 mb-7">
+          {T(t("landing.trust.title"))}
+        </p>
+        <div className="relative overflow-hidden">
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-white to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-white to-transparent" />
+          <div className="flex w-max gap-4 animate-[marquee_34s_linear_infinite] hover:[animation-play-state:paused] items-center">
+            {loop.map((it, i) => {
+              const initials = it.name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((w) => w[0]?.toUpperCase() ?? "")
+                .join("") || "SP";
+              return (
+                <div
+                  key={`${it.id}-${i}`}
+                  className="flex items-center gap-3 rounded-xl border border-slate-200/80 bg-slate-50/70 px-4 py-2.5 whitespace-nowrap shrink-0 transition hover:border-emerald-200 hover:bg-white"
+                >
+                  {it.logo_url ? (
+                    <img
+                      src={it.logo_url}
+                      alt={it.name}
+                      className="h-7 w-7 rounded-lg object-cover border border-slate-200/60"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-[11px] font-extrabold text-[#0d5c46] ring-1 ring-emerald-200/60">
+                      {initials}
+                    </span>
+                  )}
+                  <span className="text-sm font-bold text-slate-700">{it.name}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
