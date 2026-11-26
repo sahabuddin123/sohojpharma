@@ -488,36 +488,46 @@ function MobileApp() {
   const { t, lang } = useT();
   const isBn = lang === "bn";
   return (
-    <section className="py-24 bg-[#071f18] text-white relative overflow-hidden">
+    <section className="py-20 bg-[#071f18] text-white relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_50%,rgba(16,185,129,0.14),transparent_55%)]" />
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative grid lg:grid-cols-2 gap-12 items-center">
-        <div>
-          <h2 className="text-3xl sm:text-5xl font-black leading-tight">{t("landing.mobile.title")}</h2>
-          <p className="mt-4 text-lg text-emerald-100/80">{t("landing.mobile.subtitle")}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Link to="/m" className="inline-flex items-center gap-2.5 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:bg-emerald-50 transition">
-              <Smartphone className="w-5 h-5 text-[#0d5c46]" /> {t("landing.mobile.android")}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative grid lg:grid-cols-12 gap-10 items-center">
+        <div className="lg:col-span-4">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black leading-tight">{t("landing.mobile.title")}</h2>
+          <p className="mt-4 text-base sm:text-lg text-emerald-100/80">{t("landing.mobile.subtitle")}</p>
+          <div className="mt-7">
+            <Link
+              to="/m"
+              className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-slate-900 shadow-sm transition hover:bg-emerald-50"
+            >
+              {isBn ? "অ্যাপ ওপেন করুন" : "Open App"} <ArrowRight className="w-4 h-4 text-[#0d5c46]" />
             </Link>
-            <Link to="/m" className="inline-flex items-center gap-2.5 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:bg-emerald-50 transition">
-              <Apple className="w-5 h-5 text-[#0d5c46]" /> {t("landing.mobile.ios")}
-            </Link>
-            <div className="inline-flex items-center gap-2.5 bg-white/10 border border-white/15 px-5 py-3 rounded-xl font-bold">
-              <QrCode className="w-5 h-5 text-emerald-300" /> {t("landing.mobile.qr")}
-            </div>
           </div>
         </div>
-        <div className="flex flex-wrap justify-center lg:justify-end items-center gap-6 sm:gap-8">
+        <div className="lg:col-span-8 flex flex-wrap lg:flex-nowrap justify-center lg:justify-end items-end gap-4 sm:gap-5">
+          {/* Tablet Mockup */}
+          <div className="relative w-[260px] sm:w-[290px] shrink-0 hidden md:block">
+            <div className="rounded-[1.6rem] bg-gradient-to-b from-slate-800 via-slate-950 to-slate-900 p-[7px] ring-1 ring-white/20 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
+              <div className="relative overflow-hidden rounded-[1.2rem] bg-white">
+                <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-slate-800" />
+                <img
+                  src="/images/app-tablet.png"
+                  alt="SohojPharma Tablet App"
+                  className="w-full h-auto block"
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* iPhone Mockup */}
-          <div className="relative w-[205px] sm:w-[225px] shrink-0">
-            {/* Side hardware buttons */}
-            <span className="absolute -left-[3px] top-24 h-8 w-[3px] rounded-l bg-slate-700" />
-            <span className="absolute -left-[3px] top-36 h-10 w-[3px] rounded-l bg-slate-700" />
-            <span className="absolute -right-[3px] top-28 h-12 w-[3px] rounded-r bg-slate-700" />
-            <div className="rounded-[2.6rem] bg-gradient-to-b from-slate-800 via-slate-950 to-slate-900 p-[7px] ring-1 ring-white/25 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
-              <div className="relative overflow-hidden rounded-[2.15rem] bg-[#0d5c46]">
-                {/* Dynamic Island */}
-                <div className="pointer-events-none absolute left-1/2 top-2 z-20 flex h-[15px] w-[68px] -translate-x-1/2 items-center justify-end rounded-full bg-black px-2 shadow-xs">
-                  <span className="h-1.5 w-1.5 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+          <div className="relative w-[170px] sm:w-[185px] shrink-0">
+            <span className="absolute -left-[3px] top-20 h-7 w-[3px] rounded-l bg-slate-700" />
+            <span className="absolute -left-[3px] top-30 h-9 w-[3px] rounded-l bg-slate-700" />
+            <span className="absolute -right-[3px] top-24 h-10 w-[3px] rounded-r bg-slate-700" />
+            <div className="rounded-[2.2rem] bg-gradient-to-b from-slate-800 via-slate-950 to-slate-900 p-[6px] ring-1 ring-white/25 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
+              <div className="relative overflow-hidden rounded-[1.85rem] bg-[#0d5c46]">
+                <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 flex h-[12px] w-[56px] -translate-x-1/2 items-center justify-end rounded-full bg-black px-1.5">
+                  <span className="h-1 w-1 rounded-full bg-slate-800 ring-1 ring-slate-700" />
                 </div>
                 <img
                   src="/images/app-home.png"
@@ -525,21 +535,18 @@ function MobileApp() {
                   className="w-full h-auto block"
                   loading="lazy"
                 />
-                {/* Home Indicator */}
-                <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 h-1 w-20 -translate-x-1/2 rounded-full bg-slate-900/40" />
+                <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 h-1 w-16 -translate-x-1/2 rounded-full bg-slate-900/40" />
               </div>
             </div>
           </div>
 
           {/* Android Mockup */}
-          <div className="relative w-[205px] sm:w-[225px] shrink-0 hidden sm:block">
-            {/* Side hardware buttons */}
-            <span className="absolute -right-[3px] top-24 h-12 w-[3px] rounded-r bg-slate-700" />
-            <span className="absolute -right-[3px] top-40 h-8 w-[3px] rounded-r bg-slate-700" />
-            <div className="rounded-[1.9rem] bg-gradient-to-b from-zinc-800 via-zinc-950 to-zinc-900 p-[6px] ring-1 ring-white/20 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
-              <div className="relative overflow-hidden rounded-[1.55rem] bg-[#0d5c46]">
-                {/* Punch-hole camera */}
-                <div className="pointer-events-none absolute left-1/2 top-2 z-20 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-zinc-700" />
+          <div className="relative w-[170px] sm:w-[185px] shrink-0 hidden sm:block">
+            <span className="absolute -right-[3px] top-20 h-10 w-[3px] rounded-r bg-slate-700" />
+            <span className="absolute -right-[3px] top-32 h-7 w-[3px] rounded-r bg-slate-700" />
+            <div className="rounded-[1.7rem] bg-gradient-to-b from-zinc-800 via-zinc-950 to-zinc-900 p-[5px] ring-1 ring-white/20 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
+              <div className="relative overflow-hidden rounded-[1.35rem] bg-[#0d5c46]">
+                <div className="pointer-events-none absolute left-1/2 top-1.5 z-20 h-2 w-2 -translate-x-1/2 rounded-full bg-black ring-1 ring-zinc-700" />
                 <img
                   src="/images/app-sales.png"
                   alt="SohojPharma Android App"
