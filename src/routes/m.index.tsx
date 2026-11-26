@@ -289,12 +289,12 @@ function PhoneHome() {
 
         {/* Row 4: Inventory Value */}
         <Link
-          to={"/m/products" as never}
+          to={"/m/inventory" as never}
           className="flex items-center justify-between rounded-xl border border-sky-200/70 bg-sky-50/50 px-3.5 py-2.5 transition hover:border-sky-300"
         >
-          <span className="text-xs font-semibold text-slate-700">ইনভেন্টোরি মূল্য</span>
+          <span className="text-xs font-semibold text-slate-700">স্টকে পণ্য আছে</span>
           <span className="text-base font-extrabold text-sky-700">
-            ৳{formatMoney(data?.kpi.inventoryValue)}
+            ৳{formatMoney(data?.kpi.inventoryValue)} টাকা
           </span>
         </Link>
         </div>
