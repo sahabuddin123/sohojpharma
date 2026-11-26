@@ -71,7 +71,7 @@ function EmptyState({ label }: { label?: string }) {
 }
 
 function KpiTile({
-  label, value, sub, icon: Icon, tone = "primary", to,
+  label, value, sub, icon: Icon, tone = "primary", to, featured = false,
 }: {
   label: string;
   value: React.ReactNode;
@@ -79,28 +79,47 @@ function KpiTile({
   icon: typeof Wallet;
   tone?: "primary" | "success" | "warning" | "destructive" | "muted";
   to?: string;
+  featured?: boolean;
 }) {
   const toneMap = {
-    primary: "bg-primary/10 text-primary",
-    success: "bg-success/10 text-success",
-    warning: "bg-warning/10 text-warning",
-    destructive: "bg-destructive/10 text-destructive",
-    muted: "bg-muted text-muted-foreground",
+    primary: "bg-emerald-50 text-[#0d5c46] dark:bg-emerald-950/50 dark:text-emerald-400",
+    success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
+    warning: "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400",
+    destructive: "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400",
+    muted: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
   } as const;
-  const body = (
-    <Card className="group h-full overflow-hidden border-border/60 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated">
-      <CardContent className="flex h-full flex-col gap-2 p-3 sm:gap-3 sm:p-5">
+  const body = featured ? (
+    <Card className="group h-full overflow-hidden border-0 bg-gradient-to-br from-[#094735] to-[#0d5c46] text-white shadow-[0_12px_28px_-10px_rgba(13,92,70,0.45)] transition-all hover:-translate-y-0.5">
+      <CardContent className="flex h-full flex-col justify-between gap-3 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-2">
-          <span className="min-w-0 text-[10px] font-medium uppercase leading-tight tracking-wider text-muted-foreground sm:text-[11px]">{label}</span>
-          <div className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg sm:h-9 sm:w-9 sm:rounded-xl ${toneMap[tone]}`}>
-            <Icon className="h-4 w-4 sm:h-4.5 sm:w-4.5" />
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider text-emerald-100/85">
+            {label}
+          </span>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white">
+            <Icon className="h-4.5 w-4.5" />
           </div>
         </div>
         <div className="min-w-0">
-          <p className="truncate text-lg font-bold text-foreground sm:text-2xl">{value}</p>
-          {sub != null && <p className="mt-1 truncate text-[10px] text-muted-foreground sm:text-xs">{sub}</p>}
+          <p className="truncate text-2xl font-extrabold tracking-tight tabular-nums sm:text-[26px]">{value}</p>
+          {sub != null && <p className="mt-1 truncate text-xs font-medium text-emerald-100/80">{sub}</p>}
         </div>
-
+      </CardContent>
+    </Card>
+  ) : (
+    <Card className="group h-full overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_1px_3px_rgba(15,23,42,0.03)] transition-all hover:-translate-y-0.5 hover:border-emerald-300/80 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+      <CardContent className="flex h-full flex-col justify-between gap-2.5 p-3.5 sm:p-4">
+        <div className="flex items-start justify-between gap-2">
+          <span className="min-w-0 text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">
+            {label}
+          </span>
+          <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${toneMap[tone]}`}>
+            <Icon className="h-4 w-4" />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-lg font-extrabold tracking-tight text-slate-900 tabular-nums dark:text-white sm:text-xl">{value}</p>
+          {sub != null && <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{sub}</p>}
+        </div>
       </CardContent>
     </Card>
   );
@@ -276,16 +295,16 @@ function StoreDashboard() {
   return (
     <AppShell variant="store" title={t("nav.dashboard")}>
       <div className="space-y-8 pb-10">
-        {/* Header */}
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        {/* Executive Header Bar */}
+        <header className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="truncate text-[11px] font-bold uppercase tracking-wider text-[#0d5c46] dark:text-emerald-400">
               {data.tenantName ?? t("dashboard.fallbackTenant")}
             </p>
-            <h1 className="mt-1 truncate text-lg font-bold tracking-tight sm:text-2xl">
+            <h1 className="mt-0.5 truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
               {greeting}, {displayName}
             </h1>
-            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
               {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
             </p>
           </div>
@@ -298,7 +317,7 @@ function StoreDashboard() {
               onCustomChange={setCustom}
             />
             <WarehouseFilter value={warehouseId} onChange={setWarehouseId} className="min-w-0 flex-1 sm:w-[190px] sm:flex-none" />
-            <Button variant="outline" size="sm" className="shrink-0" onClick={() => refetch()} disabled={isFetching}>
+            <Button variant="outline" size="sm" className="shrink-0 rounded-xl border-slate-200" onClick={() => refetch()} disabled={isFetching}>
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">{t("dashboard.refresh")}</span>
             </Button>
           </div>
@@ -308,14 +327,16 @@ function StoreDashboard() {
         <StoreSetupBanner />
         <OnboardingChecklist />
 
-        {/* SECTION 1 — Owner Overview */}
-        <section className={isFetching ? "opacity-70 transition-opacity" : "transition-opacity"}>
+        {/* SECTION 1 — Owner Overview (2-Tier Executive Hierarchy) */}
+        <section className={isFetching ? "space-y-3 opacity-70 transition-opacity" : "space-y-3 transition-opacity"}>
           <SectionTitle
             title={t("dashboard.sectionOwnerOverview")}
             hint={preset === "today" ? t("dashboard.sectionOwnerOverviewHint") : `${effFrom} → ${effTo}`}
           />
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {/* Primary 4 Hero KPIs */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <KpiTile
+              featured
               label={preset === "today" ? t("dashboard.kpiTodaySales") : "মোট বিক্রি"}
               value={bdt(k.todaySales)}
               sub={`নগদ: ${bdt(k.todayCashSale ?? 0)}`}
@@ -323,6 +344,33 @@ function StoreDashboard() {
               tone="primary"
               to="/sales"
             />
+            <KpiTile
+              label="দৈনিক হাতে ক্যাশ"
+              value={bdt(k.dailyCashInHand ?? 0)}
+              sub="নগদ + আদায় − খরচ"
+              icon={Banknote}
+              tone={(k.dailyCashInHand ?? 0) < 0 ? "destructive" : "success"}
+              to="/accounts/cashbook"
+            />
+            <KpiTile
+              label={preset === "today" ? t("dashboard.kpiTodayProfit") : "নিট মুনাফা"}
+              value={bdt(k.todayProfit)}
+              sub="বিক্রি ও ক্রয়মূল্যের পার্থক্য"
+              icon={TrendingUp}
+              tone={k.todayProfit < 0 ? "destructive" : "success"}
+            />
+            <KpiTile
+              label="বাকি আদায়"
+              value={bdt(k.dueCollection)}
+              sub="কাস্টমার কালেকশন"
+              icon={HandCoins}
+              tone="success"
+              to="/sales/due-collections"
+            />
+          </div>
+
+          {/* Secondary 8 Operational KPIs */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-4">
             <KpiTile
               label="নগদ বিক্রি"
               value={bdt(k.todayCashSale ?? 0)}
@@ -338,32 +386,11 @@ function StoreDashboard() {
               to="/sales/due-collections"
             />
             <KpiTile
-              label="বাকি আদায়"
-              value={bdt(k.dueCollection)}
-              icon={HandCoins}
-              tone="success"
-              to="/sales/due-collections"
-            />
-            <KpiTile
               label={preset === "today" ? "আজকের খরচ" : "মোট খরচ"}
               value={bdt(k.todayExpense ?? 0)}
               icon={ReceiptText}
               tone={(k.todayExpense ?? 0) > 0 ? "destructive" : "muted"}
               to="/accounts/expenses"
-            />
-            <KpiTile
-              label={preset === "today" ? t("dashboard.kpiTodayProfit") : "নিট মুনাফা"}
-              value={bdt(k.todayProfit)}
-              icon={TrendingUp}
-              tone={k.todayProfit < 0 ? "destructive" : "success"}
-            />
-            <KpiTile
-              label="দৈনিক হাতে ক্যাশ"
-              value={bdt(k.dailyCashInHand ?? 0)}
-              sub="নগদ + আদায় − খরচ"
-              icon={Banknote}
-              tone={(k.dailyCashInHand ?? 0) < 0 ? "destructive" : "success"}
-              to="/accounts/cashbook"
             />
             <KpiTile
               label="বিক্রি রিটার্ন"

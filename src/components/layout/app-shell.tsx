@@ -53,7 +53,7 @@ export function AppShell({ variant, title, children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-muted/30">
+    <div className="flex min-h-screen w-full bg-[#f5f7f6] dark:bg-slate-950">
       {/* Desktop sidebar */}
       <div
         className={cn(

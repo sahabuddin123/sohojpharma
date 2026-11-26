@@ -196,8 +196,8 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
                       "focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                       collapsed ? "h-10 justify-center" : "gap-3 px-3 py-2",
                       active
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                        ? "bg-emerald-50/90 font-semibold text-[#0d5c46] dark:bg-emerald-950/40 dark:text-emerald-300"
+                        : "text-sidebar-foreground/80 hover:bg-slate-100/80 hover:text-sidebar-foreground dark:hover:bg-slate-800/60",
                     )}
                     aria-current={active ? "page" : undefined}
                   >
@@ -212,7 +212,7 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
                     <Icon
                       className={cn(
                         "h-[18px] w-[18px] shrink-0 transition-colors",
-                        active ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                        active ? "text-[#0d5c46] dark:text-emerald-400" : "text-muted-foreground group-hover:text-foreground",
                       )}
                     />
                     {!collapsed && <span className="truncate">{t(k)}</span>}

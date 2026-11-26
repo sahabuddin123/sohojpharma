@@ -295,12 +295,12 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
             <Button
               asChild
               size="sm"
-              variant="secondary"
-              className="hidden h-9 gap-1.5 rounded-xl px-3 font-semibold shadow-sm md:flex"
+              variant="outline"
+              className="hidden h-9 gap-1.5 rounded-xl border-slate-200 bg-white px-3 font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 md:flex"
               aria-label="Open Purchase Requisition"
             >
               <Link to={"/purchase-requisition" as never}>
-                <ClipboardList className="h-4 w-4" />
+                <ClipboardList className="h-4 w-4 text-[#0d5c46]" />
                 <span className="hidden lg:inline">Purchase Requisition</span>
               </Link>
             </Button>
@@ -385,10 +385,18 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
                 className="h-9 gap-2 rounded-xl pl-1 pr-2"
                 aria-label={t("topbar.accountMenu")}
               >
-                <Avatar className="h-7 w-7">
-                  <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
-                    {initials}
-                  </AvatarFallback>
+                <Avatar className="h-7 w-7 overflow-hidden">
+                  {typeof meta.avatar_url === "string" && meta.avatar_url ? (
+                    <img
+                      src={meta.avatar_url}
+                      alt={displayName}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
+                      {initials}
+                    </AvatarFallback>
+                  )}
                 </Avatar>
                 <span className="hidden max-w-[160px] flex-col items-start leading-tight md:flex">
                   <span className="truncate text-sm font-medium">{displayName}</span>
