@@ -7,7 +7,7 @@ import {
   Pill, Check, ArrowRight, Boxes, ShoppingCart, BarChart3, Bell, Database,
   Receipt, AlertTriangle, FileX, ClipboardList, FileText, PackageX, TrendingDown, ShieldAlert,
   Users, Truck, RotateCcw, Cloud, Zap, Shield, RefreshCw, WifiOff, Building2, UserCog,
-  Sparkles, Globe, Headphones, Star, Smartphone, Apple, QrCode, Phone, MessageCircle, Mail, MapPin, Menu, X, Plus, Minus,
+  Layers, ShieldCheck, Globe, Headphones, Star, Smartphone, Apple, QrCode, Phone, MessageCircle, Mail, MapPin, Menu, X, Plus, Minus,
 } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useThemeInit } from "@/hooks/use-theme-init";
@@ -153,72 +153,112 @@ function Navbar() {
 }
 
 function Hero() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const isBn = lang === "bn";
   const heroImageRaw = t("landing.hero.heroImage", { defaultValue: "" });
   const heroImage = typeof heroImageRaw === "string" && heroImageRaw.trim() ? heroImageRaw.trim() : "";
-  const cards = [
-    { i: Boxes, k: "card1" }, { i: ShoppingCart, k: "card2" }, { i: BarChart3, k: "card3" },
-    { i: TrendingDown, k: "card4" }, { i: Bell, k: "card5" }, { i: Database, k: "card6" },
+
+  const previewKpis = isBn
+    ? [
+        { label: "আজকের বিক্রি", value: "৳৪৮,৯২০", note: "+১২.৪% গতকাল থেকে", tone: "text-[#0d5c46]" },
+        { label: "স্টক মূল্য", value: "৳১২,৪৫,০০০", note: "১,৮৪০টি সক্রিয় আইটেম", tone: "text-slate-900" },
+        { label: "হাতে নগদ", value: "৳১৯,৪০০", note: "ক্যাশ ড্রয়ার ব্যালেন্স", tone: "text-slate-900" },
+        { label: "মেয়াদ সতর্কতা", value: "৩টি ব্যাচ", note: "আগামী ৩০ দিনে", tone: "text-amber-700" },
+      ]
+    : [
+        { label: "Today's Sale", value: "৳48,920", note: "+12.4% vs yesterday", tone: "text-[#0d5c46]" },
+        { label: "Stock Value", value: "৳12,45,000", note: "1,840 active items", tone: "text-slate-900" },
+        { label: "Cash in Hand", value: "৳19,400", note: "Register drawer live", tone: "text-slate-900" },
+        { label: "Expiring Soon", value: "3 Batches", note: "Within next 30 days", tone: "text-amber-700" },
+      ];
+
+  const sampleInvoices = [
+    { inv: "INV-2084", item: "Napa Extend 665mg • 2 Strip", batch: "B-409", total: "৳240", status: isBn ? "পরিশোধিত" : "Paid" },
+    { inv: "INV-2083", item: "Sergel 20mg • 1 Strip", batch: "S-118", total: "৳140", status: isBn ? "পরিশোধিত" : "Paid" },
+    { inv: "INV-2082", item: "Maxpro 20mg • 3 Strip", batch: "M-882", total: "৳210", status: isBn ? "বাকি" : "Due" },
   ];
+
   return (
-    <section id="home" className="relative overflow-hidden pt-16 pb-24">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-emerald-50/80 via-white to-slate-50" />
-      <div className="absolute top-20 -left-32 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl -z-10" />
-      <div className="absolute top-40 right-0 w-80 h-80 bg-teal-200/40 rounded-full blur-3xl -z-10" />
+    <section id="home" className="relative overflow-hidden border-b border-slate-200/70 bg-white pt-16 pb-24">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(13,92,70,0.08),transparent)]" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 text-[#0d5c46] ring-1 ring-emerald-200/80 text-xs font-bold mb-6 animate-fade-in">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {t("landing.hero.badge")}
+        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700 mb-6">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#0d5c46]" />
+          {t("landing.hero.badge")}
         </div>
-        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-slate-900 max-w-5xl mx-auto leading-[1.06] animate-fade-in">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 max-w-4xl mx-auto leading-[1.08]">
           {t("landing.hero.title")}
         </h1>
-        <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">{t("landing.hero.subtitle")}</p>
-        <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] hover:brightness-105 shadow-xl shadow-emerald-900/20 transition hover:scale-105">
-            {t("landing.hero.ctaPrimary")} <ArrowRight className="w-5 h-5" />
+        <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">{t("landing.hero.subtitle")}</p>
+        <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
+          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-white bg-[#0d5c46] hover:bg-[#094735] shadow-sm transition">
+            {t("landing.hero.ctaPrimary")} <ArrowRight className="w-4 h-4" />
           </Link>
-          <a href="#contact" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-900 bg-white border border-slate-200 hover:border-emerald-300 shadow-sm transition">
+          <a href="#contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-slate-800 bg-white border border-slate-200 hover:bg-slate-50 transition">
             {t("landing.hero.ctaSecondary")}
           </a>
         </div>
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-500 font-medium">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-xs sm:text-sm text-slate-500 font-medium">
           {["tag1", "tag2", "tag3"].map((k) => (
-            <span key={k} className="inline-flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" />{t(`landing.hero.${k}`)}</span>
+            <span key={k} className="inline-flex items-center gap-1.5"><Check className="w-3.5 h-3.5 text-[#0d5c46]" />{t(`landing.hero.${k}`)}</span>
           ))}
         </div>
-        {/* Dashboard mockup or CMS Hero Image */}
-        <div className="mt-16 relative max-w-5xl mx-auto">
-          <div className="absolute -inset-4 bg-gradient-to-r from-emerald-300/35 to-teal-300/35 blur-2xl rounded-3xl -z-10" />
-          <div className="rounded-3xl bg-white border border-slate-200/90 shadow-2xl shadow-emerald-950/10 p-3 sm:p-5">
+
+        {/* Realistic Product Workspace Preview or CMS Hero Image */}
+        <div className="mt-14 relative max-w-5xl mx-auto">
+          <div className="rounded-2xl bg-slate-100/80 border border-slate-200/90 p-2 sm:p-3 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.14)]">
             {heroImage ? (
-              <img src={heroImage} alt="SohojPharma Dashboard" className="w-full rounded-2xl object-cover max-h-[540px]" />
+              <img src={heroImage} alt="SohojPharma Dashboard" className="w-full rounded-xl object-cover max-h-[540px]" />
             ) : (
-              <div className="rounded-2xl bg-gradient-to-br from-[#052e23] via-[#07382b] to-slate-900 p-6 sm:p-10 text-left">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex gap-1.5">
-                    <span className="w-3 h-3 rounded-full bg-red-400" />
-                    <span className="w-3 h-3 rounded-full bg-yellow-400" />
-                    <span className="w-3 h-3 rounded-full bg-emerald-400" />
+              <div className="rounded-xl bg-white border border-slate-200/80 overflow-hidden text-left">
+                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
                   </div>
-                  <span className="text-xs text-emerald-200/70 font-mono">sohojpharma.cloud/dashboard</span>
+                  <div className="rounded-md border border-slate-200 bg-white px-3 py-0.5 text-[11px] font-mono text-slate-500">
+                    sohojpharma.cloud/dashboard
+                  </div>
+                  <span className="text-[11px] font-semibold text-[#0d5c46]">Live</span>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
-                  {cards.map(({ i: Icon, k }, idx) => (
-                    <div key={k} className="bg-white/8 backdrop-blur border border-white/12 rounded-2xl p-4 hover:bg-white/12 transition" style={{ animationDelay: `${idx * 100}ms` }}>
-                      <Icon className="w-5 h-5 text-emerald-400 mb-2" />
-                      <div className="text-white text-sm font-bold">{t(`landing.hero.${k}`)}</div>
-                      <div className="text-emerald-100/70 text-xs mt-0.5">{t(`landing.hero.${k}Sub`)}</div>
+
+                <div className="p-4 sm:p-6 space-y-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {previewKpis.map((kpi) => (
+                      <div key={kpi.label} className="rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5">
+                        <p className="text-[11px] font-semibold text-slate-500">{kpi.label}</p>
+                        <p className={`mt-1 text-lg sm:text-xl font-extrabold tracking-tight ${kpi.tone}`}>{kpi.value}</p>
+                        <p className="mt-0.5 text-[10px] text-slate-400">{kpi.note}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="rounded-xl border border-slate-200/80 overflow-hidden">
+                    <div className="flex items-center justify-between bg-slate-50/70 px-4 py-2 border-b border-slate-100">
+                      <span className="text-xs font-bold text-slate-700">
+                        {isBn ? "সাম্প্রতিক POS বিক্রি ও ব্যাচ" : "Recent POS Sales & Batches"}
+                      </span>
+                      <span className="text-[11px] font-medium text-slate-400">FEFO Auto-Batch</span>
                     </div>
-                  ))}
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="h-24 bg-white/5 border border-white/10 rounded-xl flex items-end p-3 gap-1">
-                      {[40, 65, 35, 80, 55, 70, 90].map((h, j) => (
-                        <div key={j} className="flex-1 bg-emerald-400/70 rounded-sm" style={{ height: `${h}%` }} />
+                    <div className="divide-y divide-slate-100">
+                      {sampleInvoices.map((row) => (
+                        <div key={row.inv} className="flex items-center justify-between px-4 py-2.5 text-xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-mono font-semibold text-slate-500">{row.inv}</span>
+                            <span className="truncate font-semibold text-slate-800">{row.item}</span>
+                            <span className="hidden sm:inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-500">{row.batch}</span>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-bold text-slate-900">{row.total}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${row.status === "Due" || row.status === "বাকি" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-[#0d5c46]"}`}>
+                              {row.status}
+                            </span>
+                          </div>
+                        </div>
                       ))}
                     </div>
-                  ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -286,7 +326,7 @@ function Problems() {
           {list.map((it, i) => {
             const Icon = icons[i] ?? AlertTriangle;
             return (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 hover:border-rose-200 hover:shadow-lg transition">
+              <div key={i} className="bg-white rounded-2xl p-6 border border-slate-200/80 hover:border-emerald-300 transition">
                 <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-4">
                   <Icon className="w-6 h-6 text-[#0d5c46]" />
                 </div>
@@ -365,38 +405,57 @@ function Modules() {
 function Highlights() {
   const { t } = useT();
   const items = (t("landing.highlights.items", { returnObjects: true }) as { t: string; d: string; cta: string; image?: string }[]) ?? [];
+  const icons = [ShoppingCart, Boxes, BarChart3, ShieldCheck];
   return (
     <section className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-3xl sm:text-5xl font-black text-slate-900 text-center max-w-3xl mx-auto mb-20">{t("landing.highlights.title")}</h2>
-        <div className="space-y-24">
-          {items.map((it, i) => (
-            <div key={i} className={`grid lg:grid-cols-2 gap-10 lg:gap-16 items-center ${i % 2 ? "lg:[&>div:first-child]:order-2" : ""}`}>
-              <div>
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-[#0d5c46] mb-5">
-                  <Sparkles className="w-6 h-6" />
-                </div>
-                <h3 className="text-2xl sm:text-4xl font-black text-slate-900">{it.t}</h3>
-                <p className="mt-4 text-lg text-slate-600 leading-relaxed">{it.d}</p>
-                <a href="#contact" className="mt-6 inline-flex items-center gap-2 font-bold text-[#0d5c46] hover:gap-3 transition-all">
-                  {it.cta} <ArrowRight className="w-4 h-4" />
-                </a>
-              </div>
-              <div className="rounded-3xl bg-gradient-to-br from-slate-100 to-slate-50 border border-slate-200 aspect-[4/3] flex items-center justify-center shadow-xl overflow-hidden">
-                {it.image ? (
-                  <img src={it.image} alt={it.t} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-3/4 h-3/4 rounded-2xl bg-white shadow-lg p-5 flex flex-col gap-3">
-                    <div className="h-3 w-1/3 bg-slate-200 rounded" />
-                    <div className="h-2 w-2/3 bg-slate-100 rounded" />
-                    <div className="grid grid-cols-3 gap-2 mt-3">
-                      {[0,1,2,3,4,5].map((k) => <div key={k} className="h-16 bg-emerald-100/60 rounded-lg" />)}
-                    </div>
+        <div className="space-y-20">
+          {items.map((it, i) => {
+            const Icon = icons[i % icons.length];
+            return (
+              <div key={i} className={`grid lg:grid-cols-2 gap-10 lg:gap-16 items-center ${i % 2 ? "lg:[&>div:first-child]:order-2" : ""}`}>
+                <div>
+                  <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-200/70 text-[#0d5c46] mb-5">
+                    <Icon className="w-5 h-5" />
                   </div>
-                )}
+                  <h3 className="text-2xl sm:text-4xl font-black text-slate-900">{it.t}</h3>
+                  <p className="mt-4 text-base sm:text-lg text-slate-600 leading-relaxed">{it.d}</p>
+                  <a href="#contact" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-[#0d5c46] hover:gap-3 transition-all">
+                    {it.cta} <ArrowRight className="w-4 h-4" />
+                  </a>
+                </div>
+                <div className="rounded-2xl bg-slate-50 border border-slate-200/80 aspect-[4/3] flex items-center justify-center overflow-hidden">
+                  {it.image ? (
+                    <img src={it.image} alt={it.t} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-4/5 rounded-xl bg-white border border-slate-200/80 p-5 shadow-sm space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-7 w-7 place-items-center rounded-lg bg-emerald-50 text-[#0d5c46]">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="text-xs font-bold text-slate-800">{it.t}</span>
+                        </div>
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-[#0d5c46]">Active</span>
+                      </div>
+                      <p className="text-xs leading-relaxed text-slate-500">{it.d}</p>
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="rounded-lg bg-slate-50 border border-slate-100 p-2.5">
+                          <p className="text-[10px] text-slate-400">Sync Status</p>
+                          <p className="text-xs font-bold text-slate-800 mt-0.5">Real-time Cloud</p>
+                        </div>
+                        <div className="rounded-lg bg-emerald-50/60 border border-emerald-100 p-2.5">
+                          <p className="text-[10px] text-[#0d5c46]">Accuracy</p>
+                          <p className="text-xs font-bold text-[#0d5c46] mt-0.5">FEFO & Audit Log</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>
@@ -404,40 +463,63 @@ function Highlights() {
 }
 
 function MobileApp() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const isBn = lang === "bn";
   return (
-    <section className="py-24 bg-slate-900 text-white relative overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(244,63,94,0.2),transparent_60%)]" />
+    <section className="py-24 bg-[#071f18] text-white relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_50%,rgba(16,185,129,0.14),transparent_55%)]" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative grid lg:grid-cols-2 gap-12 items-center">
         <div>
           <h2 className="text-3xl sm:text-5xl font-black leading-tight">{t("landing.mobile.title")}</h2>
-          <p className="mt-4 text-lg text-slate-300">{t("landing.mobile.subtitle")}</p>
+          <p className="mt-4 text-lg text-emerald-100/80">{t("landing.mobile.subtitle")}</p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a href="#" className="inline-flex items-center gap-3 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:scale-105 transition">
-              <Smartphone className="w-6 h-6" /> {t("landing.mobile.android")}
-            </a>
-            <a href="#" className="inline-flex items-center gap-3 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:scale-105 transition">
-              <Apple className="w-6 h-6" /> {t("landing.mobile.ios")}
-            </a>
-            <div className="inline-flex items-center gap-3 bg-white/10 border border-white/20 px-5 py-3 rounded-xl font-bold">
-              <QrCode className="w-6 h-6" /> {t("landing.mobile.qr")}
+            <Link to="/m" className="inline-flex items-center gap-2.5 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:bg-emerald-50 transition">
+              <Smartphone className="w-5 h-5 text-[#0d5c46]" /> {t("landing.mobile.android")}
+            </Link>
+            <Link to="/m" className="inline-flex items-center gap-2.5 bg-white text-slate-900 px-5 py-3 rounded-xl font-bold hover:bg-emerald-50 transition">
+              <Apple className="w-5 h-5 text-[#0d5c46]" /> {t("landing.mobile.ios")}
+            </Link>
+            <div className="inline-flex items-center gap-2.5 bg-white/10 border border-white/15 px-5 py-3 rounded-xl font-bold">
+              <QrCode className="w-5 h-5 text-emerald-300" /> {t("landing.mobile.qr")}
             </div>
           </div>
         </div>
         <div className="flex justify-center gap-4">
-          <div className="w-56 h-[420px] bg-gradient-to-b from-slate-700 to-slate-800 rounded-[2.5rem] border-8 border-slate-900 shadow-2xl p-3 -rotate-6">
-            <div className="h-full bg-white rounded-[1.8rem] p-3 flex flex-col gap-2">
-              <div className="h-2 w-1/3 bg-emerald-200 rounded" />
-              {[0,1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-100 rounded-lg" />)}
+          <div className="w-56 h-[400px] bg-slate-900 rounded-[2.2rem] border-[6px] border-slate-800 shadow-2xl p-2.5 -rotate-3 hidden sm:block">
+            <div className="h-full bg-[#f4f7f5] rounded-[1.6rem] p-3 text-slate-900 flex flex-col gap-2">
+              <div className="rounded-xl bg-[#0d5c46] p-2.5 text-white">
+                <p className="text-[10px] opacity-80">{isBn ? "ফার্মেসি পোর্টাল" : "Pharmacy Portal"}</p>
+                <p className="text-xs font-bold mt-0.5">SohojPharma PWA</p>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5 mt-1">
+                {(isBn ? ["বিক্রি (POS)", "ইনভেন্টরি", "ক্যাশ কালেক্ট", "রিপোর্ট"] : ["POS Sale", "Inventory", "Cash Collect", "Reports"]).map((label) => (
+                  <div key={label} className="rounded-lg bg-white border border-slate-200/80 p-2 text-[10px] font-bold text-slate-700">
+                    {label}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-auto rounded-xl bg-white border border-slate-200/80 p-2.5">
+                <p className="text-[9px] text-slate-400">{isBn ? "অফলাইন সিঙ্ক" : "Offline Sync"}</p>
+                <p className="text-xs font-bold text-[#0d5c46]">{isBn ? "সক্রিয়" : "Ready"}</p>
+              </div>
             </div>
           </div>
-          <div className="w-56 h-[420px] bg-gradient-to-b from-slate-700 to-slate-800 rounded-[2.5rem] border-8 border-slate-900 shadow-2xl p-3 rotate-6 mt-10">
-            <div className="h-full bg-[#0d5c46] rounded-[1.8rem] p-3 text-white flex flex-col gap-2">
-              <div className="h-2 w-1/2 bg-white/40 rounded" />
-              <div className="text-2xl font-black mt-4">৳ 24,500</div>
-              <div className="text-xs opacity-80">Today's sales</div>
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                {[0,1,2,3].map(i => <div key={i} className="h-14 bg-white/10 rounded-lg" />)}
+          <div className="w-56 h-[400px] bg-slate-900 rounded-[2.2rem] border-[6px] border-slate-800 shadow-2xl p-2.5 rotate-3 mt-6">
+            <div className="h-full bg-[#0d5c46] rounded-[1.6rem] p-3.5 text-white flex flex-col justify-between">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-emerald-200/80">Live Snapshot</p>
+                <div className="text-2xl font-black mt-2">৳ 24,500</div>
+                <div className="text-xs text-emerald-100/80">{isBn ? "আজকের মোট বিক্রি" : "Today's sales"}</div>
+              </div>
+              <div className="space-y-2">
+                <div className="rounded-xl bg-white/10 p-2.5">
+                  <p className="text-[10px] text-emerald-100/75">{isBn ? "দৈনিক হাতে ক্যাশ" : "Hand Cash"}</p>
+                  <p className="text-sm font-bold">৳ 14,200</p>
+                </div>
+                <div className="rounded-xl bg-white/10 p-2.5">
+                  <p className="text-[10px] text-emerald-100/75">{isBn ? "স্টক ভ্যালু" : "Stock Value"}</p>
+                  <p className="text-sm font-bold">৳ 8,45,000</p>
+                </div>
               </div>
             </div>
           </div>
@@ -457,9 +539,9 @@ function Benefits() {
         <h2 className="text-3xl sm:text-5xl font-black text-slate-900 text-center max-w-3xl mx-auto mb-16">{t("landing.benefits.title")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
           {items.map((it, i) => {
-            const Icon = icons[i] ?? Sparkles;
+            const Icon = icons[i] ?? Layers;
             return (
-              <div key={i} className="rounded-2xl p-6 bg-gradient-to-br from-white to-slate-50 border border-slate-100 hover:shadow-lg hover:border-rose-200 transition">
+              <div key={i} className="rounded-2xl p-6 bg-white border border-slate-200/80 hover:border-emerald-300 transition">
                 <Icon className="w-8 h-8 text-[#0d5c46] mb-3" />
                 <h3 className="font-bold text-slate-900">{it.t}</h3>
                 <p className="text-sm text-slate-500 mt-1">{it.d}</p>
