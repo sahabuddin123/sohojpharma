@@ -262,6 +262,7 @@ function PeriodCard({
 function StoreDashboard() {
   const { currentTenantId, setCurrentTenantId, memberships, adminTenants, isAppAdmin, user } = useAuth();
   const { t } = useTranslation();
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   const [warehouseId, setWarehouseId] = useState<string | null>(null);
   const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("today");
 
@@ -336,7 +337,6 @@ function StoreDashboard() {
     if (h < 18) return t("dashboard.greetingAfternoon");
     return t("dashboard.greetingEvening");
   })();
-  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   const displayName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name
     ?? user?.email?.split("@")[0]
     ?? t("dashboard.fallbackOwner");
