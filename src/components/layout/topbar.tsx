@@ -305,7 +305,7 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
               asChild
               size="sm"
               variant="outline"
-              className="hidden h-9 gap-1.5 rounded-xl border-slate-200 bg-white px-3 font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 md:flex"
+              className="hidden h-9 gap-1.5 rounded-xl border-slate-200 bg-white px-3 font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 lg:flex"
               aria-label="Open Purchase Requisition"
             >
               <Link to={"/purchase-requisition" as never}>
@@ -407,7 +407,7 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
                     </AvatarFallback>
                   )}
                 </Avatar>
-                <span className="hidden max-w-[160px] flex-col items-start leading-tight md:flex">
+                <span className="hidden max-w-[150px] flex-col items-start leading-tight xl:flex">
                   <span className="truncate text-sm font-medium">{displayName}</span>
                   {roleLabel && (
                     <span className="truncate text-[10px] text-muted-foreground">{roleLabel}</span>

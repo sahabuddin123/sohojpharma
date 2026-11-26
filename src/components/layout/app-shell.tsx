@@ -63,7 +63,7 @@ export function AppShell({ variant, title, children }: AppShellProps) {
   return (
     <div
       className={cn(
-        "flex min-h-screen w-full",
+        "flex min-h-screen w-full overflow-x-clip",
         desktopUiVersion === "v2"
           ? "sp-v2-canvas"
           : "bg-[#f5f7f6] dark:bg-slate-950",
@@ -88,7 +88,7 @@ export function AppShell({ variant, title, children }: AppShellProps) {
         </SheetContent>
       </Sheet>
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col overflow-x-clip">
         <Topbar
           onMenuClick={() => setMobileOpen(true)}
           onCollapseToggle={toggleCollapsed}

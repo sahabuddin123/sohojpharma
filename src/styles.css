@@ -288,6 +288,13 @@ html.compact .space-y-5 > * + * { margin-top: 0.75rem; }
 
 
 
+/* Global horizontal overflow guard (clip preserves sticky positioning) */
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 /* ============================================================
    Global mobile responsiveness safety layer (< 640px only).
    Desktop/tablet layouts are untouched (sm:/md:/lg: win at >=640).
