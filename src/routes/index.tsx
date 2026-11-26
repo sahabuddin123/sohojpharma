@@ -506,20 +506,20 @@ function MobileApp() {
             </div>
           </div>
         </div>
-        <div className="flex justify-center items-center gap-4 sm:gap-6">
-          <div className="w-52 sm:w-56 overflow-hidden rounded-[2.2rem] border-[6px] border-slate-800 bg-slate-900 shadow-2xl -rotate-3 hidden sm:block">
-            <img
-              src="/images/app-products.png"
-              alt="SohojPharma Mobile Products"
-              className="w-full h-auto block rounded-[1.8rem]"
-              loading="lazy"
-            />
-          </div>
-          <div className="w-56 sm:w-60 overflow-hidden rounded-[2.2rem] border-[6px] border-slate-800 bg-slate-900 shadow-2xl rotate-2 mt-4">
+        <div className="flex justify-center lg:justify-end items-start pt-2">
+          <div className="relative z-10 w-[215px] sm:w-[235px] overflow-hidden rounded-[2rem] border-[6px] border-slate-900 bg-slate-900 ring-1 ring-white/15 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.65)]">
             <img
               src="/images/app-home.png"
               alt="SohojPharma Mobile Home"
-              className="w-full h-auto block rounded-[1.8rem]"
+              className="w-full h-auto block rounded-[1.6rem]"
+              loading="lazy"
+            />
+          </div>
+          <div className="relative -ml-10 mt-8 hidden sm:block w-[200px] sm:w-[215px] overflow-hidden rounded-[2rem] border-[6px] border-slate-900 bg-slate-900 ring-1 ring-white/15 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.55)] opacity-95">
+            <img
+              src="/images/app-products.png"
+              alt="SohojPharma Mobile Products"
+              className="w-full h-auto block rounded-[1.6rem]"
               loading="lazy"
             />
           </div>
