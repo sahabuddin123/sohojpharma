@@ -602,39 +602,39 @@ function AuthPage() {
             {/* Forgot Password View */}
             {activeTab === "forgot" ? (
               <div className="space-y-5">
-                <div className="mb-2">
+                <div>
                   <button
                     type="button"
                     onClick={() => {
                       setActiveTab("signin");
                       setForgotSuccess(false);
                     }}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300"
                   >
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft className="h-3.5 w-3.5" />
                     {t("auth.signIn")} এ ফিরে যান
                   </button>
                 </div>
 
                 {forgotSuccess ? (
-                  <div className="space-y-4 py-4 text-center">
-                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 ring-8 ring-emerald-50">
+                  <div className="space-y-4 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5 text-center dark:border-emerald-900/50 dark:bg-emerald-950/20">
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#094735] to-[#0d624a] text-white shadow-lg shadow-emerald-900/20">
                       <Mail className="h-7 w-7" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-foreground">রিসেট লিংক পাঠানো হয়েছে!</h3>
-                      <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                        আমরা <strong className="font-semibold text-foreground">{forgotEmail}</strong> ঠিকানায় পাসওয়ার্ড রিসেট লিংক পাঠিয়েছি। আপনার ইনবক্স অথবা স্প্যাম ফোল্ডার চেক করুন।
+                      <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">রিসেট লিংক পাঠানো হয়েছে!</h3>
+                      <p className="mt-1.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                        <strong className="font-semibold text-slate-900 dark:text-white">{forgotEmail}</strong> ঠিকানায় ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।
                       </p>
                     </div>
-                    <div className="pt-2 flex flex-col gap-2">
+                    <div className="pt-1 flex flex-col gap-2">
                       <Button
                         type="button"
                         onClick={() => {
                           setActiveTab("signin");
                           setForgotSuccess(false);
                         }}
-                        className="h-11 rounded-xl font-semibold"
+                        className="h-11 rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] font-bold text-white shadow-[0_10px_24px_-6px_rgba(13,92,70,0.45)]"
                       >
                         সাইন ইন পেজে যান
                       </Button>
@@ -642,41 +642,50 @@ function AuthPage() {
                         type="button"
                         variant="ghost"
                         onClick={() => setForgotSuccess(false)}
-                        className="text-xs text-muted-foreground"
+                        className="text-xs text-slate-500"
                       >
-                        অন্য ইমেইল দিয়ে আবার চেষ্টা করুন
+                        অন্য ইমেইল দিয়ে চেষ্টা করুন
                       </Button>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-5">
-                    <div>
-                      <div className="flex items-center gap-2 text-primary font-bold text-lg">
+                    <div className="flex items-center gap-3.5 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5 dark:border-emerald-900/40 dark:bg-emerald-950/20">
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#094735] to-[#0d624a] text-white shadow-sm">
                         <KeyRound className="h-5 w-5" />
-                        পাসওয়ার্ড ভুলে গেছেন?
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        আপনার অ্যাকাউন্টের নিবন্ধিত ইমেইল ঠিকানা দিন। আমরা আপনাকে পাসওয়ার্ড পরিবর্তনের নিরাপদ লিংক পাঠিয়ে দিব।
-                      </p>
+                      <div>
+                        <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                          পাসওয়ার্ড ভুলে গেছেন?
+                        </h3>
+                        <p className="text-[11px] font-medium text-[#0d5c46] dark:text-emerald-300">
+                          ইমেইলের মাধ্যমে নিরাপদ পাসওয়ার্ড রিসেট
+                        </p>
+                      </div>
                     </div>
 
                     <form className="space-y-4" onSubmit={handleForgotPassword}>
-                      <div className="space-y-2">
-                        <Label htmlFor="forgot-email">{t("auth.email")}</Label>
-                        <Input
-                          id="forgot-email"
-                          name="email"
-                          type="email"
-                          required
-                          defaultValue={forgotEmail}
-                          placeholder="you@pharmacy.com"
-                          className="h-12 rounded-xl text-base"
-                        />
+                      <div className="space-y-1.5">
+                        <Label htmlFor="forgot-email" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          {t("auth.email")}
+                        </Label>
+                        <div className="relative">
+                          <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                          <Input
+                            id="forgot-email"
+                            name="email"
+                            type="email"
+                            required
+                            defaultValue={forgotEmail}
+                            placeholder="আপনার ইমেইল লিখুন"
+                            className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
+                          />
+                        </div>
                       </div>
 
                       <Button
                         type="submit"
-                        className="h-12 w-full rounded-xl text-base font-semibold active:scale-[0.99]"
+                        className="h-12 w-full rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] text-sm font-bold text-white shadow-[0_10px_24px_-6px_rgba(13,92,70,0.45)] transition hover:brightness-105 active:scale-[0.99]"
                         disabled={forgotBusy}
                       >
                         {forgotBusy ? (
