@@ -21,6 +21,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { getStoreDashboard, type StoreDashboardData } from "@/lib/api/dashboard.functions";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
+import { useUIStore } from "@/stores/ui-store";
+import { cn } from "@/lib/utils";
 import { WarehouseFilter } from "@/components/inventory/warehouse-filter";
 import { OnboardingChecklist } from "@/components/onboarding/onboarding-checklist";
 import { StoreSetupBanner } from "@/components/store/store-setup-banner";
@@ -81,6 +83,7 @@ function KpiTile({
   to?: string;
   featured?: boolean;
 }) {
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   const toneMap = {
     primary: "bg-emerald-50 text-[#0d5c46] dark:bg-emerald-950/50 dark:text-emerald-400",
     success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400",
@@ -88,20 +91,52 @@ function KpiTile({
     destructive: "bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400",
     muted: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400",
   } as const;
+  const v2ToneMap = {
+    primary: "bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300",
+    success: "bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300",
+    warning: "bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300",
+    destructive: "bg-pink-100 text-pink-600 dark:bg-pink-500/20 dark:text-pink-300",
+    muted: "bg-slate-100 text-slate-500 dark:bg-white/10 dark:text-slate-300",
+  } as const;
+
   const body = featured ? (
-    <Card className="group h-full overflow-hidden border-0 bg-gradient-to-br from-[#094735] to-[#0d5c46] text-white shadow-[0_12px_28px_-10px_rgba(13,92,70,0.45)] transition-all hover:-translate-y-0.5">
+    <Card
+      className={cn(
+        "group h-full overflow-hidden border-0 text-white transition-all hover:-translate-y-0.5",
+        isV2
+          ? "bg-gradient-to-br from-[#0b7e8a] via-[#169c96] to-[#23b5aa] shadow-[0_14px_30px_-8px_rgba(13,133,144,0.42)]"
+          : "bg-gradient-to-br from-[#094735] to-[#0d5c46] shadow-[0_12px_28px_-10px_rgba(13,92,70,0.45)]",
+      )}
+    >
       <CardContent className="flex h-full flex-col justify-between gap-3 p-4 sm:p-5">
         <div className="flex items-start justify-between gap-2">
-          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider text-emerald-100/85">
+          <span className="min-w-0 text-[11px] font-semibold uppercase tracking-wider text-teal-50/90">
             {label}
           </span>
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white">
+          <div className={cn("grid h-9 w-9 shrink-0 place-items-center bg-white/15 text-white", isV2 ? "rounded-full" : "rounded-xl")}>
             <Icon className="h-4.5 w-4.5" />
           </div>
         </div>
         <div className="min-w-0">
           <p className="truncate text-2xl font-extrabold tracking-tight tabular-nums sm:text-[26px]">{value}</p>
-          {sub != null && <p className="mt-1 truncate text-xs font-medium text-emerald-100/80">{sub}</p>}
+          {sub != null && <p className="mt-1 truncate text-xs font-medium text-teal-50/85">{sub}</p>}
+        </div>
+      </CardContent>
+    </Card>
+  ) : isV2 ? (
+    <Card className="group h-full overflow-hidden transition-all hover:-translate-y-0.5">
+      <CardContent className="flex h-full items-center gap-3.5 p-4 sm:p-5">
+        <div className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full", v2ToneMap[tone])}>
+          <Icon className="h-[18px] w-[18px]" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            {label}
+          </span>
+          <p className="mt-0.5 truncate text-xl font-bold tracking-tight text-slate-900 tabular-nums dark:text-white">
+            {value}
+          </p>
+          {sub != null && <p className="mt-0.5 truncate text-[11px] text-slate-500 dark:text-slate-400">{sub}</p>}
         </div>
       </CardContent>
     </Card>
@@ -153,12 +188,25 @@ function ChartCard({ title, hint, children, height = 240 }: { title: string; hin
 }
 
 function QuickAction({ to, icon: Icon, label }: { to: string; icon: typeof Plus; label: string }) {
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   return (
     <Link
       to={to as never}
-      className="group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-200/80 bg-card p-4 text-center shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-slate-800/80 dark:hover:border-emerald-800/70 dark:hover:bg-emerald-950/20"
+      className={cn(
+        "group flex flex-col items-center justify-center gap-2.5 p-4 text-center transition-all",
+        isV2
+          ? "rounded-[22px] border border-white/85 bg-white/65 backdrop-blur-md shadow-[0_10px_30px_-10px_rgba(15,118,110,0.08)] hover:-translate-y-0.5 hover:bg-white/85 dark:border-white/10 dark:bg-[#122228]/65 dark:hover:bg-[#162b33]/80"
+          : "rounded-2xl border border-slate-200/80 bg-card shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-slate-800/80 dark:hover:border-emerald-800/70 dark:hover:bg-emerald-950/20",
+      )}
     >
-      <div className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 transition-colors group-hover:bg-emerald-600 group-hover:text-white group-hover:ring-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800/60">
+      <div
+        className={cn(
+          "grid h-11 w-11 place-items-center transition-colors",
+          isV2
+            ? "rounded-full bg-teal-100 text-[#0d8590] group-hover:bg-gradient-to-br group-hover:from-[#0d8590] group-hover:to-[#1ba7ad] group-hover:text-white dark:bg-teal-500/20 dark:text-teal-300"
+            : "rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 group-hover:bg-emerald-600 group-hover:text-white group-hover:ring-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800/60",
+        )}
+      >
         <Icon className="h-5 w-5" />
       </div>
       <span className="text-xs font-medium leading-tight text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white">{label}</span>
@@ -288,6 +336,7 @@ function StoreDashboard() {
     if (h < 18) return t("dashboard.greetingAfternoon");
     return t("dashboard.greetingEvening");
   })();
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   const displayName = (user?.user_metadata as { full_name?: string } | undefined)?.full_name
     ?? user?.email?.split("@")[0]
     ?? t("dashboard.fallbackOwner");
@@ -296,12 +345,29 @@ function StoreDashboard() {
     <AppShell variant="store" title={t("nav.dashboard")}>
       <div className="space-y-8 pb-10">
         {/* Executive Header Bar */}
-        <header className="flex flex-col gap-4 rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center sm:justify-between">
+        <header
+          className={cn(
+            "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between",
+            isV2
+              ? "px-1 py-1"
+              : "rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-5 shadow-[0_1px_3px_rgba(15,23,42,0.03)] dark:border-slate-800 dark:bg-slate-900",
+          )}
+        >
           <div className="min-w-0">
-            <p className="truncate text-[11px] font-bold uppercase tracking-wider text-[#0d5c46] dark:text-emerald-400">
+            <p
+              className={cn(
+                "truncate text-[11px] font-bold uppercase tracking-wider",
+                isV2 ? "text-[#0d8590] dark:text-teal-300" : "text-[#0d5c46] dark:text-emerald-400",
+              )}
+            >
               {data.tenantName ?? t("dashboard.fallbackTenant")}
             </p>
-            <h1 className="mt-0.5 truncate text-xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-2xl">
+            <h1
+              className={cn(
+                "mt-0.5 truncate font-extrabold tracking-tight text-slate-900 dark:text-white",
+                isV2 ? "text-2xl sm:text-3xl" : "text-xl sm:text-2xl",
+              )}
+            >
               {greeting}, {displayName}
             </h1>
             <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
@@ -317,7 +383,13 @@ function StoreDashboard() {
               onCustomChange={setCustom}
             />
             <WarehouseFilter value={warehouseId} onChange={setWarehouseId} className="min-w-0 flex-1 sm:w-[190px] sm:flex-none" />
-            <Button variant="outline" size="sm" className="shrink-0 rounded-xl border-slate-200" onClick={() => refetch()} disabled={isFetching}>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn("shrink-0", isV2 ? "rounded-full bg-white/70 dark:bg-white/10 border-white/80 dark:border-white/10" : "rounded-xl border-slate-200")}
+              onClick={() => refetch()}
+              disabled={isFetching}
+            >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? "animate-spin" : ""}`} /> <span className="hidden sm:inline">{t("dashboard.refresh")}</span>
             </Button>
           </div>
