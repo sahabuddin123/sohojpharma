@@ -105,20 +105,59 @@ function EmployeeList() {
 function AddStaffDialog({ tenantId }: { tenantId: string }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ full_name: "", employee_code: "", designation: "", phone: "", email: "", national_id: "", address: "", join_date: "", basic_salary: 0 });
+  const [form, setForm] = useState({
+    full_name: "",
+    employee_code: "",
+    designation: "",
+    phone: "",
+    email: "",
+    national_id: "",
+    address: "",
+    join_date: "",
+    basic_salary: 0,
+    create_login: true,
+    password: "",
+    access_role: "cashier" as "manager" | "pharmacist" | "cashier" | "staff" | "auditor",
+  });
   const upsertFn = useServerFn(upsertStaff);
   const qc = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: () => upsertFn({ data: { tenant_id: tenantId, ...form, basic_salary: Number(form.basic_salary) || 0 } }),
+    mutationFn: () =>
+      upsertFn({
+        data: {
+          tenant_id: tenantId,
+          ...form,
+          basic_salary: Number(form.basic_salary) || 0,
+          password: form.create_login ? form.password : undefined,
+          access_role: form.create_login ? form.access_role : undefined,
+        },
+      }),
     onSuccess: () => {
       toast.success(t('ops.staff.list.employeeAdded'));
       qc.invalidateQueries({ queryKey: ["staff-list", tenantId] });
       setOpen(false);
-      setForm({ full_name: "", employee_code: "", designation: "", phone: "", email: "", national_id: "", address: "", join_date: "", basic_salary: 0 });
+      setForm({
+        full_name: "",
+        employee_code: "",
+        designation: "",
+        phone: "",
+        email: "",
+        national_id: "",
+        address: "",
+        join_date: "",
+        basic_salary: 0,
+        create_login: true,
+        password: "",
+        access_role: "cashier",
+      });
     },
     onError: (e: Error) => toast.error(localizePgError(t, e)),
   });
+
+  const canSubmit =
+    Boolean(form.full_name.trim()) &&
+    (!form.create_login || (Boolean(form.email.trim()) && form.password.length >= 6));
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -135,14 +174,53 @@ function AddStaffDialog({ tenantId }: { tenantId: string }) {
             </Select>
           </div>
           <div><Label>{t('ops.staff.list.mobile')}</Label><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-          <div><Label>{t('ops.staff.list.email')}</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></div>
+          <div><Label>{t('ops.staff.list.email')}{form.create_login ? " *" : ""}</Label><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="staff@pharmacy.com" /></div>
           <div><Label>{t('ops.staff.list.nationalId')}</Label><Input value={form.national_id} onChange={(e) => setForm({ ...form, national_id: e.target.value })} /></div>
           <div className="sm:col-span-2"><Label>{t('ops.staff.list.address')}</Label><Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></div>
           <div><Label>{t('ops.staff.list.joiningDate')}</Label><Input type="date" value={form.join_date} onChange={(e) => setForm({ ...form, join_date: e.target.value })} /></div>
           <div><Label>{t('ops.staff.list.salary')}</Label><Input type="number" value={form.basic_salary} onChange={(e) => setForm({ ...form, basic_salary: Number(e.target.value) })} /></div>
+
+          {/* Store Login & Role */}
+          <div className="sm:col-span-2 mt-2 rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-3.5 dark:border-emerald-900/50 dark:bg-emerald-950/20 space-y-3">
+            <label className="flex cursor-pointer items-center gap-2.5 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={form.create_login}
+                onChange={(e) => setForm({ ...form, create_login: e.target.checked })}
+                className="h-4 w-4 accent-emerald-600"
+              />
+              <span>স্টোর লগইন অ্যাকাউন্ট তৈরি করুন (ইমেইল ও পাসওয়ার্ড দিয়ে)</span>
+            </label>
+            {form.create_login && (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <Label>স্টোর রোল (Role) *</Label>
+                  <Select value={form.access_role} onValueChange={(v) => setForm({ ...form, access_role: v as typeof form.access_role })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="manager">Manager (ম্যানেজার)</SelectItem>
+                      <SelectItem value="pharmacist">Pharmacist (ফার্মাসিস্ট)</SelectItem>
+                      <SelectItem value="cashier">Cashier (ক্যাশিয়ার / POS)</SelectItem>
+                      <SelectItem value="staff">Staff (স্টাফ)</SelectItem>
+                      <SelectItem value="auditor">Auditor (অডিটর)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>লগইন পাসওয়ার্ড (Password) *</Label>
+                  <Input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => setForm({ ...form, password: e.target.value })}
+                    placeholder="কমপক্ষে ৬ অক্ষর"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         <DialogFooter>
-          <Button onClick={() => mutation.mutate()} disabled={!form.full_name || mutation.isPending}>
+          <Button onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending}>
             {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}{t('ops.staff.list.saveEmployee')}
           </Button>
         </DialogFooter>

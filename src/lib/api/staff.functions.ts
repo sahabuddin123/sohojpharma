@@ -84,15 +84,91 @@ const StaffUpsert = z.object({
   allowances: z.number().min(0).default(0),
   status: z.enum(["active", "inactive", "terminated"]).default("active"),
   notes: z.string().max(1000).optional(),
+  create_login: z.boolean().optional(),
+  password: z.string().min(6).max(128).optional().or(z.literal("")),
+  access_role: z.enum(["manager", "pharmacist", "cashier", "staff", "auditor"]).optional(),
 });
 
 export const upsertStaff = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription])
   .inputValidator((i: unknown) => StaffUpsert.parse(i))
   .handler(async ({ data, context }) => {
+    const { create_login, password, access_role, ...staffPayload } = data;
+
+    if (create_login) {
+      const email = (staffPayload.email ?? "").trim().toLowerCase();
+      if (!email) throw new Error("লগইন অ্যাকাউন্ট তৈরি করতে ইমেইল দিন");
+      if (!password || password.length < 6) {
+        throw new Error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে");
+      }
+
+      // Ensure caller is owner/manager of this tenant
+      const { data: callerRole } = await context.supabase
+        .from("tenant_memberships")
+        .select("role")
+        .eq("tenant_id", staffPayload.tenant_id)
+        .eq("user_id", context.user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!callerRole || !["owner", "manager"].includes(callerRole.role)) {
+        throw new Error("শুধুমাত্র স্টোর Owner বা Manager নতুন স্টাফ লগইন তৈরি করতে পারবেন");
+      }
+
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      let staffUserId: string | null = staffPayload.user_id ?? null;
+
+      if (!staffUserId) {
+        const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
+          email,
+          password,
+          email_confirm: true,
+          user_metadata: {
+            full_name: staffPayload.full_name,
+            phone: staffPayload.phone ?? undefined,
+          },
+        });
+        if (cErr) {
+          if (/already|registered|exists|duplicate/i.test(cErr.message)) {
+            const { data: list, error: lErr } = await supabaseAdmin.auth.admin.listUsers({
+              page: 1,
+              perPage: 200,
+            });
+            if (lErr) throw new Error(lErr.message);
+            const found = list.users.find((u) => (u.email ?? "").toLowerCase() === email);
+            if (!found) throw new Error(cErr.message);
+            staffUserId = found.id;
+            await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+          } else {
+            throw new Error(cErr.message);
+          }
+        } else {
+          staffUserId = created.user?.id ?? null;
+        }
+      } else {
+        await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+      }
+
+      if (staffUserId) {
+        const role = access_role ?? "cashier";
+        const { error: mErr } = await supabaseAdmin
+          .from("tenant_memberships")
+          .upsert(
+            {
+              tenant_id: staffPayload.tenant_id,
+              user_id: staffUserId,
+              role,
+              is_active: true,
+            },
+            { onConflict: "tenant_id,user_id" },
+          );
+        if (mErr) throw new Error(mErr.message);
+        staffPayload.user_id = staffUserId;
+      }
+    }
+
     const { data: row, error } = await context.supabase
       .from("staff")
-      .upsert(data)
+      .upsert(staffPayload)
       .select()
       .single();
     if (error) throw new Error(error.message);
