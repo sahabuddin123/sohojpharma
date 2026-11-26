@@ -193,7 +193,7 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
         </span>
 
         {/* Breadcrumbs */}
-        <nav aria-label={t("topbar.breadcrumb")} className="hidden min-w-0 items-center md:flex">
+        <nav aria-label={t("topbar.breadcrumb")} className="hidden min-w-0 shrink items-center overflow-hidden md:flex">
           <ol className="flex items-center gap-1.5 text-sm">
             {crumbs.length === 0 ? (
               <li className="font-semibold text-foreground">{title ?? t("nav.dashboard")}</li>
@@ -219,9 +219,9 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
           </ol>
         </nav>
 
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {/* Global search */}
-          <div className="relative hidden w-64 xl:block">
+          <div className="relative hidden w-44 2xl:w-64 xl:block">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("common.search")}

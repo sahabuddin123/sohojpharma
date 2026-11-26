@@ -104,7 +104,7 @@ function KpiTile({
       className={cn(
         "group h-full overflow-hidden border-0 text-white transition-all hover:-translate-y-0.5",
         isV2
-          ? "bg-gradient-to-br from-[#0b7e8a] via-[#169c96] to-[#23b5aa] shadow-[0_14px_30px_-8px_rgba(13,133,144,0.42)]"
+          ? "sp-v2-featured-card"
           : "bg-gradient-to-br from-[#094735] to-[#0d5c46] shadow-[0_12px_28px_-10px_rgba(13,92,70,0.45)]",
       )}
     >
