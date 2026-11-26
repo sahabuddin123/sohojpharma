@@ -22,11 +22,7 @@ export function OfflineIndicator() {
   }, []);
 
   if (sync.online && pending === 0) {
-    return (
-      <Badge variant="outline" className="gap-1.5 border-emerald-500/40 text-emerald-600">
-        <Wifi className="h-3 w-3" /> Online
-      </Badge>
-    );
+    return null;
   }
 
   return (

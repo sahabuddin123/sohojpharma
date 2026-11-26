@@ -463,10 +463,6 @@ function AuthPage() {
         </Link>
 
         <div className="relative z-10 space-y-6">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-100 ring-1 ring-white/20 backdrop-blur-md">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
-            স্মার্ট ফার্মেসি ম্যানেজমেন্ট প্ল্যাটফর্ম
-          </div>
           <h2 className="text-4xl font-extrabold leading-tight tracking-tight">{t("auth.tagline")}</h2>
           <p className="max-w-md text-sm leading-relaxed text-emerald-100/85">{t("auth.subline")}</p>
 
@@ -960,11 +956,6 @@ function AuthPage() {
                 </TabsContent>
               </Tabs>
             )}
-
-            <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-4 text-[11px] font-medium text-slate-400 dark:border-slate-800">
-              <ShieldCheck className="h-3.5 w-3.5 text-[#0d5c46]" />
-              <span>নিরাপদ ও এনক্রিপ্টেড ফার্মেসি পোর্টাল • SohojPharma</span>
-            </div>
           </CardContent>
         </Card>
       </div>
