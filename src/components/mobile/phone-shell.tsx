@@ -106,7 +106,7 @@ export function PhoneTabBar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))]">
-      <ul className="pointer-events-auto grid grid-cols-4 items-center rounded-2xl border border-slate-200/80 bg-white/92 p-1.5 shadow-[0_8px_30px_rgba(13,92,70,0.14)] backdrop-blur-xl">
+      <ul className="phone-grid-keep pointer-events-auto grid grid-cols-4 items-center rounded-2xl border border-slate-200/80 bg-white/92 p-1.5 shadow-[0_8px_30px_rgba(13,92,70,0.14)] backdrop-blur-xl">
         {tabs.map(({ to, label, icon: Icon, exact }) => {
           const active = exact ? pathname === to : pathname.startsWith(to);
           return (
