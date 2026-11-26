@@ -45,6 +45,7 @@ import {
 
 import { useUIStore } from "@/stores/ui-store";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
 import { useNotificationsRealtime } from "@/hooks/use-notifications-realtime";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { BranchSwitcher } from "@/components/layout/branch-switcher";
