@@ -57,8 +57,25 @@ function LandingCmsPage() {
     setLoading(true);
     try {
       const res = await getLandingCms();
-      setEnDoc(JSON.parse(res.content_en));
-      setBnDoc(JSON.parse(res.content_bn));
+      const rawEn = JSON.parse(res.content_en) as Doc;
+      const rawBn = JSON.parse(res.content_bn) as Doc;
+      const hydrate = (doc: Doc): Doc => ({
+        ...doc,
+        hero: {
+          heroImage: "",
+          ...((doc.hero as Doc) ?? {}),
+        },
+        contact: {
+          supportPhone: "01951413828",
+          salesPhone: "01951413828",
+          whatsappPhone: "01951413828",
+          emailAddress: "support@sohojpharma.cloud",
+          officeAddress: "Dhaka, Bangladesh",
+          ...((doc.contact as Doc) ?? {}),
+        },
+      });
+      setEnDoc(hydrate(rawEn));
+      setBnDoc(hydrate(rawBn));
       setUpdatedAt(res.updated_at);
       setDirty(false);
     } catch (err) {

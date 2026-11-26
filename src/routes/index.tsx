@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useThemeInit } from "@/hooks/use-theme-init";
+import { toast } from "sonner";
 
 function useLandingCmsBootstrap() {
   useEffect(() => {
@@ -49,10 +50,10 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "ইনভেন্টরি, POS এবং হিসাব নিকাশ এক জায়গায়। বাংলাদেশের ৫০০+ ফার্মেসি মালিকের প্রথম পছন্দ।" },
       { property: "og:title", content: "SohojPharma — Pharmacy ERP SaaS" },
       { property: "og:description", content: "Smart pharmacy management with inventory, POS, and reports." },
-      { property: "og:url", content: "https://cloudpharama.lovable.app/" },
+      { property: "og:url", content: "https://sohojpharma.cloud/" },
     ],
     links: [
-      { rel: "canonical", href: "https://cloudpharama.lovable.app/" },
+      { rel: "canonical", href: "https://sohojpharma.cloud/" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" },
@@ -75,11 +76,11 @@ function LangToggle() {
     <div className="inline-flex items-center bg-slate-100 rounded-full p-1 text-xs font-bold">
       <button
         onClick={() => i18n.changeLanguage("bn")}
-        className={`px-3 py-1.5 rounded-full transition ${lang === "bn" ? "bg-white text-rose-600 shadow" : "text-slate-600"}`}
+        className={`px-3 py-1.5 rounded-full transition ${lang === "bn" ? "bg-white text-[#0d5c46] shadow" : "text-slate-600"}`}
       >বাংলা</button>
       <button
         onClick={() => i18n.changeLanguage("en")}
-        className={`px-3 py-1.5 rounded-full transition ${lang === "en" ? "bg-white text-rose-600 shadow" : "text-slate-600"}`}
+        className={`px-3 py-1.5 rounded-full transition ${lang === "en" ? "bg-white text-[#0d5c46] shadow" : "text-slate-600"}`}
       >English</button>
     </div>
   );
@@ -109,25 +110,25 @@ function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-20 items-center">
           <Link to="/" className="flex items-center gap-3 shrink-0">
-            <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg shadow-rose-200">
+            <div className="w-10 h-10 bg-[#0d5c46] rounded-xl flex items-center justify-center shadow-lg shadow-emerald-900/20">
               <Pill className="w-6 h-6 text-white" strokeWidth={2.5} />
             </div>
             <div className="flex flex-col leading-tight">
               <span className="text-xl font-extrabold tracking-tight text-slate-900">
-                Sohoj<span className="text-rose-600">Pharma</span>
+                Sohoj<span className="text-[#0d5c46]">Pharma</span>
               </span>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ERP & POS</span>
             </div>
           </Link>
           <div className="hidden lg:flex items-center gap-8 text-sm font-semibold">
             {links.map((l) => (
-              <a key={l.k} href={l.href} className="text-slate-700 hover:text-rose-600 transition">{t(`landing.${l.k}`)}</a>
+              <a key={l.k} href={l.href} className="text-slate-700 hover:text-[#0d5c46] transition">{t(`landing.${l.k}`)}</a>
             ))}
           </div>
           <div className="hidden md:flex items-center gap-3">
             <LangToggle />
-            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="text-sm font-bold text-slate-700 hover:text-rose-600 px-3 py-2">{t("landing.nav.login")}</Link>
-            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-rose-600 hover:bg-rose-700 transition shadow-md shadow-rose-200 active:scale-95">
+            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="text-sm font-bold text-slate-700 hover:text-[#0d5c46] px-3 py-2">{t("landing.nav.login")}</Link>
+            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95">
               {t("landing.nav.trial")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
@@ -142,7 +143,7 @@ function Navbar() {
             ))}
             <div className="pt-3 flex flex-col gap-3">
               <LangToggle />
-              <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="px-5 py-2.5 rounded-full text-sm font-bold text-white bg-rose-600 text-center">{t("landing.nav.trial")}</Link>
+              <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="px-5 py-2.5 rounded-full text-sm font-bold text-white bg-[#0d5c46] text-center">{t("landing.nav.trial")}</Link>
             </div>
           </div>
         )}
@@ -153,68 +154,74 @@ function Navbar() {
 
 function Hero() {
   const { t } = useT();
+  const heroImageRaw = t("landing.hero.heroImage", { defaultValue: "" });
+  const heroImage = typeof heroImageRaw === "string" && heroImageRaw.trim() ? heroImageRaw.trim() : "";
   const cards = [
     { i: Boxes, k: "card1" }, { i: ShoppingCart, k: "card2" }, { i: BarChart3, k: "card3" },
     { i: TrendingDown, k: "card4" }, { i: Bell, k: "card5" }, { i: Database, k: "card6" },
   ];
   return (
     <section id="home" className="relative overflow-hidden pt-16 pb-24">
-      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-rose-50/70 via-white to-slate-50" />
-      <div className="absolute top-20 -left-32 w-96 h-96 bg-rose-200/40 rounded-full blur-3xl -z-10" />
-      <div className="absolute top-40 right-0 w-80 h-80 bg-orange-200/40 rounded-full blur-3xl -z-10" />
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-emerald-50/80 via-white to-slate-50" />
+      <div className="absolute top-20 -left-32 w-96 h-96 bg-emerald-200/40 rounded-full blur-3xl -z-10" />
+      <div className="absolute top-40 right-0 w-80 h-80 bg-teal-200/40 rounded-full blur-3xl -z-10" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-rose-100 text-rose-700 text-xs font-bold mb-6 animate-fade-in">
-          <Sparkles className="w-3.5 h-3.5" /> {t("landing.hero.badge")}
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 text-[#0d5c46] ring-1 ring-emerald-200/80 text-xs font-bold mb-6 animate-fade-in">
+          <Sparkles className="w-3.5 h-3.5 text-emerald-600" /> {t("landing.hero.badge")}
         </div>
-        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-slate-900 max-w-5xl mx-auto leading-[1.05] animate-fade-in">
+        <h1 className="text-4xl sm:text-5xl lg:text-7xl font-black tracking-tight text-slate-900 max-w-5xl mx-auto leading-[1.06] animate-fade-in">
           {t("landing.hero.title")}
         </h1>
         <p className="mt-6 text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">{t("landing.hero.subtitle")}</p>
         <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xl shadow-rose-300/50 transition hover:scale-105">
+          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] hover:brightness-105 shadow-xl shadow-emerald-900/20 transition hover:scale-105">
             {t("landing.hero.ctaPrimary")} <ArrowRight className="w-5 h-5" />
           </Link>
-          <a href="#contact" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-900 bg-white border border-slate-200 hover:border-slate-300 shadow-sm transition">
+          <a href="#contact" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-900 bg-white border border-slate-200 hover:border-emerald-300 shadow-sm transition">
             {t("landing.hero.ctaSecondary")}
           </a>
         </div>
         <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-500 font-medium">
           {["tag1", "tag2", "tag3"].map((k) => (
-            <span key={k} className="inline-flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-500" />{t(`landing.hero.${k}`)}</span>
+            <span key={k} className="inline-flex items-center gap-1.5"><Check className="w-4 h-4 text-emerald-600" />{t(`landing.hero.${k}`)}</span>
           ))}
         </div>
-        {/* Dashboard mockup */}
+        {/* Dashboard mockup or CMS Hero Image */}
         <div className="mt-16 relative max-w-5xl mx-auto">
-          <div className="absolute -inset-4 bg-gradient-to-r from-rose-300/40 to-orange-300/40 blur-2xl rounded-3xl -z-10" />
-          <div className="rounded-3xl bg-white border border-slate-200 shadow-2xl shadow-slate-300/40 p-4 sm:p-6">
-            <div className="rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-6 sm:p-10 text-left">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-400" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-400" />
-                  <span className="w-3 h-3 rounded-full bg-green-400" />
+          <div className="absolute -inset-4 bg-gradient-to-r from-emerald-300/35 to-teal-300/35 blur-2xl rounded-3xl -z-10" />
+          <div className="rounded-3xl bg-white border border-slate-200/90 shadow-2xl shadow-emerald-950/10 p-3 sm:p-5">
+            {heroImage ? (
+              <img src={heroImage} alt="SohojPharma Dashboard" className="w-full rounded-2xl object-cover max-h-[540px]" />
+            ) : (
+              <div className="rounded-2xl bg-gradient-to-br from-[#052e23] via-[#07382b] to-slate-900 p-6 sm:p-10 text-left">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex gap-1.5">
+                    <span className="w-3 h-3 rounded-full bg-red-400" />
+                    <span className="w-3 h-3 rounded-full bg-yellow-400" />
+                    <span className="w-3 h-3 rounded-full bg-emerald-400" />
+                  </div>
+                  <span className="text-xs text-emerald-200/70 font-mono">sohojpharma.cloud/dashboard</span>
                 </div>
-                <span className="text-xs text-slate-400 font-mono">app.sohojpharma.cloud/dashboard</span>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                  {cards.map(({ i: Icon, k }, idx) => (
+                    <div key={k} className="bg-white/8 backdrop-blur border border-white/12 rounded-2xl p-4 hover:bg-white/12 transition" style={{ animationDelay: `${idx * 100}ms` }}>
+                      <Icon className="w-5 h-5 text-emerald-400 mb-2" />
+                      <div className="text-white text-sm font-bold">{t(`landing.hero.${k}`)}</div>
+                      <div className="text-emerald-100/70 text-xs mt-0.5">{t(`landing.hero.${k}Sub`)}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-24 bg-white/5 border border-white/10 rounded-xl flex items-end p-3 gap-1">
+                      {[40, 65, 35, 80, 55, 70, 90].map((h, j) => (
+                        <div key={j} className="flex-1 bg-emerald-400/70 rounded-sm" style={{ height: `${h}%` }} />
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-                {cards.map(({ i: Icon, k }, idx) => (
-                  <div key={k} className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-4 hover:bg-white/10 transition" style={{ animationDelay: `${idx * 100}ms` }}>
-                    <Icon className="w-5 h-5 text-rose-400 mb-2" />
-                    <div className="text-white text-sm font-bold">{t(`landing.hero.${k}`)}</div>
-                    <div className="text-slate-400 text-xs mt-0.5">{t(`landing.hero.${k}Sub`)}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 grid grid-cols-3 gap-3">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-24 bg-white/5 border border-white/10 rounded-xl flex items-end p-3 gap-1">
-                    {[40, 65, 35, 80, 55, 70, 90].map((h, j) => (
-                      <div key={j} className="flex-1 bg-rose-400/60 rounded-sm" style={{ height: `${h}%` }} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -280,8 +287,8 @@ function Problems() {
             const Icon = icons[i] ?? AlertTriangle;
             return (
               <div key={i} className="bg-white rounded-2xl p-6 border border-slate-100 hover:border-rose-200 hover:shadow-lg transition">
-                <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center mb-4">
-                  <Icon className="w-6 h-6 text-rose-600" />
+                <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center mb-4">
+                  <Icon className="w-6 h-6 text-[#0d5c46]" />
                 </div>
                 <h3 className="font-bold text-slate-900">{it.t}</h3>
                 <p className="mt-1 text-sm text-slate-500 leading-relaxed">{it.d}</p>
@@ -309,8 +316,8 @@ function WhySohojPharma() {
           {items.map((it, i) => {
             const Icon = icons[i] ?? Boxes;
             return (
-              <div key={i} className="group rounded-2xl border border-slate-200 p-5 hover:border-rose-300 hover:shadow-lg hover:-translate-y-1 transition">
-                <Icon className="w-7 h-7 text-rose-600 mb-3" />
+              <div key={i} className="group rounded-2xl border border-slate-200 p-5 hover:border-emerald-300 hover:shadow-lg hover:-translate-y-1 transition">
+                <Icon className="w-7 h-7 text-[#0d5c46] mb-3" />
                 <h3 className="font-bold text-slate-900">{it.t}</h3>
                 <p className="text-sm text-slate-500 mt-1">{it.d}</p>
               </div>
@@ -340,9 +347,9 @@ function Modules() {
           {items.map((m, i) => {
             const Icon = moduleIcons[i % moduleIcons.length];
             return (
-              <div key={i} className="aspect-square rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center gap-2 hover:border-rose-300 hover:shadow-md transition">
-                <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-rose-600" />
+              <div key={i} className="aspect-square rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center gap-2 hover:border-emerald-300 hover:shadow-md transition">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-[#0d5c46]" />
                 </div>
                 <span className="font-bold text-sm text-slate-800 text-center px-2">{m}</span>
               </div>
@@ -366,12 +373,12 @@ function Highlights() {
           {items.map((it, i) => (
             <div key={i} className={`grid lg:grid-cols-2 gap-10 lg:gap-16 items-center ${i % 2 ? "lg:[&>div:first-child]:order-2" : ""}`}>
               <div>
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-rose-100 text-rose-600 mb-5">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-100 text-[#0d5c46] mb-5">
                   <Sparkles className="w-6 h-6" />
                 </div>
                 <h3 className="text-2xl sm:text-4xl font-black text-slate-900">{it.t}</h3>
                 <p className="mt-4 text-lg text-slate-600 leading-relaxed">{it.d}</p>
-                <a href="#contact" className="mt-6 inline-flex items-center gap-2 font-bold text-rose-600 hover:gap-3 transition-all">
+                <a href="#contact" className="mt-6 inline-flex items-center gap-2 font-bold text-[#0d5c46] hover:gap-3 transition-all">
                   {it.cta} <ArrowRight className="w-4 h-4" />
                 </a>
               </div>
@@ -383,7 +390,7 @@ function Highlights() {
                     <div className="h-3 w-1/3 bg-slate-200 rounded" />
                     <div className="h-2 w-2/3 bg-slate-100 rounded" />
                     <div className="grid grid-cols-3 gap-2 mt-3">
-                      {[0,1,2,3,4,5].map((k) => <div key={k} className="h-16 bg-rose-100/50 rounded-lg" />)}
+                      {[0,1,2,3,4,5].map((k) => <div key={k} className="h-16 bg-emerald-100/60 rounded-lg" />)}
                     </div>
                   </div>
                 )}
@@ -420,12 +427,12 @@ function MobileApp() {
         <div className="flex justify-center gap-4">
           <div className="w-56 h-[420px] bg-gradient-to-b from-slate-700 to-slate-800 rounded-[2.5rem] border-8 border-slate-900 shadow-2xl p-3 -rotate-6">
             <div className="h-full bg-white rounded-[1.8rem] p-3 flex flex-col gap-2">
-              <div className="h-2 w-1/3 bg-rose-200 rounded" />
+              <div className="h-2 w-1/3 bg-emerald-200 rounded" />
               {[0,1,2,3,4].map(i => <div key={i} className="h-10 bg-slate-100 rounded-lg" />)}
             </div>
           </div>
           <div className="w-56 h-[420px] bg-gradient-to-b from-slate-700 to-slate-800 rounded-[2.5rem] border-8 border-slate-900 shadow-2xl p-3 rotate-6 mt-10">
-            <div className="h-full bg-rose-600 rounded-[1.8rem] p-3 text-white flex flex-col gap-2">
+            <div className="h-full bg-[#0d5c46] rounded-[1.8rem] p-3 text-white flex flex-col gap-2">
               <div className="h-2 w-1/2 bg-white/40 rounded" />
               <div className="text-2xl font-black mt-4">৳ 24,500</div>
               <div className="text-xs opacity-80">Today's sales</div>
@@ -453,7 +460,7 @@ function Benefits() {
             const Icon = icons[i] ?? Sparkles;
             return (
               <div key={i} className="rounded-2xl p-6 bg-gradient-to-br from-white to-slate-50 border border-slate-100 hover:shadow-lg hover:border-rose-200 transition">
-                <Icon className="w-8 h-8 text-rose-600 mb-3" />
+                <Icon className="w-8 h-8 text-[#0d5c46] mb-3" />
                 <h3 className="font-bold text-slate-900">{it.t}</h3>
                 <p className="text-sm text-slate-500 mt-1">{it.d}</p>
               </div>
@@ -469,7 +476,7 @@ function Stats() {
   const { t } = useT();
   const items = (t("landing.stats.items", { returnObjects: true }) as { n: string; l: string }[]) ?? [];
   return (
-    <section className="py-20 bg-gradient-to-r from-rose-600 to-rose-700 text-white">
+    <section className="py-20 bg-gradient-to-r from-[#094735] to-[#0d5c46] text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <h2 className="text-center text-2xl sm:text-3xl font-black mb-12 opacity-90">{t("landing.stats.title")}</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
@@ -500,7 +507,7 @@ function Testimonials() {
               </div>
               <p className="text-slate-700 leading-relaxed">"{it.q}"</p>
               <div className="mt-6 flex items-center gap-3 pt-6 border-t border-slate-100">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-rose-400 to-orange-400 text-white font-bold flex items-center justify-center">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#094735] to-teal-500 text-white font-bold flex items-center justify-center">
                   {it.n.charAt(0)}
                 </div>
                 <div>
@@ -527,8 +534,8 @@ function Pricing() {
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{t("landing.pricing.title")}</h2>
           <p className="mt-4 text-lg text-slate-600">{t("landing.pricing.subtitle")}</p>
           <div className="mt-8 inline-flex items-center bg-slate-100 rounded-full p-1 text-sm font-bold">
-            <button onClick={() => setYearly(false)} className={`px-5 py-2 rounded-full transition ${!yearly ? "bg-white text-rose-600 shadow" : "text-slate-600"}`}>{t("landing.pricing.monthly")}</button>
-            <button onClick={() => setYearly(true)} className={`px-5 py-2 rounded-full transition ${yearly ? "bg-white text-rose-600 shadow" : "text-slate-600"}`}>{t("landing.pricing.yearly")}</button>
+            <button onClick={() => setYearly(false)} className={`px-5 py-2 rounded-full transition ${!yearly ? "bg-white text-[#0d5c46] shadow" : "text-slate-600"}`}>{t("landing.pricing.monthly")}</button>
+            <button onClick={() => setYearly(true)} className={`px-5 py-2 rounded-full transition ${yearly ? "bg-white text-[#0d5c46] shadow" : "text-slate-600"}`}>{t("landing.pricing.yearly")}</button>
           </div>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto items-stretch">
@@ -536,9 +543,9 @@ function Pricing() {
             const popular = p.popular ?? (i === 2);
             const displayPrice = (yearly && p.priceYearly) ? p.priceYearly : p.price;
             return (
-              <div key={i} className={`relative flex flex-col justify-between rounded-3xl p-6 sm:p-7 border-2 transition ${popular ? "border-rose-600 shadow-2xl shadow-rose-200/50 scale-[1.02] bg-white ring-2 ring-rose-600/20" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-lg"}`}>
+              <div key={i} className={`relative flex flex-col justify-between rounded-3xl p-6 sm:p-7 border-2 transition ${popular ? "border-[#0d5c46] shadow-2xl shadow-emerald-900/15 scale-[1.02] bg-white ring-2 ring-emerald-600/15" : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-lg"}`}>
                 {popular && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-rose-600 text-white text-xs font-bold uppercase tracking-wider">{t("landing.pricing.popular")}</div>
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-[#0d5c46] text-white text-xs font-bold uppercase tracking-wider">{t("landing.pricing.popular")}</div>
                 )}
                 <div>
                   <h3 className="font-bold text-xl text-slate-900">{p.name}</h3>
@@ -547,7 +554,7 @@ function Pricing() {
                     <span className="text-4xl sm:text-5xl font-black text-slate-900">{displayPrice}</span>
                     {displayPrice.startsWith("৳") && <span className="text-slate-500 font-semibold text-xs sm:text-sm">{t("landing.pricing.month")}</span>}
                   </div>
-                  <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className={`mt-6 block w-full py-3 rounded-full text-center text-sm font-bold transition ${popular ? "bg-rose-600 text-white hover:bg-rose-700 shadow-md shadow-rose-200" : "bg-slate-100 text-slate-900 hover:bg-slate-200"}`}>
+                  <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className={`mt-6 block w-full py-3 rounded-full text-center text-sm font-bold transition ${popular ? "bg-[#0d5c46] text-white hover:bg-[#094735] shadow-md shadow-emerald-900/20" : "bg-slate-100 text-slate-900 hover:bg-slate-200"}`}>
                     {t("landing.pricing.cta")}
                   </Link>
                   <ul className="mt-6 space-y-2.5">
@@ -571,12 +578,12 @@ function Banner() {
   const { t } = useT();
   return (
     <section className="relative py-24 overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-rose-900" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(244,63,94,0.4),transparent_60%)]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-[#0d624a]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_30%,rgba(16,185,129,0.35),transparent_60%)]" />
       <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-white">
         <h2 className="text-3xl sm:text-5xl font-black leading-tight">{t("landing.banner.title")}</h2>
         <p className="mt-4 text-lg opacity-90">{t("landing.banner.subtitle")}</p>
-        <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-rose-600 bg-white hover:scale-105 shadow-2xl transition">
+        <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="mt-8 inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-[#0d5c46] bg-white hover:scale-105 shadow-2xl transition">
           {t("landing.banner.cta")} <ArrowRight className="w-5 h-5" />
         </Link>
       </div>
@@ -597,7 +604,7 @@ function FAQ() {
             <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
               <button onClick={() => setOpen(open === i ? null : i)} className="w-full flex items-center justify-between p-5 text-left">
                 <span className="font-bold text-slate-900">{it.q}</span>
-                {open === i ? <Minus className="w-5 h-5 text-rose-600" /> : <Plus className="w-5 h-5 text-slate-400" />}
+                {open === i ? <Minus className="w-5 h-5 text-[#0d5c46]" /> : <Plus className="w-5 h-5 text-slate-400" />}
               </button>
               {open === i && <div className="px-5 pb-5 text-slate-600 leading-relaxed">{it.a}</div>}
             </div>
@@ -621,15 +628,15 @@ function Blog() {
         <div className="grid md:grid-cols-3 gap-6">
           {items.map((it, i) => (
             <article key={i} className="group rounded-2xl overflow-hidden border border-slate-100 hover:shadow-xl transition">
-              <div className="aspect-[16/10] bg-gradient-to-br from-rose-100 via-orange-100 to-amber-100 group-hover:scale-105 transition-transform duration-500" />
+              <div className="aspect-[16/10] bg-gradient-to-br from-emerald-100 via-teal-50 to-sky-100 group-hover:scale-105 transition-transform duration-500" />
               <div className="p-6">
                 <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">
-                  <span className="text-rose-600">{it.cat}</span>
+                  <span className="text-[#0d5c46]">{it.cat}</span>
                   <span>•</span>
                   <span>{it.date}</span>
                 </div>
-                <h3 className="font-bold text-lg text-slate-900 group-hover:text-rose-600 transition">{it.t}</h3>
-                <a href="#" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-rose-600">{t("landing.blog.readMore")} <ArrowRight className="w-4 h-4" /></a>
+                <h3 className="font-bold text-lg text-slate-900 group-hover:text-[#0d5c46] transition">{it.t}</h3>
+                <a href="#" className="mt-4 inline-flex items-center gap-1 text-sm font-bold text-[#0d5c46]">{t("landing.blog.readMore")} <ArrowRight className="w-4 h-4" /></a>
               </div>
             </article>
           ))}
@@ -640,7 +647,14 @@ function Blog() {
 }
 
 function Contact() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const [sent, setSent] = useState(false);
+  const supportPhone = t("landing.contact.supportPhone", { defaultValue: "01951413828" });
+  const salesPhone = t("landing.contact.salesPhone", { defaultValue: "01951413828" });
+  const whatsappPhone = t("landing.contact.whatsappPhone", { defaultValue: "01951413828" });
+  const emailAddress = t("landing.contact.emailAddress", { defaultValue: "support@sohojpharma.cloud" });
+  const officeAddress = t("landing.contact.officeAddress", { defaultValue: "Dhaka, Bangladesh" });
+
   return (
     <section id="contact" className="py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-12">
@@ -649,14 +663,14 @@ function Contact() {
           <p className="mt-4 text-lg text-slate-600">{t("landing.contact.subtitle")}</p>
           <div className="mt-8 space-y-4">
             {[
-              { i: Headphones, l: t("landing.contact.support"), v: "+880 1700-000000" },
-              { i: Phone, l: t("landing.contact.sales"), v: "+880 1800-000000" },
-              { i: MessageCircle, l: t("landing.contact.whatsapp"), v: "+880 1900-000000" },
-              { i: Mail, l: "Email", v: "hello@sohojpharma.cloud" },
-              { i: MapPin, l: "Office", v: "Dhaka, Bangladesh" },
+              { i: Headphones, l: t("landing.contact.support"), v: supportPhone },
+              { i: Phone, l: t("landing.contact.sales"), v: salesPhone },
+              { i: MessageCircle, l: t("landing.contact.whatsapp"), v: whatsappPhone },
+              { i: Mail, l: "Email", v: emailAddress },
+              { i: MapPin, l: "Office", v: officeAddress },
             ].map(({ i: Icon, l, v }, k) => (
               <div key={k} className="flex items-center gap-4">
-                <div className="w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center"><Icon className="w-5 h-5" /></div>
+                <div className="w-11 h-11 rounded-xl bg-emerald-100 text-[#0d5c46] flex items-center justify-center"><Icon className="w-5 h-5" /></div>
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-500">{l}</div>
                   <div className="font-bold text-slate-900">{v}</div>
@@ -664,25 +678,34 @@ function Contact() {
               </div>
             ))}
           </div>
-          <div className="mt-8 rounded-2xl overflow-hidden border border-slate-200 aspect-[16/9] bg-slate-200 flex items-center justify-center text-slate-400">
-            <MapPin className="w-10 h-10" />
-          </div>
         </div>
-        <form onSubmit={(e) => { e.preventDefault(); }} className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-4">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            (e.currentTarget as HTMLFormElement).reset();
+            setSent(true);
+            toast.success(
+              lang === "bn"
+                ? "আপনার বার্তা গ্রহণ করা হয়েছে! আমাদের টিম শীঘ্রই যোগাযোগ করবে।"
+                : "Message received! Our team will contact you shortly.",
+            );
+          }}
+          className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-sm space-y-4"
+        >
           {[
             { k: "name", type: "text" }, { k: "business", type: "text" }, { k: "phone", type: "tel" }, { k: "email", type: "email" },
           ].map(({ k, type }) => (
             <div key={k}>
               <label className="block text-sm font-bold text-slate-700 mb-1.5">{t(`landing.contact.${k}`)}</label>
-              <input type={type} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none transition" />
+              <input type={type} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[#0d5c46] focus:ring-2 focus:ring-emerald-100 outline-none transition" />
             </div>
           ))}
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-1.5">{t("landing.contact.message")}</label>
-            <textarea rows={4} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-rose-500 focus:ring-2 focus:ring-rose-100 outline-none transition resize-none" />
+            <textarea rows={4} required className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-[#0d5c46] focus:ring-2 focus:ring-emerald-100 outline-none transition resize-none" />
           </div>
-          <button type="submit" className="w-full py-3.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition shadow-lg shadow-rose-200">
-            {t("landing.contact.send")}
+          <button type="submit" className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] text-white font-bold hover:brightness-105 transition shadow-lg shadow-emerald-900/20">
+            {sent ? (lang === "bn" ? "বার্তা পাঠানো হয়েছে ✓" : "Message Sent ✓") : t("landing.contact.send")}
           </button>
         </form>
       </div>
@@ -698,7 +721,7 @@ function FinalCTA() {
         <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{t("landing.finalCta.title")}</h2>
         <p className="mt-4 text-lg text-slate-600">{t("landing.finalCta.subtitle")}</p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-rose-600 hover:bg-rose-700 shadow-xl shadow-rose-300/50 transition hover:scale-105">
+          <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 shadow-xl shadow-emerald-900/25 transition hover:scale-105">
             {t("landing.finalCta.primary")} <ArrowRight className="w-5 h-5" />
           </Link>
           <a href="#contact" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-900 bg-slate-100 hover:bg-slate-200 transition">
@@ -723,18 +746,18 @@ function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-10">
           <div className="col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center">
+              <div className="w-10 h-10 bg-[#0d5c46] rounded-xl flex items-center justify-center">
                 <Pill className="w-6 h-6 text-white" strokeWidth={2.5} />
               </div>
-              <span className="text-xl font-extrabold text-white">Sohoj<span className="text-rose-500">Pharma</span></span>
+              <span className="text-xl font-extrabold text-white">Sohoj<span className="text-emerald-400">Pharma</span></span>
             </div>
             <p className="text-sm text-slate-400 max-w-xs">{t("landing.footer.tagline")}</p>
             <div className="mt-6">
               <h4 className="font-bold text-white text-sm">{t("landing.footer.newsletter")}</h4>
               <p className="text-xs text-slate-400 mt-1">{t("landing.footer.newsletterDesc")}</p>
               <form className="mt-3 flex gap-2">
-                <input type="email" placeholder={t("landing.footer.emailPlaceholder")} className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-rose-500 outline-none" />
-                <button type="submit" className="px-4 py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold transition">{t("landing.footer.subscribe")}</button>
+                <input type="email" placeholder={t("landing.footer.emailPlaceholder")} className="flex-1 px-4 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-sm focus:border-[#0d5c46] outline-none" />
+                <button type="submit" className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 text-white text-sm font-bold transition">{t("landing.footer.subscribe")}</button>
               </form>
             </div>
           </div>
@@ -742,7 +765,7 @@ function Footer() {
             <div key={i}>
               <h4 className="font-bold text-white text-sm mb-4 uppercase tracking-wider">{t(`landing.${c.title}`)}</h4>
               <ul className="space-y-2 text-sm">
-                {c.links.map((l) => <li key={l}><a href="#" className="hover:text-rose-400 transition">{t(`landing.${l}`)}</a></li>)}
+                {c.links.map((l) => <li key={l}><a href="#" className="hover:text-emerald-400 transition">{t(`landing.${l}`)}</a></li>)}
               </ul>
             </div>
           ))}
