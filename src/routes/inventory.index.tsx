@@ -98,29 +98,31 @@ function InventoryDashboard() {
       />
 
       {stats.noOpeningCount > 0 && (
-        <div className="mt-4 rounded-md border border-warning/30 bg-warning/5 p-3 text-sm flex items-start gap-2">
-          <ShieldAlert className="h-4 w-4 mt-0.5 text-warning" />
-          <div className="flex-1">
-            <div className="font-medium text-warning">{t("pinv.noOpeningWarnTpl", { n: stats.noOpeningCount })}</div>
-            <div className="text-muted-foreground">{t("pinv.noOpeningWarnDesc")}</div>
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/70 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-100 text-amber-700 ring-1 ring-amber-200/80 dark:bg-amber-900/60 dark:text-amber-300">
+              <ShieldAlert className="h-4 w-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="font-semibold text-amber-900 dark:text-amber-200">{t("pinv.noOpeningWarnTpl", { n: stats.noOpeningCount })}</div>
+              <div className="mt-0.5 text-xs text-amber-800/80 dark:text-amber-300/80">{t("pinv.noOpeningWarnDesc")}</div>
+            </div>
           </div>
-          <Button size="sm" asChild><Link to="/inventory/opening-stock">{t("pinv.initializeBtn")}</Link></Button>
+          <Button size="sm" asChild className="shrink-0"><Link to="/inventory/opening-stock">{t("pinv.initializeBtn")}</Link></Button>
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t("pages.inventory.currentStock")} value={`${stats.totalStock.toLocaleString()} ${t("pages.inventory.pcs")}`} icon={Package} tone="primary" />
         <StatCard label={t("pages.inventory.stockValue")} value={`৳ ${Math.round(stats.totalValue).toLocaleString()}`} icon={Wallet} tone="success" />
         <StatCard label={t("pinv.withoutBatch")} value={String(stats.noBatchCount)} icon={PackagePlus} tone="warning" />
         <StatCard label={t("pinv.withoutOpening")} value={String(stats.noOpeningCount)} icon={ShieldAlert} tone="secondary" />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Stock Item" value={Number(stockItemCount ?? 0).toLocaleString()} icon={Package} tone="primary" />
         <StatCard label={t("pages.inventory.lowStock")} value={String(stats.lowCount)} icon={AlertTriangle} tone="warning" />
         <StatCard label={t("pages.inventory.expired")} value={String(stats.expiredCount)} icon={CalendarX} tone="secondary" />
       </div>
 
-      <Card className="mt-6 shadow-card">
+      <Card className="mt-6">
         <CardHeader><CardTitle className="text-base">{t("pages.inventory.alerts")}</CardTitle></CardHeader>
         <CardContent>
           {isLoading ? (
@@ -151,7 +153,7 @@ function InventoryDashboard() {
                       <TableCell className="font-mono text-xs text-muted-foreground">{p.sku ?? "-"}</TableCell>
                       <TableCell className="text-right">{p.stock}</TableCell>
                       <TableCell className="text-right">{p.reorder_level}</TableCell>
-                      <TableCell className="text-right"><Badge className="bg-warning/15 text-warning">{t("pages.inventory.low")}</Badge></TableCell>
+                      <TableCell className="text-right"><Badge variant="warning">{t("pages.inventory.low")}</Badge></TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -193,7 +195,7 @@ function InventoryDashboard() {
                           <TableCell className="font-medium">{buildProductDisplayName(e)}</TableCell>
                           <TableCell className="font-mono text-xs text-muted-foreground">{e.batch}</TableCell>
                           <TableCell className="text-right">
-                            <Badge className={e.days <= 0 ? "bg-destructive/15 text-destructive" : e.days <= 30 ? "bg-destructive/15 text-destructive" : "bg-warning/15 text-warning"}>
+                            <Badge variant={e.days <= 30 ? "destructive" : "warning"}>
                               {e.days <= 0 ? t("pages.inventory.expiredLabel") : t("pages.inventory.days", { n: e.days })}
                             </Badge>
                           </TableCell>

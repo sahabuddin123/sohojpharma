@@ -322,7 +322,7 @@ function DayClosingPage() {
             </div>
 
             {needsReconciliation && (
-              <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/5 p-4 space-y-3">
+              <div className="rounded-xl border border-amber-200/80 bg-amber-50/60 p-4 space-y-3 dark:border-amber-900/50 dark:bg-amber-950/30">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300">
                     <AlertTriangle className="h-4 w-4 shrink-0" />

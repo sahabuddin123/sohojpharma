@@ -12,34 +12,34 @@ interface StatCardProps {
 }
 
 const toneMap = {
-  primary: "bg-primary/10 text-primary",
-  secondary: "bg-secondary/10 text-secondary",
-  success: "bg-success/10 text-success",
-  warning: "bg-warning/15 text-warning",
+  primary: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800/50",
+  secondary: "bg-slate-100 text-slate-700 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700/60",
+  success: "bg-teal-50 text-teal-700 ring-1 ring-teal-200/60 dark:bg-teal-950/60 dark:text-teal-300 dark:ring-teal-800/50",
+  warning: "bg-amber-50 text-amber-700 ring-1 ring-amber-200/60 dark:bg-amber-950/60 dark:text-amber-300 dark:ring-amber-800/50",
 };
 
 export function StatCard({ label, value, delta, icon: Icon, tone = "primary" }: StatCardProps) {
   const positive = (delta ?? 0) >= 0;
   return (
-    <Card className="border-border/60 shadow-card transition-shadow hover:shadow-elevated">
-      <CardContent className="flex items-start justify-between gap-2 p-3 sm:gap-4 sm:p-5">
+    <Card className="transition-colors hover:border-slate-300/90 dark:hover:border-slate-700">
+      <CardContent className="flex items-start justify-between gap-3 p-4 sm:p-5">
         <div className="min-w-0">
-          <p className="truncate text-[10px] font-medium uppercase tracking-wider text-muted-foreground sm:whitespace-normal sm:text-xs">{label}</p>
-          <p className="mt-1 truncate text-lg font-bold tracking-tight text-foreground sm:mt-2 sm:text-2xl">{value}</p>
+          <p className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:whitespace-normal sm:text-xs">{label}</p>
+          <p className="mt-1.5 truncate text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white sm:text-2xl">{value}</p>
           {delta !== undefined && (
             <p
               className={cn(
-                "mt-1 inline-flex items-center gap-1 text-[10px] font-semibold sm:mt-2 sm:text-xs",
-                positive ? "text-success" : "text-destructive",
+                "mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold",
+                positive ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400",
               )}
             >
               {positive ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
-              {Math.abs(delta)}% vs last week
+              <span className="tabular-nums">{Math.abs(delta)}% vs last week</span>
             </p>
           )}
         </div>
-        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg sm:h-11 sm:w-11 sm:rounded-xl", toneMap[tone])}>
-          <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+        <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl sm:h-10 sm:w-10", toneMap[tone])}>
+          <Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
         </div>
       </CardContent>
     </Card>

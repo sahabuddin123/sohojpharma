@@ -232,41 +232,41 @@ function CustomersPage() {
       />
 
       {/* Baki Khata Summary Banner */}
-      <div className="mb-5 rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 p-4 text-emerald-950 dark:text-emerald-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center rounded-xl bg-emerald-600 text-white shadow-xs font-bold text-lg">
+      <div className="mb-5 flex flex-col gap-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/70 p-4 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-100 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-center gap-3.5">
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-emerald-100 text-lg font-bold text-emerald-700 ring-1 ring-emerald-200/80 dark:bg-emerald-900/60 dark:text-emerald-300">
             ৳
           </div>
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 block">
+            <span className="block text-xs font-medium text-emerald-700 dark:text-emerald-300">
               বাকির খাতা (Due Book Summary)
             </span>
-            <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">
+            <span className="mt-0.5 block text-2xl font-bold tracking-tight tabular-nums text-emerald-950 dark:text-emerald-100">
               ৳ {totalDueSum.toLocaleString("en-IN")} পাওনা · {dueCustomersCount} জনের বাকি
             </span>
           </div>
         </div>
 
         {/* 3 Baki Filter Pills: [সব] [বাকি] [৩০+ দিন আসেনি] */}
-        <div className="inline-flex rounded-xl bg-background/90 p-1 border border-border self-start sm:self-auto text-xs font-bold shadow-2xs">
+        <div className="inline-flex self-start rounded-xl border border-slate-200/80 bg-white/90 p-1 text-xs font-medium dark:border-slate-800 dark:bg-slate-900 sm:self-auto">
           <button
             type="button"
             onClick={() => setDueFilter("all")}
-            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "all" ? "bg-emerald-700 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-lg px-3 py-1.5 transition-all ${dueFilter === "all" ? "bg-emerald-700 text-white shadow-xs" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
           >
             সব ({customers.length})
           </button>
           <button
             type="button"
             onClick={() => setDueFilter("due")}
-            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "due" ? "bg-amber-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-lg px-3 py-1.5 transition-all ${dueFilter === "due" ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
           >
             বাকি ({dueCustomersCount})
           </button>
           <button
             type="button"
             onClick={() => setDueFilter("inactive_30")}
-            className={`px-3 py-1.5 rounded-lg transition-all ${dueFilter === "inactive_30" ? "bg-rose-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-lg px-3 py-1.5 transition-all ${dueFilter === "inactive_30" ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
           >
             ৩০+ দিন আসেনি
           </button>

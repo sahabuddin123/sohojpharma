@@ -142,7 +142,7 @@ function ExpiryTab({ tenantId }: { tenantId: string }) {
                       <TableCell className="font-medium">{dn(b.products)}</TableCell>
                       <TableCell className="font-mono text-xs">{b.batch_no}</TableCell>
                       <TableCell>
-                        <Badge className={days < 0 ? "bg-destructive/15 text-destructive" : days <= 30 ? "bg-warning/15 text-warning" : ""}>
+                        <Badge variant={days < 0 ? "destructive" : days <= 30 ? "warning" : "secondary"}>
                           {days < 0 ? t("pinv.expired") : `${days}d`}
                         </Badge>
                       </TableCell>

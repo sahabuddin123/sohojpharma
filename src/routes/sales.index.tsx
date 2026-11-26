@@ -165,11 +165,13 @@ function SalesPage() {
         <StatCard label={t("pages.sales.avgTicket")} value={`৳ ${avgTicket.toLocaleString()}`} icon={TrendingUp} tone="success" />
       </div>
 
-      <Card className="mt-6 shadow-card">
-        <CardContent className="p-4">
+      <Card className="mt-6">
+        <CardContent className="p-5">
           <div className="mb-4 flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input placeholder={t("pages.sales.searchPh")} value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+            <div className="relative w-full max-w-sm">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+              <Input placeholder={t("pages.sales.searchPh")} value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
           </div>
           {isLoading ? (
             <div className="flex items-center justify-center py-12 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t("pages.sales.loading")}</div>
@@ -208,13 +210,12 @@ function SalesPage() {
                       <TableCell className="text-muted-foreground">{s.sale_date?.slice(0, 10)}</TableCell>
                       <TableCell className="text-right">
                         <Badge
-                          variant="outline"
-                          className={
+                          variant={
                             status === "Paid"
-                              ? "border-success/30 bg-success/10 text-success"
+                              ? "success"
                               : status === "Due" || status === "Partial"
-                              ? "border-warning/30 bg-warning/10 text-warning"
-                              : "border-destructive/30 bg-destructive/10 text-destructive"
+                              ? "warning"
+                              : "destructive"
                           }
                         >
                           {statusLabel[status]}

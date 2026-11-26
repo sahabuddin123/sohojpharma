@@ -95,26 +95,26 @@ export function CompanyReturnsTab({ batches, tenantId }: CompanyReturnsTabProps)
 
   return (
     <div className="space-y-4">
-      {/* Top Banner: ঝুকিতে থাকা টাকা (ক্রয়মূল্য) */}
-      <div className="rounded-xl border-2 border-rose-500/30 bg-rose-500/10 p-4 text-rose-950 dark:text-rose-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-xs">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-rose-600 text-white shadow-xs">
+      {/* Top Banner: ঝুঁকিতে থাকা মূলধন */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-rose-200/80 bg-rose-50/70 p-4 text-rose-950 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-100 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+        <div className="flex items-center gap-3.5">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-100 text-rose-700 ring-1 ring-rose-200/80 dark:bg-rose-900/60 dark:text-rose-300 dark:ring-rose-800/60">
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-rose-800 dark:text-rose-300 block">
-              ঝুকিতে থাকা টাকা (ক্রয়মূল্য)
+            <span className="block text-xs font-medium text-rose-700 dark:text-rose-300">
+              ঝুঁকিতে থাকা টাকা (ক্রয়মূল্য)
             </span>
-            <span className="text-2xl font-black text-rose-700 dark:text-rose-400">
+            <span className="mt-0.5 block text-2xl font-bold tracking-tight tabular-nums text-rose-900 dark:text-rose-100">
               ৳ {totalRiskCapital.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
-        <div className="text-right sm:text-right">
-          <span className="inline-block text-xs font-bold bg-rose-600 text-white px-2.5 py-1 rounded-full shadow-2xs">
+        <div className="sm:text-right">
+          <Badge variant="destructive" className="text-xs font-semibold">
             {totalRiskBatches}টি ব্যাচ মেয়াদোত্তীর্ণ হওয়ার পথে
-          </span>
-          <p className="text-[11px] text-muted-foreground mt-1">
+          </Badge>
+          <p className="mt-1 text-xs text-rose-700/80 dark:text-rose-300/80">
             কোম্পানি প্রতিনিধি (MR)-কে ফেরত দিয়ে ক্ষতি এড়ান
           </p>
         </div>
@@ -130,59 +130,58 @@ export function CompanyReturnsTab({ batches, tenantId }: CompanyReturnsTabProps)
       ) : (
         <div className="grid gap-4">
           {groups.map((group) => (
-            <Card key={group.manufacturer} className="shadow-card border-border overflow-hidden">
-              <CardHeader className="p-4 bg-muted/30 border-b border-border flex flex-row items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <CardTitle className="text-sm font-bold text-foreground">
+            <Card key={group.manufacturer} className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3.5 dark:border-slate-800/70 dark:bg-slate-800/40">
+                <div className="flex items-center gap-2.5">
+                  <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                  <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {group.manufacturer}
                   </CardTitle>
-                  <Badge variant="secondary" className="text-xs font-semibold">
+                  <Badge variant="secondary">
                     {group.items.length}টি পণ্য
                   </Badge>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-semibold tabular-nums text-rose-600 dark:text-rose-400">
                     ঝুঁকি: ৳{group.totalCost.toLocaleString("en-IN")}
                   </span>
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() => handleGenerateReturn(group.manufacturer, group.items)}
-                    className="gap-1.5 text-xs font-semibold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50"
+                    className="gap-1.5 text-xs font-medium border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/70 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
                   >
                     <Share2 className="h-3.5 w-3.5" /> ফেরত তালিকা তৈরি
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y divide-border/60">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/70">
                   {group.items.map((item) => {
                     const isUrgent = item.daysRemaining <= 60;
                     return (
                       <div
                         key={item.id}
-                        className="p-3 flex items-center justify-between gap-3 hover:bg-muted/10 transition-colors"
+                        className="flex items-center justify-between gap-3 px-5 py-3 transition-colors hover:bg-slate-50/70 dark:hover:bg-slate-800/35"
                       >
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-foreground truncate">
+                          <p className="truncate text-[13px] font-semibold text-slate-900 dark:text-slate-100">
                             {item.products?.name || "Medicine"}
                           </p>
-                          <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-[11px] text-muted-foreground">
-                            <span>ব্যাচ: {item.batch_no}</span>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                            <span>ব্যাচ: <span className="font-mono text-slate-700 dark:text-slate-300">{item.batch_no}</span></span>
                             <span>· মেয়াদ: {item.expiry_date}</span>
-                            <span>· স্টক: {item.qty_on_hand}</span>
-                            <span className="font-semibold text-foreground">
+                            <span>· স্টক: <span className="tabular-nums">{item.qty_on_hand}</span></span>
+                            <span className="font-medium text-slate-700 dark:text-slate-200 tabular-nums">
                               · মোট ক্রয়মূল্য: ৳{item.totalCost.toFixed(2)}
                             </span>
                           </div>
                         </div>
                         <Badge
-                          className={`shrink-0 font-bold text-xs ${
-                            isUrgent
-                              ? "bg-rose-600 hover:bg-rose-700 text-white animate-pulse"
-                              : "bg-amber-500 hover:bg-amber-600 text-white"
-                          }`}
+                          variant={isUrgent ? "destructive" : "warning"}
+                          className="shrink-0"
                         >
                           {item.daysRemaining < 0
                             ? "মেয়াদ শেষ"

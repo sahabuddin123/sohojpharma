@@ -140,10 +140,10 @@ function SectionTitle({ title, hint, action }: { title: string; hint?: string; a
 
 function ChartCard({ title, hint, children, height = 240 }: { title: string; hint?: string; children: React.ReactNode; height?: number }) {
   return (
-    <Card className="shadow-card">
+    <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        <CardTitle className="text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</CardTitle>
+        {hint && <p className="text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
       </CardHeader>
       <CardContent>
         <div style={{ width: "100%", height }}>{children}</div>
@@ -156,12 +156,12 @@ function QuickAction({ to, icon: Icon, label }: { to: string; icon: typeof Plus;
   return (
     <Link
       to={to as never}
-      className="group flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-4 text-center transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-card"
+      className="group flex flex-col items-center justify-center gap-2.5 rounded-2xl border border-slate-200/80 bg-card p-4 text-center shadow-[0_1px_2px_rgba(15,23,42,0.03)] transition-all hover:border-emerald-300/80 hover:bg-emerald-50/30 dark:border-slate-800/80 dark:hover:border-emerald-800/70 dark:hover:bg-emerald-950/20"
     >
-      <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+      <div className="grid h-11 w-11 place-items-center rounded-xl bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60 transition-colors group-hover:bg-emerald-600 group-hover:text-white group-hover:ring-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-300 dark:ring-emerald-800/60">
         <Icon className="h-5 w-5" />
       </div>
-      <span className="text-xs font-medium leading-tight">{label}</span>
+      <span className="text-xs font-medium leading-tight text-slate-700 group-hover:text-slate-900 dark:text-slate-300 dark:group-hover:text-white">{label}</span>
     </Link>
   );
 }
@@ -170,18 +170,18 @@ function AlertChip({
   label, count, tone, to, icon: Icon,
 }: { label: string; count: number; tone: "destructive" | "warning" | "primary" | "muted"; to?: string; icon: typeof AlertTriangle }) {
   const toneMap = {
-    destructive: "border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/10",
-    warning: "border-warning/30 bg-warning/5 text-warning hover:bg-warning/10",
-    primary: "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10",
-    muted: "border-border bg-muted/30 text-muted-foreground hover:bg-muted/50",
+    destructive: "border-rose-200/80 bg-rose-50/60 text-rose-700 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300",
+    warning: "border-amber-200/80 bg-amber-50/60 text-amber-800 hover:bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300",
+    primary: "border-emerald-200/80 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300",
+    muted: "border-slate-200/80 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400",
   };
   const inner = (
-    <div className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors ${toneMap[tone]}`}>
+    <div className={`flex items-center justify-between gap-3 rounded-xl border px-3.5 py-3 transition-colors ${toneMap[tone]}`}>
       <div className="flex min-w-0 items-center gap-2.5">
         <Icon className="h-4 w-4 shrink-0" />
         <span className="truncate text-xs font-medium">{label}</span>
       </div>
-      <span className="shrink-0 text-base font-bold tabular-nums">{num(count)}</span>
+      <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-sm font-bold tabular-nums shadow-2xs dark:bg-slate-900/80">{num(count)}</span>
     </div>
   );
   return to ? <Link to={to as never}>{inner}</Link> : inner;
@@ -192,17 +192,17 @@ function PeriodCard({
 }: { label: string; stat: StoreDashboardData["sales"]["today"] }) {
   const empty = stat.amount === 0 && stat.invoices === 0;
   return (
-    <Card className="shadow-card">
+    <Card className="transition-colors hover:border-slate-300/90 dark:hover:border-slate-700">
       <CardContent className="p-4 sm:p-5">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
         {empty ? (
-          <p className="mt-2 text-sm text-muted-foreground">No data available</p>
+          <p className="mt-2.5 text-sm font-medium text-slate-400 dark:text-slate-500">কোনো তথ্য নেই</p>
         ) : (
           <>
-            <p className="mt-1 text-xl font-bold text-foreground sm:text-2xl">{bdt(stat.amount)}</p>
-            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span>{num(stat.invoices)} invoices</span>
-              <span>{num(stat.customers)} customers</span>
+            <p className="mt-1.5 text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white sm:text-2xl">{bdt(stat.amount)}</p>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <span>{num(stat.invoices)}টি চালান</span>
+              <span>· {num(stat.customers)} জন গ্রাহক</span>
             </div>
           </>
         )}

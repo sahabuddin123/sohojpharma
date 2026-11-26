@@ -24,11 +24,11 @@ export const Route = createFileRoute("/staff/attendance")({
 });
 
 const tone: Record<string, string> = {
-  present: "bg-success/15 text-success",
-  late: "bg-warning/15 text-warning",
-  absent: "bg-destructive/15 text-destructive",
-  leave: "bg-secondary/15 text-secondary",
-  half_day: "bg-primary/15 text-primary",
+  present: "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
+  late: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
+  absent: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300",
+  leave: "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  half_day: "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/50 dark:bg-teal-950/40 dark:text-teal-300",
 };
 
 function AttendancePage() {

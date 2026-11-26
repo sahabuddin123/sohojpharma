@@ -230,18 +230,18 @@ function BatchControlPage() {
                             <TableCell className="text-xs">{b.supplier_name ?? "—"}</TableCell>
                             <TableCell className="text-xs">{b.warehouse_name ?? "—"}</TableCell>
                             <TableCell>
-                              <Badge variant={b.status === "active" ? "secondary" : "destructive"}>{b.status}</Badge>
+                              <Badge variant={b.status === "active" ? "success" : "destructive"}>{b.status}</Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1 flex-wrap">
-                                <Button size="sm" variant="outline" onClick={() => { setSelected(b); setDialog("edit-expiry"); }}>
-                                  <Pencil className="w-3.5 h-3.5 mr-1" />Edit Expiry
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setSelected(b); setDialog("edit-expiry"); }}>
+                                  <Pencil className="w-3 h-3 mr-1" />Edit Expiry
                                 </Button>
-                                <Button size="sm" variant="outline" onClick={() => { setSelected(b); setDialog("transfer"); }}>Transfer</Button>
-                                <Button size="sm" variant="outline" onClick={() => { setSelected(b); setDialog("adjust"); }}>Adjust</Button>
-                                <Button size="sm" variant="outline" onClick={() => { setSelected(b); setDialog("split"); }}>Split</Button>
-                                <Button size="sm" variant="outline" onClick={() => { setSelected(b); setDialog("merge"); }}>Merge</Button>
-                                <Button size="sm" variant="destructive" onClick={() => { setSelected(b); setDialog("recall"); }}>Recall</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setSelected(b); setDialog("transfer"); }}>Transfer</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setSelected(b); setDialog("adjust"); }}>Adjust</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setSelected(b); setDialog("split"); }}>Split</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => { setSelected(b); setDialog("merge"); }}>Merge</Button>
+                                <Button size="sm" variant="outline" className="h-7 px-2 text-xs border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-300 dark:hover:bg-rose-950/50" onClick={() => { setSelected(b); setDialog("recall"); }}>Recall</Button>
                               </div>
                             </TableCell>
                           </TableRow>

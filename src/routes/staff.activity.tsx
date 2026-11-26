@@ -24,12 +24,12 @@ const logs = [
 ];
 
 const tone: Record<string, string> = {
-  "Sale Created": "bg-success/15 text-success",
-  "Stock Updated": "bg-primary/15 text-primary",
-  "Purchase Created": "bg-secondary/15 text-secondary",
-  "Expense Added": "bg-warning/15 text-warning",
-  "Product Updated": "bg-primary/15 text-primary",
-  "Product Added": "bg-success/15 text-success",
+  "Sale Created": "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
+  "Stock Updated": "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/50 dark:bg-teal-950/40 dark:text-teal-300",
+  "Purchase Created": "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300",
+  "Expense Added": "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300",
+  "Product Updated": "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-900/50 dark:bg-teal-950/40 dark:text-teal-300",
+  "Product Added": "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300",
 };
 
 function ActivityPage() {

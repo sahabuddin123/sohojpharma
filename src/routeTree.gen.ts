@@ -44,6 +44,7 @@ import { Route as ProcurementRouteImport } from './routes/procurement'
 import { Route as ProductsRouteImport } from './routes/products'
 import { Route as PurchasesRouteImport } from './routes/purchases'
 import { Route as QuotationsRouteImport } from './routes/quotations'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as ReorderRouteImport } from './routes/reorder'
 import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -139,17 +140,25 @@ import { Route as MAnalyticsRouteImport } from './routes/m.analytics'
 import { Route as MCollectRouteImport } from './routes/m.collect'
 import { Route as MCreditAdjustmentRouteImport } from './routes/m.credit-adjustment'
 import { Route as MCustomersRouteImport } from './routes/m.customers'
+import { Route as MDenaPaonaRouteImport } from './routes/m.dena-paona'
 import { Route as MDevicesRouteImport } from './routes/m.devices'
+import { Route as MExpensesRouteImport } from './routes/m.expenses'
 import { Route as MExpiredRouteImport } from './routes/m.expired'
 import { Route as MGenericsRouteImport } from './routes/m.generics'
 import { Route as MIncomeRouteImport } from './routes/m.income'
+import { Route as MInventoryRouteImport } from './routes/m.inventory'
 import { Route as MProductsRouteImport } from './routes/m.products'
 import { Route as MPurchaseRouteImport } from './routes/m.purchase'
+import { Route as MPurchaseReturnsRouteImport } from './routes/m.purchase-returns'
 import { Route as MPurchasesRouteImport } from './routes/m.purchases'
 import { Route as MReportRouteImport } from './routes/m.report'
 import { Route as MSaleRouteImport } from './routes/m.sale'
+import { Route as MSaleReturnsRouteImport } from './routes/m.sale-returns'
 import { Route as MSalesRouteImport } from './routes/m.sales'
+import { Route as MSettingsRouteImport } from './routes/m.settings'
 import { Route as MShortItemsRouteImport } from './routes/m.short-items'
+import { Route as MShortListRouteImport } from './routes/m.short-list'
+import { Route as MStaffRouteImport } from './routes/m.staff'
 import { Route as MSubscriptionRouteImport } from './routes/m.subscription'
 import { Route as MSuppliersRouteImport } from './routes/m.suppliers'
 import { Route as MSyncRouteImport } from './routes/m.sync'
@@ -251,6 +260,7 @@ import { Route as CustomersIdStatementRouteImport } from './routes/customers.$id
 import { Route as InventoryTransfersIdRouteImport } from './routes/inventory.transfers.$id'
 import { Route as InventoryTransfersNewRouteImport } from './routes/inventory.transfers.new'
 import { Route as InvoicesIdEditRouteImport } from './routes/invoices.$id.edit'
+import { Route as MCustomerIdRouteImport } from './routes/m.customer.$id'
 import { Route as MInvoiceSaleIdRouteImport } from './routes/m.invoice.$saleId'
 import { Route as MPurchaseIdRouteImport } from './routes/m.purchase.$id'
 import { Route as PurchasesReturnsIndexRouteImport } from './routes/purchases.returns.index'
@@ -466,6 +476,11 @@ const PurchasesRoute = PurchasesRouteImport.update({
 const QuotationsRoute = QuotationsRouteImport.update({
   id: '/quotations',
   path: '/quotations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReorderRoute = ReorderRouteImport.update({
@@ -947,9 +962,19 @@ const MCustomersRoute = MCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => MRoute,
 } as any)
+const MDenaPaonaRoute = MDenaPaonaRouteImport.update({
+  id: '/dena-paona',
+  path: '/dena-paona',
+  getParentRoute: () => MRoute,
+} as any)
 const MDevicesRoute = MDevicesRouteImport.update({
   id: '/devices',
   path: '/devices',
+  getParentRoute: () => MRoute,
+} as any)
+const MExpensesRoute = MExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
   getParentRoute: () => MRoute,
 } as any)
 const MExpiredRoute = MExpiredRouteImport.update({
@@ -967,6 +992,11 @@ const MIncomeRoute = MIncomeRouteImport.update({
   path: '/income',
   getParentRoute: () => MRoute,
 } as any)
+const MInventoryRoute = MInventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
+  getParentRoute: () => MRoute,
+} as any)
 const MProductsRoute = MProductsRouteImport.update({
   id: '/products',
   path: '/products',
@@ -975,6 +1005,11 @@ const MProductsRoute = MProductsRouteImport.update({
 const MPurchaseRoute = MPurchaseRouteImport.update({
   id: '/purchase',
   path: '/purchase',
+  getParentRoute: () => MRoute,
+} as any)
+const MPurchaseReturnsRoute = MPurchaseReturnsRouteImport.update({
+  id: '/purchase-returns',
+  path: '/purchase-returns',
   getParentRoute: () => MRoute,
 } as any)
 const MPurchasesRoute = MPurchasesRouteImport.update({
@@ -992,14 +1027,34 @@ const MSaleRoute = MSaleRouteImport.update({
   path: '/sale',
   getParentRoute: () => MRoute,
 } as any)
+const MSaleReturnsRoute = MSaleReturnsRouteImport.update({
+  id: '/sale-returns',
+  path: '/sale-returns',
+  getParentRoute: () => MRoute,
+} as any)
 const MSalesRoute = MSalesRouteImport.update({
   id: '/sales',
   path: '/sales',
   getParentRoute: () => MRoute,
 } as any)
+const MSettingsRoute = MSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => MRoute,
+} as any)
 const MShortItemsRoute = MShortItemsRouteImport.update({
   id: '/short-items',
   path: '/short-items',
+  getParentRoute: () => MRoute,
+} as any)
+const MShortListRoute = MShortListRouteImport.update({
+  id: '/short-list',
+  path: '/short-list',
+  getParentRoute: () => MRoute,
+} as any)
+const MStaffRoute = MStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
   getParentRoute: () => MRoute,
 } as any)
 const MSubscriptionRoute = MSubscriptionRouteImport.update({
@@ -1511,6 +1566,11 @@ const InvoicesIdEditRoute = InvoicesIdEditRouteImport.update({
   path: '/edit',
   getParentRoute: () => InvoicesIdRoute,
 } as any)
+const MCustomerIdRoute = MCustomerIdRouteImport.update({
+  id: '/customer/$id',
+  path: '/customer/$id',
+  getParentRoute: () => MRoute,
+} as any)
 const MInvoiceSaleIdRoute = MInvoiceSaleIdRouteImport.update({
   id: '/invoice/$saleId',
   path: '/invoice/$saleId',
@@ -1776,6 +1836,7 @@ export interface FileRoutesByFullPath {
   '/products': typeof ProductsRouteWithChildren
   '/purchases': typeof PurchasesRouteWithChildren
   '/quotations': typeof QuotationsRouteWithChildren
+  '/register': typeof RegisterRoute
   '/reorder': typeof ReorderRoute
   '/reports': typeof ReportsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
@@ -1861,17 +1922,25 @@ export interface FileRoutesByFullPath {
   '/m/collect': typeof MCollectRoute
   '/m/credit-adjustment': typeof MCreditAdjustmentRoute
   '/m/customers': typeof MCustomersRoute
+  '/m/dena-paona': typeof MDenaPaonaRoute
   '/m/devices': typeof MDevicesRoute
+  '/m/expenses': typeof MExpensesRoute
   '/m/expired': typeof MExpiredRoute
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
+  '/m/inventory': typeof MInventoryRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
+  '/m/purchase-returns': typeof MPurchaseReturnsRoute
   '/m/purchases': typeof MPurchasesRoute
   '/m/report': typeof MReportRoute
   '/m/sale': typeof MSaleRoute
+  '/m/sale-returns': typeof MSaleReturnsRoute
   '/m/sales': typeof MSalesRoute
+  '/m/settings': typeof MSettingsRoute
   '/m/short-items': typeof MShortItemsRoute
+  '/m/short-list': typeof MShortListRoute
+  '/m/staff': typeof MStaffRoute
   '/m/subscription': typeof MSubscriptionRoute
   '/m/suppliers': typeof MSuppliersRoute
   '/m/sync': typeof MSyncRoute
@@ -1983,6 +2052,7 @@ export interface FileRoutesByFullPath {
   '/inventory/transfers/$id': typeof InventoryTransfersIdRoute
   '/inventory/transfers/new': typeof InventoryTransfersNewRoute
   '/invoices/$id/edit': typeof InvoicesIdEditRoute
+  '/m/customer/$id': typeof MCustomerIdRoute
   '/m/invoice/$saleId': typeof MInvoiceSaleIdRoute
   '/m/purchase/$id': typeof MPurchaseIdRoute
   '/purchases/returns/$id': typeof PurchasesReturnsIdRoute
@@ -2044,6 +2114,7 @@ export interface FileRoutesByTo {
   '/notifications': typeof NotificationsRoute
   '/patients': typeof PatientsRoute
   '/pricing': typeof PricingRoute
+  '/register': typeof RegisterRoute
   '/reorder': typeof ReorderRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -2125,17 +2196,25 @@ export interface FileRoutesByTo {
   '/m/collect': typeof MCollectRoute
   '/m/credit-adjustment': typeof MCreditAdjustmentRoute
   '/m/customers': typeof MCustomersRoute
+  '/m/dena-paona': typeof MDenaPaonaRoute
   '/m/devices': typeof MDevicesRoute
+  '/m/expenses': typeof MExpensesRoute
   '/m/expired': typeof MExpiredRoute
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
+  '/m/inventory': typeof MInventoryRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
+  '/m/purchase-returns': typeof MPurchaseReturnsRoute
   '/m/purchases': typeof MPurchasesRoute
   '/m/report': typeof MReportRoute
   '/m/sale': typeof MSaleRoute
+  '/m/sale-returns': typeof MSaleReturnsRoute
   '/m/sales': typeof MSalesRoute
+  '/m/settings': typeof MSettingsRoute
   '/m/short-items': typeof MShortItemsRoute
+  '/m/short-list': typeof MShortListRoute
+  '/m/staff': typeof MStaffRoute
   '/m/subscription': typeof MSubscriptionRoute
   '/m/suppliers': typeof MSuppliersRoute
   '/m/sync': typeof MSyncRoute
@@ -2247,6 +2326,7 @@ export interface FileRoutesByTo {
   '/inventory/transfers/$id': typeof InventoryTransfersIdRoute
   '/inventory/transfers/new': typeof InventoryTransfersNewRoute
   '/invoices/$id/edit': typeof InvoicesIdEditRoute
+  '/m/customer/$id': typeof MCustomerIdRoute
   '/m/invoice/$saleId': typeof MInvoiceSaleIdRoute
   '/m/purchase/$id': typeof MPurchaseIdRoute
   '/purchases/returns/$id': typeof PurchasesReturnsIdRoute
@@ -2327,6 +2407,7 @@ export interface FileRoutesById {
   '/products': typeof ProductsRouteWithChildren
   '/purchases': typeof PurchasesRouteWithChildren
   '/quotations': typeof QuotationsRouteWithChildren
+  '/register': typeof RegisterRoute
   '/reorder': typeof ReorderRoute
   '/reports': typeof ReportsRouteWithChildren
   '/reset-password': typeof ResetPasswordRoute
@@ -2412,17 +2493,25 @@ export interface FileRoutesById {
   '/m/collect': typeof MCollectRoute
   '/m/credit-adjustment': typeof MCreditAdjustmentRoute
   '/m/customers': typeof MCustomersRoute
+  '/m/dena-paona': typeof MDenaPaonaRoute
   '/m/devices': typeof MDevicesRoute
+  '/m/expenses': typeof MExpensesRoute
   '/m/expired': typeof MExpiredRoute
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
+  '/m/inventory': typeof MInventoryRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
+  '/m/purchase-returns': typeof MPurchaseReturnsRoute
   '/m/purchases': typeof MPurchasesRoute
   '/m/report': typeof MReportRoute
   '/m/sale': typeof MSaleRoute
+  '/m/sale-returns': typeof MSaleReturnsRoute
   '/m/sales': typeof MSalesRoute
+  '/m/settings': typeof MSettingsRoute
   '/m/short-items': typeof MShortItemsRoute
+  '/m/short-list': typeof MShortListRoute
+  '/m/staff': typeof MStaffRoute
   '/m/subscription': typeof MSubscriptionRoute
   '/m/suppliers': typeof MSuppliersRoute
   '/m/sync': typeof MSyncRoute
@@ -2534,6 +2623,7 @@ export interface FileRoutesById {
   '/inventory/transfers/$id': typeof InventoryTransfersIdRoute
   '/inventory/transfers/new': typeof InventoryTransfersNewRoute
   '/invoices/$id/edit': typeof InvoicesIdEditRoute
+  '/m/customer/$id': typeof MCustomerIdRoute
   '/m/invoice/$saleId': typeof MInvoiceSaleIdRoute
   '/m/purchase/$id': typeof MPurchaseIdRoute
   '/purchases/returns/$id': typeof PurchasesReturnsIdRoute
@@ -2614,6 +2704,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/purchases'
     | '/quotations'
+    | '/register'
     | '/reorder'
     | '/reports'
     | '/reset-password'
@@ -2699,17 +2790,25 @@ export interface FileRouteTypes {
     | '/m/collect'
     | '/m/credit-adjustment'
     | '/m/customers'
+    | '/m/dena-paona'
     | '/m/devices'
+    | '/m/expenses'
     | '/m/expired'
     | '/m/generics'
     | '/m/income'
+    | '/m/inventory'
     | '/m/products'
     | '/m/purchase'
+    | '/m/purchase-returns'
     | '/m/purchases'
     | '/m/report'
     | '/m/sale'
+    | '/m/sale-returns'
     | '/m/sales'
+    | '/m/settings'
     | '/m/short-items'
+    | '/m/short-list'
+    | '/m/staff'
     | '/m/subscription'
     | '/m/suppliers'
     | '/m/sync'
@@ -2821,6 +2920,7 @@ export interface FileRouteTypes {
     | '/inventory/transfers/$id'
     | '/inventory/transfers/new'
     | '/invoices/$id/edit'
+    | '/m/customer/$id'
     | '/m/invoice/$saleId'
     | '/m/purchase/$id'
     | '/purchases/returns/$id'
@@ -2882,6 +2982,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/patients'
     | '/pricing'
+    | '/register'
     | '/reorder'
     | '/reset-password'
     | '/settings'
@@ -2963,17 +3064,25 @@ export interface FileRouteTypes {
     | '/m/collect'
     | '/m/credit-adjustment'
     | '/m/customers'
+    | '/m/dena-paona'
     | '/m/devices'
+    | '/m/expenses'
     | '/m/expired'
     | '/m/generics'
     | '/m/income'
+    | '/m/inventory'
     | '/m/products'
     | '/m/purchase'
+    | '/m/purchase-returns'
     | '/m/purchases'
     | '/m/report'
     | '/m/sale'
+    | '/m/sale-returns'
     | '/m/sales'
+    | '/m/settings'
     | '/m/short-items'
+    | '/m/short-list'
+    | '/m/staff'
     | '/m/subscription'
     | '/m/suppliers'
     | '/m/sync'
@@ -3085,6 +3194,7 @@ export interface FileRouteTypes {
     | '/inventory/transfers/$id'
     | '/inventory/transfers/new'
     | '/invoices/$id/edit'
+    | '/m/customer/$id'
     | '/m/invoice/$saleId'
     | '/m/purchase/$id'
     | '/purchases/returns/$id'
@@ -3164,6 +3274,7 @@ export interface FileRouteTypes {
     | '/products'
     | '/purchases'
     | '/quotations'
+    | '/register'
     | '/reorder'
     | '/reports'
     | '/reset-password'
@@ -3249,17 +3360,25 @@ export interface FileRouteTypes {
     | '/m/collect'
     | '/m/credit-adjustment'
     | '/m/customers'
+    | '/m/dena-paona'
     | '/m/devices'
+    | '/m/expenses'
     | '/m/expired'
     | '/m/generics'
     | '/m/income'
+    | '/m/inventory'
     | '/m/products'
     | '/m/purchase'
+    | '/m/purchase-returns'
     | '/m/purchases'
     | '/m/report'
     | '/m/sale'
+    | '/m/sale-returns'
     | '/m/sales'
+    | '/m/settings'
     | '/m/short-items'
+    | '/m/short-list'
+    | '/m/staff'
     | '/m/subscription'
     | '/m/suppliers'
     | '/m/sync'
@@ -3371,6 +3490,7 @@ export interface FileRouteTypes {
     | '/inventory/transfers/$id'
     | '/inventory/transfers/new'
     | '/invoices/$id/edit'
+    | '/m/customer/$id'
     | '/m/invoice/$saleId'
     | '/m/purchase/$id'
     | '/purchases/returns/$id'
@@ -3451,6 +3571,7 @@ export interface RootRouteChildren {
   ProductsRoute: typeof ProductsRouteWithChildren
   PurchasesRoute: typeof PurchasesRouteWithChildren
   QuotationsRoute: typeof QuotationsRouteWithChildren
+  RegisterRoute: typeof RegisterRoute
   ReorderRoute: typeof ReorderRoute
   ReportsRoute: typeof ReportsRouteWithChildren
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -3746,6 +3867,13 @@ declare module '@tanstack/react-router' {
       path: '/quotations'
       fullPath: '/quotations'
       preLoaderRoute: typeof QuotationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reorder': {
@@ -4413,11 +4541,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MCustomersRouteImport
       parentRoute: typeof MRoute
     }
+    '/m/dena-paona': {
+      id: '/m/dena-paona'
+      path: '/dena-paona'
+      fullPath: '/m/dena-paona'
+      preLoaderRoute: typeof MDenaPaonaRouteImport
+      parentRoute: typeof MRoute
+    }
     '/m/devices': {
       id: '/m/devices'
       path: '/devices'
       fullPath: '/m/devices'
       preLoaderRoute: typeof MDevicesRouteImport
+      parentRoute: typeof MRoute
+    }
+    '/m/expenses': {
+      id: '/m/expenses'
+      path: '/expenses'
+      fullPath: '/m/expenses'
+      preLoaderRoute: typeof MExpensesRouteImport
       parentRoute: typeof MRoute
     }
     '/m/expired': {
@@ -4441,6 +4583,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MIncomeRouteImport
       parentRoute: typeof MRoute
     }
+    '/m/inventory': {
+      id: '/m/inventory'
+      path: '/inventory'
+      fullPath: '/m/inventory'
+      preLoaderRoute: typeof MInventoryRouteImport
+      parentRoute: typeof MRoute
+    }
     '/m/products': {
       id: '/m/products'
       path: '/products'
@@ -4453,6 +4602,13 @@ declare module '@tanstack/react-router' {
       path: '/purchase'
       fullPath: '/m/purchase'
       preLoaderRoute: typeof MPurchaseRouteImport
+      parentRoute: typeof MRoute
+    }
+    '/m/purchase-returns': {
+      id: '/m/purchase-returns'
+      path: '/purchase-returns'
+      fullPath: '/m/purchase-returns'
+      preLoaderRoute: typeof MPurchaseReturnsRouteImport
       parentRoute: typeof MRoute
     }
     '/m/purchases': {
@@ -4476,6 +4632,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MSaleRouteImport
       parentRoute: typeof MRoute
     }
+    '/m/sale-returns': {
+      id: '/m/sale-returns'
+      path: '/sale-returns'
+      fullPath: '/m/sale-returns'
+      preLoaderRoute: typeof MSaleReturnsRouteImport
+      parentRoute: typeof MRoute
+    }
     '/m/sales': {
       id: '/m/sales'
       path: '/sales'
@@ -4483,11 +4646,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MSalesRouteImport
       parentRoute: typeof MRoute
     }
+    '/m/settings': {
+      id: '/m/settings'
+      path: '/settings'
+      fullPath: '/m/settings'
+      preLoaderRoute: typeof MSettingsRouteImport
+      parentRoute: typeof MRoute
+    }
     '/m/short-items': {
       id: '/m/short-items'
       path: '/short-items'
       fullPath: '/m/short-items'
       preLoaderRoute: typeof MShortItemsRouteImport
+      parentRoute: typeof MRoute
+    }
+    '/m/short-list': {
+      id: '/m/short-list'
+      path: '/short-list'
+      fullPath: '/m/short-list'
+      preLoaderRoute: typeof MShortListRouteImport
+      parentRoute: typeof MRoute
+    }
+    '/m/staff': {
+      id: '/m/staff'
+      path: '/staff'
+      fullPath: '/m/staff'
+      preLoaderRoute: typeof MStaffRouteImport
       parentRoute: typeof MRoute
     }
     '/m/subscription': {
@@ -5197,6 +5381,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InvoicesIdEditRouteImport
       parentRoute: typeof InvoicesIdRoute
     }
+    '/m/customer/$id': {
+      id: '/m/customer/$id'
+      path: '/customer/$id'
+      fullPath: '/m/customer/$id'
+      preLoaderRoute: typeof MCustomerIdRouteImport
+      parentRoute: typeof MRoute
+    }
     '/m/invoice/$saleId': {
       id: '/m/invoice/$saleId'
       path: '/invoice/$saleId'
@@ -5847,22 +6038,31 @@ interface MRouteChildren {
   MCollectRoute: typeof MCollectRoute
   MCreditAdjustmentRoute: typeof MCreditAdjustmentRoute
   MCustomersRoute: typeof MCustomersRoute
+  MDenaPaonaRoute: typeof MDenaPaonaRoute
   MDevicesRoute: typeof MDevicesRoute
+  MExpensesRoute: typeof MExpensesRoute
   MExpiredRoute: typeof MExpiredRoute
   MGenericsRoute: typeof MGenericsRoute
   MIncomeRoute: typeof MIncomeRoute
+  MInventoryRoute: typeof MInventoryRoute
   MProductsRoute: typeof MProductsRoute
   MPurchaseRoute: typeof MPurchaseRouteWithChildren
+  MPurchaseReturnsRoute: typeof MPurchaseReturnsRoute
   MPurchasesRoute: typeof MPurchasesRoute
   MReportRoute: typeof MReportRoute
   MSaleRoute: typeof MSaleRoute
+  MSaleReturnsRoute: typeof MSaleReturnsRoute
   MSalesRoute: typeof MSalesRoute
+  MSettingsRoute: typeof MSettingsRoute
   MShortItemsRoute: typeof MShortItemsRoute
+  MShortListRoute: typeof MShortListRoute
+  MStaffRoute: typeof MStaffRoute
   MSubscriptionRoute: typeof MSubscriptionRoute
   MSuppliersRoute: typeof MSuppliersRoute
   MSyncRoute: typeof MSyncRoute
   MTransactionsRoute: typeof MTransactionsRoute
   MIndexRoute: typeof MIndexRoute
+  MCustomerIdRoute: typeof MCustomerIdRoute
   MInvoiceSaleIdRoute: typeof MInvoiceSaleIdRoute
 }
 
@@ -5871,22 +6071,31 @@ const MRouteChildren: MRouteChildren = {
   MCollectRoute: MCollectRoute,
   MCreditAdjustmentRoute: MCreditAdjustmentRoute,
   MCustomersRoute: MCustomersRoute,
+  MDenaPaonaRoute: MDenaPaonaRoute,
   MDevicesRoute: MDevicesRoute,
+  MExpensesRoute: MExpensesRoute,
   MExpiredRoute: MExpiredRoute,
   MGenericsRoute: MGenericsRoute,
   MIncomeRoute: MIncomeRoute,
+  MInventoryRoute: MInventoryRoute,
   MProductsRoute: MProductsRoute,
   MPurchaseRoute: MPurchaseRouteWithChildren,
+  MPurchaseReturnsRoute: MPurchaseReturnsRoute,
   MPurchasesRoute: MPurchasesRoute,
   MReportRoute: MReportRoute,
   MSaleRoute: MSaleRoute,
+  MSaleReturnsRoute: MSaleReturnsRoute,
   MSalesRoute: MSalesRoute,
+  MSettingsRoute: MSettingsRoute,
   MShortItemsRoute: MShortItemsRoute,
+  MShortListRoute: MShortListRoute,
+  MStaffRoute: MStaffRoute,
   MSubscriptionRoute: MSubscriptionRoute,
   MSuppliersRoute: MSuppliersRoute,
   MSyncRoute: MSyncRoute,
   MTransactionsRoute: MTransactionsRoute,
   MIndexRoute: MIndexRoute,
+  MCustomerIdRoute: MCustomerIdRoute,
   MInvoiceSaleIdRoute: MInvoiceSaleIdRoute,
 }
 
@@ -6255,6 +6464,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProductsRoute: ProductsRouteWithChildren,
   PurchasesRoute: PurchasesRouteWithChildren,
   QuotationsRoute: QuotationsRouteWithChildren,
+  RegisterRoute: RegisterRoute,
   ReorderRoute: ReorderRoute,
   ReportsRoute: ReportsRouteWithChildren,
   ResetPasswordRoute: ResetPasswordRoute,

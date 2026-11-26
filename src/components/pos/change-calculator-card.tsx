@@ -82,17 +82,17 @@ export function ChangeCalculatorCard({
 
       {/* Row 3: ফেরত দিতে হবে (Change to return) OR বাকি */}
       {received >= total ? (
-        <div className="rounded-xl bg-emerald-500/15 border-2 border-emerald-500/30 p-3 flex items-center justify-between text-emerald-900 dark:text-emerald-200 shadow-sm animate-in fade-in-50">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3.5 text-emerald-950 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-200 animate-in fade-in-50">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider block text-emerald-800 dark:text-emerald-300">
+            <span className="block text-xs font-semibold text-emerald-800 dark:text-emerald-300">
               ফেরত দিতে হবে
             </span>
-            <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+            <span className="text-[11px] font-medium text-emerald-700/80 dark:text-emerald-400/80">
               এটা কাস্টমারকে ফেরত দিন
             </span>
           </div>
           <div className="text-right">
-            <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+            <span className="text-2xl font-bold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-300">
               {currency} {change.toLocaleString("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
             </span>
           </div>

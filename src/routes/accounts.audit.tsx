@@ -41,16 +41,16 @@ function AuditPage() {
   });
 
   const toneFor = (action: string) => {
-    if (action.includes("create") || action.includes("deposit")) return "bg-success/15 text-success";
-    if (action.includes("update")) return "bg-warning/15 text-warning";
-    if (action.includes("delete") || action.includes("cancel")) return "bg-destructive/15 text-destructive";
-    return "bg-primary/15 text-primary";
+    if (action.includes("create") || action.includes("deposit")) return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300";
+    if (action.includes("update")) return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300";
+    if (action.includes("delete") || action.includes("cancel")) return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300";
+    return "border-slate-200 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300";
   };
 
   return (
     <>
       <PageHeader title={t("acct.audit.title")} description={`${t("acct.audit.desc")} (${from} → ${to})`} />
-      <Card className="shadow-card">
+      <Card>
         <CardHeader><CardTitle className="text-base">{t("acct.audit.recentActivity")}</CardTitle></CardHeader>
         <CardContent className="p-0">
           {isLoading ? (

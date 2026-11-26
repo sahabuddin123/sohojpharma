@@ -423,8 +423,8 @@ function OpeningStockWizard() {
                         <TableCell className="text-right">{p.total_qty}</TableCell>
                         <TableCell className="text-right">{p.purchase_price ? `৳${Number(p.purchase_price).toFixed(2)}` : "-"}</TableCell>
                         <TableCell>
-                          {p.has_opening ? <Badge variant="secondary">{t("pinv.initialized")}</Badge>
-                            : !p.has_batch ? <Badge className="bg-warning/15 text-warning">{t("pinv.noBatchBadge")}</Badge>
+                          {p.has_opening ? <Badge variant="success">{t("pinv.initialized")}</Badge>
+                            : !p.has_batch ? <Badge variant="warning">{t("pinv.noBatchBadge")}</Badge>
                             : <Badge variant="outline">{t("pinv.ready")}</Badge>}
                         </TableCell>
                       </TableRow>

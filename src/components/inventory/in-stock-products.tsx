@@ -125,37 +125,37 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
 
   return (
     <>
-      <Card className="mt-6 shadow-card">
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="mt-6">
+        <CardHeader className="flex flex-col gap-3 border-b border-slate-100 pb-4 dark:border-slate-800/70 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <CardTitle className="text-base">In-Stock Products ({totalCount.toLocaleString()})</CardTitle>
               {/* Filter Tabs: [সব] [কম (Low)] [মেয়াদ (Expiring)] */}
-              <div className="inline-flex rounded-lg bg-muted/80 p-0.5 border border-border text-xs">
+              <div className="inline-flex rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 text-xs dark:border-slate-800 dark:bg-slate-900/70">
                 <button
                   type="button"
                   onClick={() => setFilterTab("all")}
-                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "all" ? "bg-emerald-700 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`rounded-lg px-3 py-1 font-medium transition-all ${filterTab === "all" ? "bg-white text-slate-900 shadow-xs dark:bg-slate-800 dark:text-white" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
                 >
                   সব ({totalCount})
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilterTab("low")}
-                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "low" ? "bg-amber-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`rounded-lg px-3 py-1 font-medium transition-all ${filterTab === "low" ? "bg-amber-50 text-amber-800 ring-1 ring-amber-200/80 dark:bg-amber-950/60 dark:text-amber-300" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
                 >
                   কম (Low Stock)
                 </button>
                 <button
                   type="button"
                   onClick={() => setFilterTab("expiring")}
-                  className={`px-2.5 py-1 rounded-md font-bold transition-all ${filterTab === "expiring" ? "bg-rose-600 text-white shadow-2xs" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`rounded-lg px-3 py-1 font-medium transition-all ${filterTab === "expiring" ? "bg-rose-50 text-rose-700 ring-1 ring-rose-200/80 dark:bg-rose-950/60 dark:text-rose-300" : "text-slate-600 hover:text-slate-900 dark:text-slate-400"}`}
                 >
                   মেয়াদ (Expiring)
                 </button>
               </div>
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
               Page {currentPage.toLocaleString()} of {totalPages.toLocaleString()} · Showing only this page
             </p>
           </div>
@@ -164,7 +164,7 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
               variant="outline"
               size="sm"
               onClick={() => setCartonOpen(true)}
-              className="gap-1.5 text-xs font-semibold border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 shrink-0"
+              className="gap-1.5 text-xs font-medium border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800/70 dark:text-emerald-300 dark:hover:bg-emerald-950/50 shrink-0"
             >
               <Camera className="h-3.5 w-3.5" /> কার্টন স্ক্যান
             </Button>
@@ -248,17 +248,17 @@ export function InStockProductsSection({ tenantId }: { tenantId: string }) {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button size="sm" onClick={() => setQuickFor(r)}>
+                          <div className="flex justify-end gap-1.5">
+                            <Button size="sm" className="h-8 px-2.5 text-xs" onClick={() => setQuickFor(r)}>
                               <Zap className="mr-1 h-3.5 w-3.5" /> Quick Edit
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setBatchFor(r)}>
+                            <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => setBatchFor(r)}>
                               <Package className="mr-1 h-3.5 w-3.5" /> Batch
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => setAdjustFor(r)}>
+                            <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => setAdjustFor(r)}>
                               <SlidersHorizontal className="mr-1 h-3.5 w-3.5" /> Adjust
                             </Button>
-                            <Button size="sm" variant="outline" onClick={() => openEdit(r)}>
+                            <Button size="sm" variant="outline" className="h-8 px-2.5 text-xs" onClick={() => openEdit(r)}>
                               <Pencil className="mr-1 h-3.5 w-3.5" /> Price
                             </Button>
                           </div>
