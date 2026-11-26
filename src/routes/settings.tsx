@@ -182,8 +182,8 @@ export const Route = createFileRoute("/settings")({
 });
 
 type TabKey =
-  | "general" | "profile" | "branding" | "invoice" | "pos" | "inventory" | "tax"
-  | "payment" | "printer" | "users" | "notifications" | "backup"
+  | "general" | "profile" | "branding" | "invoice" | "inventory" | "tax"
+  | "payment" | "printer" | "notifications" | "backup"
   | "security" | "subscription" | "localization" | "medicine" | "report"
   | "rules" | "pos-advanced" | "number-series" | "data-management"
   | "preferences" | "integrations";
@@ -196,7 +196,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Store; group: string }[] 
   { key: "rules",         label: "Business Rules",        icon: Gavel,          group: "Business" },
   { key: "preferences",   label: "System Preferences",    icon: Sliders,        group: "Business" },
   { key: "invoice",       label: "Invoice",               icon: Receipt,        group: "Operations" },
-  { key: "pos",           label: "POS (basic)",           icon: ShoppingCart,   group: "Operations" },
   { key: "pos-advanced",  label: "POS Settings",          icon: Scan,           group: "Operations" },
   { key: "inventory",     label: "Inventory",             icon: Boxes,          group: "Operations" },
   { key: "medicine",      label: "Medicine",              icon: Pill,           group: "Operations" },
@@ -206,7 +205,6 @@ const TABS: { key: TabKey; label: string; icon: typeof Store; group: string }[] 
   { key: "payment",       label: "Payments",              icon: CreditCard,     group: "Finance" },
   { key: "printer",       label: "Printers",              icon: Printer,        group: "Devices" },
   { key: "integrations",  label: "Integrations",          icon: Plug,           group: "Devices" },
-  { key: "users",         label: "Users & Permissions",   icon: Users,          group: "Account" },
   { key: "notifications", label: "Notifications",         icon: Bell,           group: "Account" },
   { key: "backup",        label: "Backup & Restore",      icon: DatabaseBackup, group: "Account" },
   { key: "data-management", label: "Data Management",     icon: HardDrive,      group: "Account" },
@@ -338,18 +336,16 @@ function SettingsPage() {
         {/* Right panel */}
         <fieldset disabled={access.readOnly} className="min-w-0 contents disabled:[&_*]:cursor-not-allowed">
           <section className="min-w-0">
-            {active === "general"       && <GeneralPanel />}
+            {active === "general"       && <GeneralPanel onSelect={(k) => setActive(k)} />}
             {active === "profile"       && <ProfilePanel />}
             {active === "branding"      && <BrandingPanel />}
             {active === "invoice"       && <InvoicePanel />}
-            {active === "pos"           && <POSPanel />}
             {active === "inventory"     && <InventoryPanel />}
             {active === "medicine"      && <MedicinePanel />}
             {active === "report"        && <ReportPanel />}
             {active === "tax"           && <TaxPanel />}
             {active === "payment"       && <PaymentPanel />}
             {active === "printer"       && <PrinterPanel />}
-            {active === "users"         && <UsersPanel />}
             {active === "notifications" && <NotificationsPanel />}
             {active === "backup"        && <BackupPanel />}
             {active === "security"      && <SecurityPanel />}
@@ -377,12 +373,7 @@ function Panel({ title, description, children, footer }: { title: string; descri
         {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-5">{children}</CardContent>
-      {footer ?? (
-        <div className="flex justify-end gap-2 border-t border-border p-4">
-          <Button variant="outline">Cancel</Button>
-          <Button>Save changes</Button>
-        </div>
-      )}
+      {footer ?? null}
     </Card>
   );
 }
@@ -4362,37 +4353,38 @@ function IntegrationsPanel() {
 
 
 /* ---------- General (overview) ---------- */
-function GeneralPanel() {
-  const quick: { key: string; label: string; description: string; icon: typeof Store }[] = [
+function GeneralPanel({ onSelect }: { onSelect: (k: TabKey) => void }) {
+  const quick: { key: TabKey; label: string; description: string; icon: typeof Store }[] = [
     { key: "profile",       label: "Pharmacy Profile",   description: "Name, address, license, contact info.", icon: Store },
-    { key: "branding",      label: "Branding",           description: "Logo, colors, receipt theme.",          icon: Palette },
+    { key: "branding",      label: "Branding",           description: "Logo, colors, v1/v2 desktop UI.",       icon: Palette },
     { key: "localization",  label: "Language & Locale",  description: "English / বাংলা, currency, timezone.",  icon: Languages },
     { key: "preferences",   label: "System Preferences", description: "Defaults, session, theme, widgets.",    icon: Sliders },
-    { key: "users",         label: "Users & Permissions",description: "Manage staff and access roles.",        icon: Users },
+    { key: "pos-advanced",  label: "POS Settings",       description: "Receipts, shortcuts, sale behavior.",   icon: Scan },
     { key: "security",      label: "Security",           description: "Password policy, 2FA, audit log.",      icon: Shield },
   ];
 
   return (
-    <Panel title="General" description="Overview of your pharmacy setup. Jump into any section below to configure details.">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-2">
+    <Panel title="General" description="Overview of your pharmacy setup. Click any card below to configure details.">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {quick.map(q => {
           const Icon = q.icon;
           return (
-            <div key={q.key} className="flex items-start gap-3 rounded-lg border border-border p-4">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+            <button
+              key={q.key}
+              type="button"
+              onClick={() => onSelect(q.key)}
+              className="flex items-start gap-3 rounded-xl border border-border p-4 text-left transition-all hover:border-primary/60 hover:bg-primary/5"
+            >
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
                 <Icon className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">{q.label}</p>
-                <p className="text-xs text-muted-foreground">{q.description}</p>
+                <p className="text-sm font-semibold text-foreground">{q.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{q.description}</p>
               </div>
-            </div>
+            </button>
           );
         })}
-      </div>
-      <Separator />
-      <div className="rounded-lg border border-dashed border-border p-4 text-xs text-muted-foreground">
-        Tip: use the left sidebar to access every settings module — Business, Operations, Finance, Devices and Account.
       </div>
     </Panel>
   );
