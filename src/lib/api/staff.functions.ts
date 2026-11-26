@@ -111,7 +111,7 @@ export const upsertStaff = createServerFn({ method: "POST" })
           .select("role")
           .eq("user_id", context.userId)
           .eq("tenant_id", staffPayload.tenant_id)
-          .in("role", ["owner", "manager", "admin"]),
+          .in("role", ["owner", "manager"]),
         context.supabase.rpc("is_app_admin", { _user_id: context.userId }),
       ]);
 
