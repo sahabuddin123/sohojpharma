@@ -16,6 +16,10 @@ import {
   EyeOff,
   ShieldCheck,
   Sparkles,
+  IdCard,
+  Store,
+  Upload,
+  X,
 } from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,6 +31,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useThemeInit } from "@/hooks/use-theme-init";
 import { supabase } from "@/integrations/supabase/client";
+import { validateAndResizeDocumentImage, type ProcessedAvatar } from "@/lib/image-security";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { useServerFn } from "@tanstack/react-start";
 import { checkLoginRateLimitFn, recordLoginAttemptFn } from "@/lib/api/auth-security.server";
@@ -73,6 +78,9 @@ function AuthPage() {
   const [activeTab, setActiveTab] = useState<"signin" | "signup" | "forgot">("signin");
   const [busy, setBusy] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [idCardDoc, setIdCardDoc] = useState<ProcessedAvatar | null>(null);
+  const [shopPhotoDoc, setShopPhotoDoc] = useState<ProcessedAvatar | null>(null);
+  const [processingDoc, setProcessingDoc] = useState<"id" | "shop" | null>(null);
   const [cooldown, setCooldown] = useState(0);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
@@ -245,6 +253,25 @@ function AuthPage() {
     }
   };
 
+  const handleDocPick = async (
+    kind: "id" | "shop",
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setProcessingDoc(kind);
+    try {
+      const processed = await validateAndResizeDocumentImage(file, 1200);
+      if (kind === "id") setIdCardDoc(processed);
+      else setShopPhotoDoc(processed);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "ছবি যাচাই করা যায়নি");
+    } finally {
+      setProcessingDoc(null);
+    }
+  };
+
   const handleSignUp = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -263,6 +290,12 @@ function AuthPage() {
     }
     if (password !== confirm) {
       return toast.error(t("toast.passwordsMismatch"));
+    }
+    if (!idCardDoc) {
+      return toast.error("মালিকের এনআইডি / আইডি কার্ডের ছবি আপলোড করুন");
+    }
+    if (!shopPhotoDoc) {
+      return toast.error("দোকানের ছবি আপলোড করুন");
     }
     setBusy(true);
     if (typeof window !== "undefined") {
@@ -295,7 +328,7 @@ function AuthPage() {
         });
         return;
       }
-      const { error: regErr } = await supabase.rpc("register_pharmacy_store", {
+      const { data: newTenantId, error: regErr } = await supabase.rpc("register_pharmacy_store", {
         _pharmacy_name: pharmacyName,
         _owner_name: ownerName,
         _mobile: phone,
@@ -316,6 +349,46 @@ function AuthPage() {
         if (/duplicate_pharmacy_name/.test(m)) return toast.error("A pharmacy with this name already exists.");
         return toast.error(m);
       }
+
+      // Upload Owner ID Card & Shop Image to storage while signup session is active
+      if (newTenantId) {
+        const ts = Date.now();
+        const uploadAndSign = async (suffix: string, blob: Blob) => {
+          const path = `${newTenantId}/${suffix}-${ts}.jpg`;
+          const { error: upErr } = await supabase.storage
+            .from("branding")
+            .upload(path, blob, { upsert: false, contentType: "image/jpeg" });
+          if (upErr) return null;
+          const { data: signed } = await supabase.storage
+            .from("branding")
+            .createSignedUrl(path, 60 * 60 * 24 * 365);
+          return signed?.signedUrl ?? null;
+        };
+
+        const [idUrl, shopUrl] = await Promise.all([
+          uploadAndSign("kyc-owner-id", idCardDoc.blob),
+          uploadAndSign("kyc-shop-photo", shopPhotoDoc.blob),
+        ]);
+
+        if (idUrl || shopUrl) {
+          await supabase.auth.updateUser({
+            data: {
+              ...(idUrl ? { owner_id_card_url: idUrl } : {}),
+              ...(shopUrl ? { shop_image_url: shopUrl } : {}),
+            },
+          }).catch(() => {});
+          if (shopUrl) {
+            await supabase
+              .from("tenants")
+              .update({ logo_url: shopUrl })
+              .eq("id", newTenantId as string)
+              .catch(() => {});
+          }
+        }
+      }
+
+      setIdCardDoc(null);
+      setShopPhotoDoc(null);
 
       // Explicitly sign out: store is pending approval so user must NOT enter dashboard yet
       await supabase.auth.signOut();
@@ -773,6 +846,83 @@ function AuthPage() {
                     <div className="space-y-1">
                       <Label htmlFor="trade_license" className="text-xs font-semibold">ট্রেড লাইসেন্স (ঐচ্ছিক)</Label>
                       <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" className="h-11 rounded-xl bg-slate-50/70" />
+                    </div>
+
+                    {/* Owner ID Card & Shop Image */}
+                    <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">মালিকের আইডি কার্ড *</Label>
+                        {idCardDoc ? (
+                          <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
+                            <img src={idCardDoc.dataUrl} alt="Owner ID" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setIdCardDoc(null)}
+                              aria-label="আইডি কার্ড ছবি সরান"
+                              className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/65 text-white hover:bg-black"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-2 text-center transition hover:border-[#0d5c46] hover:bg-emerald-50/40">
+                            {processingDoc === "id" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-[#0d5c46]" />
+                            ) : (
+                              <>
+                                <IdCard className="h-5 w-5 text-[#0d5c46]" />
+                                <span className="text-[11px] font-semibold text-slate-600">আইডি কার্ডের ছবি</span>
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+                                  <Upload className="h-2.5 w-2.5" /> আপলোড
+                                </span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(e) => handleDocPick("id", e)}
+                            />
+                          </label>
+                        )}
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-xs font-semibold">দোকানের ছবি *</Label>
+                        {shopPhotoDoc ? (
+                          <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
+                            <img src={shopPhotoDoc.dataUrl} alt="Shop" className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setShopPhotoDoc(null)}
+                              aria-label="দোকানের ছবি সরান"
+                              className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/65 text-white hover:bg-black"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="flex h-24 cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-2 text-center transition hover:border-[#0d5c46] hover:bg-emerald-50/40">
+                            {processingDoc === "shop" ? (
+                              <Loader2 className="h-5 w-5 animate-spin text-[#0d5c46]" />
+                            ) : (
+                              <>
+                                <Store className="h-5 w-5 text-[#0d5c46]" />
+                                <span className="text-[11px] font-semibold text-slate-600">দোকানের ছবি</span>
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+                                  <Upload className="h-2.5 w-2.5" /> আপলোড
+                                </span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(e) => handleDocPick("shop", e)}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
                     <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
                       <div className="space-y-1">

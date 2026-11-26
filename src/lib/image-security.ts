@@ -162,3 +162,95 @@ export async function validateAndResizeAvatar(file: File): Promise<ProcessedAvat
     URL.revokeObjectURL(objectUrl);
   }
 }
+
+/**
+ * Validates and safely re-encodes a document/photo (e.g. Owner ID card, Shop photo)
+ * preserving aspect ratio up to `maxDim` pixels on the longest edge.
+ */
+export async function validateAndResizeDocumentImage(
+  file: File,
+  maxDim = 1200,
+): Promise<ProcessedAvatar> {
+  if (!file || file.size === 0) {
+    throw new Error("খালি ফাইল আপলোড করা যাবে না।");
+  }
+  if (file.size > MAX_RAW_BYTES) {
+    throw new Error("ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইটের মধ্যে হতে হবে।");
+  }
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (!ALLOWED_MIME.has(file.type) || (ext && !ALLOWED_EXT.has(ext))) {
+    throw new Error("শুধুমাত্র JPG, PNG অথবা WebP ছবি আপলোড করা যাবে।");
+  }
+
+  const headerBuf = await file.slice(0, 16).arrayBuffer();
+  const format = detectImageFormatByMagicBytes(new Uint8Array(headerBuf));
+  if (!format) {
+    throw new Error("নিরাপত্তা যাচাই ব্যর্থ: ফাইলটি বৈধ ছবি নয়।");
+  }
+
+  const headChunk = await file.slice(0, Math.min(file.size, 65_536)).arrayBuffer();
+  if (containsSuspiciousPayload(headChunk)) {
+    throw new Error("নিরাপত্তা সতর্কতা: ছবিতে সন্দেহজনক কোড পাওয়া গেছে।");
+  }
+  if (file.size > 65_536) {
+    const tailChunk = await file.slice(Math.max(0, file.size - 32_768)).arrayBuffer();
+    if (containsSuspiciousPayload(tailChunk)) {
+      throw new Error("নিরাপত্তা সতর্কতা: ছবিতে সন্দেহজনক কোড পাওয়া গেছে।");
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("ছবিটি ডিকোড করা যায়নি।"));
+      el.src = objectUrl;
+    });
+
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h || w > MAX_DIMENSION || h > MAX_DIMENSION) {
+      throw new Error("ছবির রেজোলিউশন গ্রহণযোগ্য সীমার বাইরে।");
+    }
+
+    const scale = Math.min(1, maxDim / Math.max(w, h));
+    const outW = Math.max(1, Math.round(w * scale));
+    const outH = Math.max(1, Math.round(h * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("ব্রাউজার ক্যানভাস তৈরি করতে পারেনি।");
+    }
+
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, outW, outH);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, outW, outH);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("ছবি প্রসেস করা যায়নি।"))),
+        "image/jpeg",
+        0.82,
+      );
+    });
+    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+
+    return {
+      blob,
+      dataUrl,
+      width: outW,
+      height: outH,
+      originalBytes: file.size,
+      finalBytes: blob.size,
+    };
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
