@@ -1,7 +1,22 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { RouteErrorPanel } from "@/components/route-error";
-import { Pill, Loader2, ShieldAlert, Clock, ArrowLeft, KeyRound, Mail, CheckCircle2, PhoneCall } from "lucide-react";
+import {
+  Pill,
+  Loader2,
+  ShieldAlert,
+  Clock,
+  ArrowLeft,
+  KeyRound,
+  Mail,
+  CheckCircle2,
+  PhoneCall,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  Sparkles,
+} from "lucide-react";
 import { useState, useEffect, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -57,6 +72,7 @@ function AuthPage() {
 
   const [activeTab, setActiveTab] = useState<"signin" | "signup" | "forgot">("signin");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [cooldown, setCooldown] = useState(0);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
@@ -357,39 +373,88 @@ function AuthPage() {
   };
 
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden bg-brand-gradient p-12 text-white lg:flex lg:flex-col lg:justify-between">
-        <Link to="/" className="flex items-center gap-2">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 backdrop-blur">
-            <Pill className="h-5 w-5" />
+    <div className="grid min-h-screen bg-[#f4f7f5] dark:bg-slate-950 lg:grid-cols-2">
+      {/* Desktop Premium Brand Showcase */}
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-[#052e23] via-[#094735] to-[#0d624a] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-emerald-400/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-24 h-80 w-80 rounded-full bg-teal-300/10 blur-3xl" />
+
+        <Link to="/" className="relative z-10 flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur-md shadow-lg">
+            <Pill className="h-5 w-5 text-white" />
           </div>
-          <span className="text-lg font-bold">{t("app.name")}</span>
+          <div>
+            <span className="text-xl font-extrabold tracking-tight">{t("app.name")}</span>
+            <p className="text-[11px] font-medium text-emerald-100/80">Pharmacy ERP & POS</p>
+          </div>
         </Link>
-        <div>
-          <h2 className="text-3xl font-bold leading-tight">{t("auth.tagline")}</h2>
-          <p className="mt-4 max-w-md text-white/85">{t("auth.subline")}</p>
+
+        <div className="relative z-10 space-y-6">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-emerald-100 ring-1 ring-white/20 backdrop-blur-md">
+            <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
+            স্মার্ট ফার্মেসি ম্যানেজমেন্ট প্ল্যাটফর্ম
+          </div>
+          <h2 className="text-4xl font-extrabold leading-tight tracking-tight">{t("auth.tagline")}</h2>
+          <p className="max-w-md text-sm leading-relaxed text-emerald-100/85">{t("auth.subline")}</p>
+
+          <div className="grid max-w-md grid-cols-3 gap-3 pt-2">
+            {[
+              { title: "দ্রুত POS", sub: "বারকোড ও বিলিং" },
+              { title: "অফলাইন PWA", sub: "নেট ছাড়াও বিক্রি" },
+              { title: "সিকিউর ক্লাউড", sub: "অটো ব্যাকআপ" },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-2xl bg-white/10 p-3 ring-1 ring-white/15 backdrop-blur-md"
+              >
+                <p className="text-xs font-bold text-white">{item.title}</p>
+                <p className="mt-0.5 text-[10px] text-emerald-100/75">{item.sub}</p>
+              </div>
+            ))}
+          </div>
         </div>
-        <p className="text-xs text-white/70">© 2026 SohojPharma</p>
+
+        <p className="relative z-10 text-xs text-emerald-100/65">© 2026 SohojPharma • All rights reserved</p>
       </div>
 
-      <div className="flex min-h-screen flex-col bg-background lg:min-h-0 lg:items-center lg:justify-center lg:p-6">
-        {/* App-style mobile hero */}
-        <div className="relative bg-brand-gradient px-6 pb-14 text-primary-foreground lg:hidden">
+      {/* Right / Mobile Auth Column */}
+      <div className="flex min-h-screen flex-col bg-[#f4f7f5] dark:bg-slate-950 lg:min-h-0 lg:items-center lg:justify-center lg:p-8">
+        {/* Premium Mobile Hero */}
+        <div className="relative overflow-hidden bg-gradient-to-br from-[#052e23] via-[#094735] to-[#0d624a] px-6 pb-16 text-white lg:hidden">
+          <div className="pointer-events-none absolute -right-14 -top-14 h-48 w-48 rounded-full bg-emerald-400/20 blur-2xl" />
+          <div className="pointer-events-none absolute -left-10 bottom-0 h-32 w-32 rounded-full bg-teal-300/15 blur-2xl" />
           <div className="h-[env(safe-area-inset-top)]" />
-          <div className="flex items-center justify-between pt-4">
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/15 backdrop-blur">
-              <Pill className="h-6 w-6" />
+
+          <div className="relative z-10 flex items-center justify-between pt-4">
+            <Link to="/" className="flex items-center gap-2.5">
+              <div className="grid h-11 w-11 place-items-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur-md shadow-sm">
+                <Pill className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-lg font-extrabold tracking-tight leading-none">{t("app.name")}</h1>
+                <span className="text-[10px] font-medium text-emerald-100/80">স্মার্ট ফার্মেসি পোর্টাল</span>
+              </div>
+            </Link>
+            <div className="rounded-xl bg-white/15 ring-1 ring-white/20 backdrop-blur-md">
+              <LanguageSwitcher />
             </div>
-            <LanguageSwitcher />
           </div>
-          <h1 className="mt-6 text-2xl font-extrabold leading-tight">{t("app.name")}</h1>
-          <p className="mt-1 text-sm text-primary-foreground/85">{t("auth.subline")}</p>
+
+          <p className="relative z-10 mt-4 text-xs leading-relaxed text-emerald-100/90">
+            {t("auth.subline")}
+          </p>
         </div>
 
-        <Card className="-mt-8 flex-1 rounded-t-3xl border-0 shadow-[var(--shadow-elevated)] lg:mt-0 lg:w-full lg:max-w-md lg:flex-none lg:rounded-xl lg:border lg:border-border/60">
+        <Card className="relative z-20 -mt-10 flex-1 rounded-t-[2rem] border-0 bg-white dark:bg-slate-900 shadow-[0_-8px_30px_rgba(9,71,53,0.12)] lg:mt-0 lg:w-full lg:max-w-[440px] lg:flex-none lg:rounded-3xl lg:border lg:border-slate-200/80 lg:shadow-[0_24px_60px_-15px_rgba(9,71,53,0.16)]">
           <CardContent className="px-5 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-6 lg:p-8">
-            <div className="mb-4 hidden items-center justify-between lg:flex">
-              <div className="ml-auto"><LanguageSwitcher /></div>
+            <div className="mb-5 hidden items-center justify-between lg:flex">
+              <div>
+                <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                  স্বাগতম!
+                </h2>
+                <p className="text-xs text-slate-500">আপনার ফার্মেসি অ্যাকাউন্টে প্রবেশ করুন</p>
+              </div>
+              <LanguageSwitcher />
             </div>
 
             {/* Post-Registration Success Card */}
@@ -557,31 +622,48 @@ function AuthPage() {
                 value={activeTab}
                 onValueChange={(val) => setActiveTab(val as "signin" | "signup")}
               >
-                <TabsList className="grid h-12 w-full grid-cols-2 rounded-full bg-muted p-1">
-                  <TabsTrigger value="signin" className="rounded-full text-sm font-semibold">{t("auth.signIn")}</TabsTrigger>
-                  <TabsTrigger value="signup" className="rounded-full text-sm font-semibold">{t("auth.signUp")}</TabsTrigger>
+                <TabsList className="phone-grid-keep grid h-12 w-full grid-cols-2 rounded-2xl bg-slate-100 p-1.5 dark:bg-slate-800">
+                  <TabsTrigger
+                    value="signin"
+                    className="rounded-xl text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-[#0d5c46] data-[state=active]:shadow-sm"
+                  >
+                    {t("auth.signIn")}
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="signup"
+                    className="rounded-xl text-xs font-bold data-[state=active]:bg-white data-[state=active]:text-[#0d5c46] data-[state=active]:shadow-sm"
+                  >
+                    {t("auth.signUp")}
+                  </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="signin" className="mt-6">
+                <TabsContent value="signin" className="mt-5">
                   <form className="space-y-4" onSubmit={handleSignIn}>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">{t("auth.email")}</Label>
-                      <Input
-                        id="email"
-                        name="email"
-                        type="email"
-                        required
-                        placeholder="you@pharmacy.com"
-                        className="h-12 rounded-xl text-base"
-                      />
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        {t("auth.email")}
+                      </Label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="email"
+                          name="email"
+                          type="email"
+                          required
+                          placeholder="you@pharmacy.com"
+                          className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
+                        />
+                      </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="password">{t("auth.password")}</Label>
+                        <Label htmlFor="password" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          {t("auth.password")}
+                        </Label>
                         <div className="flex items-center gap-2">
                           {remainingAttempts !== null && remainingAttempts < 5 && cooldown === 0 && (
-                            <span className="text-xs text-amber-600 font-medium">
+                            <span className="text-[11px] font-semibold text-amber-600">
                               অবশিষ্ট: {remainingAttempts}
                             </span>
                           )}
@@ -591,20 +673,31 @@ function AuthPage() {
                               setForgotSuccess(false);
                               setActiveTab("forgot");
                             }}
-                            className="text-xs font-semibold text-primary hover:underline hover:text-primary/90"
+                            className="text-xs font-bold text-[#0d5c46] hover:underline"
                           >
                             {t("auth.forgot")}
                           </button>
                         </div>
                       </div>
-                      <Input
-                        id="password"
-                        name="password"
-                        type="password"
-                        required
-                        placeholder="••••••••"
-                        className="h-12 rounded-xl text-base"
-                      />
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="password"
+                          name="password"
+                          type={showPassword ? "text" : "password"}
+                          required
+                          placeholder="••••••••"
+                          className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-10 pr-10 text-sm transition focus:bg-white focus:border-[#0d5c46] focus:ring-2 focus:ring-[#0d5c46]/15"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          aria-label={showPassword ? "পাসওয়ার্ড লুকান" : "পাসওয়ার্ড দেখুন"}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 hover:bg-slate-200/60 hover:text-slate-700"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
 
                     {/* Manual Security CAPTCHA Challenge */}
@@ -624,7 +717,7 @@ function AuthPage() {
 
                     <Button
                       type="submit"
-                      className="h-12 w-full rounded-xl text-base font-semibold active:scale-[0.99]"
+                      className="h-12 w-full rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] text-sm font-bold text-white shadow-[0_10px_24px_-6px_rgba(13,92,70,0.45)] transition hover:brightness-105 active:scale-[0.99]"
                       disabled={busy || cooldown > 0}
                     >
                       {busy ? (
@@ -638,61 +731,75 @@ function AuthPage() {
                   </form>
                 </TabsContent>
 
-                <TabsContent value="signup" className="mt-6">
-                  <form className="space-y-4" onSubmit={handleSignUp}>
-                    <div className="space-y-2">
-                      <Label htmlFor="full_name">{t("auth.fullName")}</Label>
-                      <Input id="full_name" name="full_name" required placeholder="Dr. Rahim Khan" />
+                <TabsContent value="signup" className="mt-5">
+                  <form className="space-y-3" onSubmit={handleSignUp}>
+                    <div className="space-y-1">
+                      <Label htmlFor="full_name" className="text-xs font-semibold">{t("auth.fullName")}</Label>
+                      <Input id="full_name" name="full_name" required placeholder="Dr. Rahim Khan" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone number</Label>
-                      <Input
-                        id="phone"
-                        name="phone"
-                        type="tel"
-                        required
-                        inputMode="tel"
-                        autoComplete="tel"
-                        pattern="^(?:\+?880|0)1[3-9]\d{8}$"
-                        placeholder="017XXXXXXXX"
-                        title="Bangladesh mobile, e.g. 017XXXXXXXX"
-                      />
+                    <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="phone" className="text-xs font-semibold">মোবাইল নম্বর</Label>
+                        <Input
+                          id="phone"
+                          name="phone"
+                          type="tel"
+                          required
+                          inputMode="tel"
+                          autoComplete="tel"
+                          pattern="^(?:\+?880|0)1[3-9]\d{8}$"
+                          placeholder="017XXXXXXXX"
+                          title="Bangladesh mobile, e.g. 017XXXXXXXX"
+                          className="h-11 rounded-xl bg-slate-50/70"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="district" className="text-xs font-semibold">জেলা</Label>
+                        <Input id="district" name="district" placeholder="Dhaka" className="h-11 rounded-xl bg-slate-50/70" />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="pharmacy_name">{t("auth.pharmacyName")}</Label>
-                      <Input id="pharmacy_name" name="pharmacy_name" required placeholder="MedPlus Dhanmondi" />
+                    <div className="space-y-1">
+                      <Label htmlFor="pharmacy_name" className="text-xs font-semibold">{t("auth.pharmacyName")}</Label>
+                      <Input id="pharmacy_name" name="pharmacy_name" required placeholder="MedPlus Dhanmondi" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email2">{t("auth.email")}</Label>
-                      <Input id="email2" name="email" type="email" required placeholder="owner@pharmacy.com" />
+                    <div className="space-y-1">
+                      <Label htmlFor="email2" className="text-xs font-semibold">{t("auth.email")}</Label>
+                      <Input id="email2" name="email" type="email" required placeholder="owner@pharmacy.com" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="address">Address</Label>
-                      <Input id="address" name="address" placeholder="Street, area" />
+                    <div className="space-y-1">
+                      <Label htmlFor="address" className="text-xs font-semibold">ঠিকানা</Label>
+                      <Input id="address" name="address" placeholder="Street, area" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="district">District</Label>
-                      <Input id="district" name="district" placeholder="Dhaka" />
+                    <div className="space-y-1">
+                      <Label htmlFor="trade_license" className="text-xs font-semibold">ট্রেড লাইসেন্স (ঐচ্ছিক)</Label>
+                      <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" className="h-11 rounded-xl bg-slate-50/70" />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="trade_license">Trade License (optional)</Label>
-                      <Input id="trade_license" name="trade_license" placeholder="TRAD/DSCC/000000" />
+                    <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
+                      <div className="space-y-1">
+                        <Label htmlFor="password2" className="text-xs font-semibold">{t("auth.password")}</Label>
+                        <Input id="password2" name="password" type="password" required minLength={8} placeholder="৮+ অক্ষর" className="h-11 rounded-xl bg-slate-50/70" />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="password_confirm" className="text-xs font-semibold">নিশ্চিত করুন</Label>
+                        <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} placeholder="পুনরায়" className="h-11 rounded-xl bg-slate-50/70" />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password2">{t("auth.password")}</Label>
-                      <Input id="password2" name="password" type="password" required minLength={8} placeholder="ন্যূনতম ৮ অক্ষর" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="password_confirm">Confirm password</Label>
-                      <Input id="password_confirm" name="password_confirm" type="password" required minLength={8} placeholder="পাসওয়ার্ড পুনরায় লিখুন" />
-                    </div>
-                    <Button type="submit" className="w-full" disabled={busy}>
+                    <Button
+                      type="submit"
+                      className="h-12 w-full rounded-xl bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#117257] text-sm font-bold text-white shadow-[0_10px_24px_-6px_rgba(13,92,70,0.45)] transition hover:brightness-105"
+                      disabled={busy}
+                    >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : t("auth.signUp")}
                     </Button>
                   </form>
                 </TabsContent>
               </Tabs>
             )}
+
+            <div className="mt-6 flex items-center justify-center gap-1.5 border-t border-slate-100 pt-4 text-[11px] font-medium text-slate-400 dark:border-slate-800">
+              <ShieldCheck className="h-3.5 w-3.5 text-[#0d5c46]" />
+              <span>নিরাপদ ও এনক্রিপ্টেড ফার্মেসি পোর্টাল • SohojPharma</span>
+            </div>
           </CardContent>
         </Card>
       </div>
