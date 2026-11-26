@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useThemeInit } from "@/hooks/use-theme-init";
+import { WhatsAppChatbot } from "@/components/common/whatsapp-chatbot";
 import { toast } from "sonner";
 
 function useLandingCmsBootstrap() {
@@ -102,8 +103,6 @@ function Navbar() {
     { href: "#modules", k: "nav.modules" },
     { href: "#pricing", k: "nav.pricing" },
     { href: "#customers", k: "nav.customers" },
-    { href: "#blog", k: "nav.resources" },
-    { href: "#contact", k: "nav.contact" },
   ];
   return (
     <nav className={`sticky top-0 z-50 transition-all ${scrolled ? "bg-white/90 backdrop-blur-md border-b border-slate-100 shadow-sm" : "bg-transparent"}`}>
@@ -864,7 +863,8 @@ function Footer() {
 function Landing() {
   useThemeInit();
   useLandingCmsBootstrap();
-  const { lang } = useT();
+  const { t, lang } = useT();
+  const whatsappPhone = t("landing.contact.whatsappPhone", { defaultValue: "01951413828" });
   return (
     <div
       className="w-full antialiased text-slate-900 bg-[#FAFAFA]"
@@ -884,10 +884,9 @@ function Landing() {
       <Pricing />
       <Banner />
       <FAQ />
-      <Blog />
-      <Contact />
       <FinalCTA />
       <Footer />
+      <WhatsAppChatbot phone={typeof whatsappPhone === "string" ? whatsappPhone : "01951413828"} />
     </div>
   );
 }
