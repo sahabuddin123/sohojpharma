@@ -506,22 +506,48 @@ function MobileApp() {
             </div>
           </div>
         </div>
-        <div className="flex justify-center lg:justify-end items-start pt-2">
-          <div className="relative z-10 w-[215px] sm:w-[235px] overflow-hidden rounded-[2rem] border-[6px] border-slate-900 bg-slate-900 ring-1 ring-white/15 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.65)]">
-            <img
-              src="/images/app-home.png"
-              alt="SohojPharma Mobile Home"
-              className="w-full h-auto block rounded-[1.6rem]"
-              loading="lazy"
-            />
+        <div className="flex flex-wrap justify-center lg:justify-end items-center gap-6 sm:gap-8">
+          {/* iPhone Mockup */}
+          <div className="relative w-[205px] sm:w-[225px] shrink-0">
+            {/* Side hardware buttons */}
+            <span className="absolute -left-[3px] top-24 h-8 w-[3px] rounded-l bg-slate-700" />
+            <span className="absolute -left-[3px] top-36 h-10 w-[3px] rounded-l bg-slate-700" />
+            <span className="absolute -right-[3px] top-28 h-12 w-[3px] rounded-r bg-slate-700" />
+            <div className="rounded-[2.6rem] bg-gradient-to-b from-slate-800 via-slate-950 to-slate-900 p-[7px] ring-1 ring-white/25 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
+              <div className="relative overflow-hidden rounded-[2.15rem] bg-[#0d5c46]">
+                {/* Dynamic Island */}
+                <div className="pointer-events-none absolute left-1/2 top-2 z-20 flex h-[15px] w-[68px] -translate-x-1/2 items-center justify-end rounded-full bg-black px-2 shadow-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-slate-800 ring-1 ring-slate-700" />
+                </div>
+                <img
+                  src="/images/app-home.png"
+                  alt="SohojPharma iPhone App"
+                  className="w-full h-auto block"
+                  loading="lazy"
+                />
+                {/* Home Indicator */}
+                <div className="pointer-events-none absolute bottom-1.5 left-1/2 z-20 h-1 w-20 -translate-x-1/2 rounded-full bg-slate-900/40" />
+              </div>
+            </div>
           </div>
-          <div className="relative -ml-10 mt-8 hidden sm:block w-[200px] sm:w-[215px] overflow-hidden rounded-[2rem] border-[6px] border-slate-900 bg-slate-900 ring-1 ring-white/15 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.55)] opacity-95">
-            <img
-              src="/images/app-products.png"
-              alt="SohojPharma Mobile Products"
-              className="w-full h-auto block rounded-[1.6rem]"
-              loading="lazy"
-            />
+
+          {/* Android Mockup */}
+          <div className="relative w-[205px] sm:w-[225px] shrink-0 hidden sm:block">
+            {/* Side hardware buttons */}
+            <span className="absolute -right-[3px] top-24 h-12 w-[3px] rounded-r bg-slate-700" />
+            <span className="absolute -right-[3px] top-40 h-8 w-[3px] rounded-r bg-slate-700" />
+            <div className="rounded-[1.9rem] bg-gradient-to-b from-zinc-800 via-zinc-950 to-zinc-900 p-[6px] ring-1 ring-white/20 shadow-[0_28px_60px_-15px_rgba(0,0,0,0.7)]">
+              <div className="relative overflow-hidden rounded-[1.55rem] bg-[#0d5c46]">
+                {/* Punch-hole camera */}
+                <div className="pointer-events-none absolute left-1/2 top-2 z-20 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-black ring-1 ring-zinc-700" />
+                <img
+                  src="/images/app-sales.png"
+                  alt="SohojPharma Android App"
+                  className="w-full h-auto block"
+                  loading="lazy"
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
