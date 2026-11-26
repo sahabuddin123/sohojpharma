@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Search, Undo2, Loader2, Printer, ArrowLeft, X } from "lucide-react";
+import { Search, Undo2, Loader2, Printer, ArrowLeft, X, Receipt } from "lucide-react";
+import { AppShell } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -248,49 +250,52 @@ function ReturnSalePage() {
   });
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <header className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" asChild>
-            <Link to="/sales"><ArrowLeft className="h-4 w-4" /></Link>
-          </Button>
-          <div>
-            <h1 className="text-lg font-bold">{t("ipos.returnSale")}</h1>
-            <p className="text-xs text-muted-foreground">{t("ipos.returnSaleDesc")}</p>
-          </div>
-        </div>
-        <Badge variant="outline">{t("ipos.shortcut")} <kbd className="ml-1 rounded bg-muted px-1 text-[10px]">F10</kbd></Badge>
-      </header>
+    <AppShell variant="store" title={t("ipos.returnSale")}>
+      <div className="space-y-5">
+        <PageHeader
+          title={t("ipos.returnSale")}
+          description={t("ipos.returnSaleDesc")}
+          actions={
+            <>
+              <Badge variant="outline" className="h-8 px-3">{t("ipos.shortcut")} <kbd className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[10px]">F10</kbd></Badge>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/sales"><ArrowLeft className="mr-1.5 h-4 w-4" /> {t("nav.sales", "Sales")}</Link>
+              </Button>
+            </>
+          }
+        />
 
-      <div className="grid flex-1 gap-4 overflow-hidden lg:grid-cols-[380px_1fr]">
+      <div className="grid gap-5 lg:h-[540px] lg:grid-cols-[360px_1fr]">
         {/* Left: search list */}
-        <Card className="flex min-h-0 flex-col p-3">
+        <Card className="flex min-h-0 flex-col p-4">
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input id="return-search" autoFocus placeholder={t("ipos.searchInvoicePh")}
               className="pl-9" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <div className="mt-3 flex-1 overflow-y-auto">
+          <div className="mt-3 flex-1 overflow-y-auto pr-1">
             {isFetching && <div className="p-4 text-center text-xs text-muted-foreground"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></div>}
             {!isFetching && hits.length === 0 && <p className="p-4 text-center text-xs text-muted-foreground">{t("ipos.noInvoicesFound")}</p>}
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {hits.map((s) => (
                 <li key={s.id}>
                   <button onClick={() => setSelectedSaleId(s.id)}
                     className={cn(
-                      "w-full rounded-md border p-2 text-left text-sm transition-colors hover:bg-accent",
-                      selectedSaleId === s.id ? "border-primary bg-accent" : "border-border",
+                      "w-full rounded-xl border p-3 text-left text-sm transition-all",
+                      selectedSaleId === s.id
+                        ? "border-primary bg-primary/10 shadow-xs"
+                        : "border-border/60 bg-background/50 hover:bg-accent/50",
                     )}>
-                    <div className="flex justify-between">
-                      <span className="font-semibold">{s.invoice_no}</span>
-                      <span className="text-xs text-muted-foreground">{new Date(s.sale_date).toLocaleDateString()}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-foreground">{s.invoice_no}</span>
+                      <span className="text-[11px] text-muted-foreground tabular-nums">{new Date(s.sale_date).toLocaleDateString()}</span>
                     </div>
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>{s.customer?.name ?? t("ipos.walkIn")}</span>
-                      <span>৳ {Number(s.total).toFixed(2)}</span>
+                    <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="truncate">{s.customer?.name ?? t("ipos.walkIn")}</span>
+                      <span className="font-semibold text-foreground tabular-nums">৳ {Number(s.total).toFixed(2)}</span>
                     </div>
                     {s.status !== "completed" && (
-                      <Badge variant="outline" className="mt-1 h-4 px-1 text-[9px]">{s.status}</Badge>
+                      <Badge variant="outline" className="mt-1.5 h-4 px-1.5 text-[9px]">{s.status}</Badge>
                     )}
                   </button>
                 </li>
@@ -300,10 +305,16 @@ function ReturnSalePage() {
         </Card>
 
         {/* Right: details */}
-        <Card className="flex min-h-0 flex-col p-3">
+        <Card className="flex min-h-[320px] flex-col p-5">
           {!sale ? (
-            <div className="grid h-full place-items-center text-sm text-muted-foreground">
-              <p>{t("ipos.selectInvoiceToStart")}</p>
+            <div className="grid h-full place-items-center text-center">
+              <div className="max-w-xs space-y-2.5">
+                <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-teal-100 text-[#0d8590] dark:bg-teal-500/20 dark:text-teal-300">
+                  <Receipt className="h-5 w-5" />
+                </div>
+                <p className="text-sm font-semibold text-foreground">{t("ipos.selectInvoiceToStart")}</p>
+                <p className="text-xs text-muted-foreground">{t("ipos.returnSaleDesc")}</p>
+              </div>
             </div>
           ) : (
             <>
@@ -491,6 +502,7 @@ function ReturnSalePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </AppShell>
   );
 }
