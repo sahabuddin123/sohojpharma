@@ -151,7 +151,7 @@ function AuthPage() {
           (error as any).name === "AuthRetryableFetchError";
 
         if (isNetworkErr) {
-          toast.error("ডাটাবেজ বা সার্ভারে সংযোগ করা সম্ভব হয়নি। Docker Desktop চালু আছে কিনা নিশ্চিত করুন।", { duration: 6000 });
+          toast.error("সার্ভারে সংযোগ করা সম্ভব হয়নি। আপনার ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।", { duration: 6000 });
           setBusy(false);
           return;
         }
@@ -220,7 +220,7 @@ function AuthPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Authentication error";
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("CONNECTION_REFUSED")) {
-        toast.error("ডাটাবেজ সার্ভারে সংযোগ করা সম্ভব হয়নি। লোকাল Docker Desktop চালু আছে কিনা নিশ্চিত করুন।");
+        toast.error("সার্ভারে সংযোগ করা সম্ভব হয়নি। আপনার ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।");
       } else {
         toast.error(msg);
       }
