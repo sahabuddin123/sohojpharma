@@ -300,23 +300,6 @@ function ProductsPage() {
           <StatCard label={t("pages.products.kpiValue")} value={fmtBdt(kpi.value)} icon={Wallet} tone="secondary" />
         </div>
 
-        {/* Plan capacity */}
-        {cap && (
-          <Card className="mt-4 shadow-card">
-            <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {cap.planCode ? `${cap.planCode.toUpperCase()} plan` : "Plan"} · {cap.used.toLocaleString()} / {cap.maxProducts != null ? cap.maxProducts.toLocaleString() : "∞"} products
-                </p>
-                {cap.maxProducts != null && <Progress value={capPct} className="mt-2 h-2" />}
-              </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/billing">Upgrade plan</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
         {/* Sticky search/filter */}
         <div className="sticky top-0 z-20 -mx-1 mt-4 rounded-2xl border border-border bg-card/95 px-1 py-3 shadow-card backdrop-blur supports-[backdrop-filter]:bg-card/80">
           <div className="flex flex-wrap items-center gap-3 px-3">
