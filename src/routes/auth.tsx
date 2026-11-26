@@ -864,6 +864,9 @@ function AuthPage() {
                         {idCardDoc ? (
                           <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
                             <img src={idCardDoc.dataUrl} alt="Owner ID" className="h-full w-full object-cover" />
+                            <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                              ✓ {Math.max(1, Math.round(idCardDoc.finalBytes / 1024))} KB
+                            </span>
                             <button
                               type="button"
                               onClick={() => setIdCardDoc(null)}
@@ -901,6 +904,9 @@ function AuthPage() {
                         {shopPhotoDoc ? (
                           <div className="relative h-24 overflow-hidden rounded-xl border border-emerald-200 bg-slate-50">
                             <img src={shopPhotoDoc.dataUrl} alt="Shop" className="h-full w-full object-cover" />
+                            <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-emerald-300">
+                              ✓ {Math.max(1, Math.round(shopPhotoDoc.finalBytes / 1024))} KB
+                            </span>
                             <button
                               type="button"
                               onClick={() => setShopPhotoDoc(null)}

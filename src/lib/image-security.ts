@@ -10,8 +10,8 @@
  * 6. Fresh <canvas> re-encode & center-crop resize to 256x256 JPEG, stripping all EXIF/GPS metadata.
  */
 
-const MAX_RAW_BYTES = 5 * 1024 * 1024; // 5 MB
-const MAX_DIMENSION = 8000;
+const MAX_RAW_BYTES = 25 * 1024 * 1024; // Accept up to 25 MB raw phone photos, then compress <= 250 KB
+const MAX_DIMENSION = 12000;
 const TARGET_SIZE = 256;
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -78,7 +78,7 @@ export async function validateAndResizeAvatar(file: File): Promise<ProcessedAvat
     throw new Error("খালি ফাইল আপলোড করা যাবে না।");
   }
   if (file.size > MAX_RAW_BYTES) {
-    throw new Error("ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইটের মধ্যে হতে হবে।");
+    throw new Error("ছবির সাইজ সর্বোচ্চ ২৫ মেগাবাইটের মধ্যে হতে হবে।");
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -170,12 +170,13 @@ export async function validateAndResizeAvatar(file: File): Promise<ProcessedAvat
 export async function validateAndResizeDocumentImage(
   file: File,
   maxDim = 1200,
+  targetMaxBytes = 250 * 1024,
 ): Promise<ProcessedAvatar> {
   if (!file || file.size === 0) {
     throw new Error("খালি ফাইল আপলোড করা যাবে না।");
   }
   if (file.size > MAX_RAW_BYTES) {
-    throw new Error("ছবির সাইজ সর্বোচ্চ ৫ মেগাবাইটের মধ্যে হতে হবে।");
+    throw new Error("ছবির সাইজ সর্বোচ্চ ২৫ মেগাবাইটের মধ্যে হতে হবে।");
   }
 
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -215,40 +216,56 @@ export async function validateAndResizeDocumentImage(
       throw new Error("ছবির রেজোলিউশন গ্রহণযোগ্য সীমার বাইরে।");
     }
 
-    const scale = Math.min(1, maxDim / Math.max(w, h));
-    const outW = Math.max(1, Math.round(w * scale));
-    const outH = Math.max(1, Math.round(h * scale));
+    const renderAt = async (dimLimit: number, quality: number) => {
+      const scale = Math.min(1, dimLimit / Math.max(w, h));
+      const outW = Math.max(1, Math.round(w * scale));
+      const outH = Math.max(1, Math.round(h * scale));
 
-    const canvas = document.createElement("canvas");
-    canvas.width = outW;
-    canvas.height = outH;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("ব্রাউজার ক্যানভাস তৈরি করতে পারেনি।");
+      const canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("ব্রাউজার ক্যানভাস তৈরি করতে পারেনি।");
+      }
+
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(img, 0, 0, outW, outH);
+
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          (b) => (b ? resolve(b) : reject(new Error("ছবি প্রসেস করা যায়নি।"))),
+          "image/jpeg",
+          quality,
+        );
+      });
+      return { blob, dataUrl: canvas.toDataURL("image/jpeg", quality), outW, outH };
+    };
+
+    const attempts: Array<[number, number]> = [
+      [maxDim, 0.82],
+      [maxDim, 0.68],
+      [maxDim, 0.52],
+      [Math.round(maxDim * 0.75), 0.55],
+      [Math.round(maxDim * 0.55), 0.48],
+      [Math.round(maxDim * 0.4), 0.42],
+    ];
+
+    let best = await renderAt(attempts[0][0], attempts[0][1]);
+    for (let i = 1; i < attempts.length && best.blob.size > targetMaxBytes; i++) {
+      best = await renderAt(attempts[i][0], attempts[i][1]);
     }
 
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, outW, outH);
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = "high";
-    ctx.drawImage(img, 0, 0, outW, outH);
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error("ছবি প্রসেস করা যায়নি।"))),
-        "image/jpeg",
-        0.82,
-      );
-    });
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
-
     return {
-      blob,
-      dataUrl,
-      width: outW,
-      height: outH,
+      blob: best.blob,
+      dataUrl: best.dataUrl,
+      width: best.outW,
+      height: best.outH,
       originalBytes: file.size,
-      finalBytes: blob.size,
+      finalBytes: best.blob.size,
     };
   } finally {
     URL.revokeObjectURL(objectUrl);
