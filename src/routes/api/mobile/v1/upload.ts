@@ -6,6 +6,8 @@ import { CORS_HEADERS, guard } from "@/lib/public-api/auth";
 import { mobileError, mobileOk } from "@/lib/public-api/mobile";
 
 const ALLOWED_KIND = new Set(["prescription", "medicine_photo", "document", "invoice", "profile_photo"]);
+const ALLOWED_EXT = new Set(["jpg", "jpeg", "png", "webp", "pdf"]);
+const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
 export const Route = createFileRoute("/api/mobile/v1/upload")({
   server: {
@@ -27,7 +29,27 @@ export const Route = createFileRoute("/api/mobile/v1/upload")({
           await g.finish(400);
           return mobileError("invalid_kind", `kind must be one of ${[...ALLOWED_KIND].join(", ")}`, 400, { request });
         }
-        const filename = (body.filename ?? "file").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+        const rawName = (body.filename ?? "file.jpg").replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 80);
+        const ext = rawName.split(".").pop()?.toLowerCase() ?? "";
+        if (!ALLOWED_EXT.has(ext)) {
+          await g.finish(400);
+          return mobileError(
+            "invalid_file_type",
+            `File extension must be one of: ${[...ALLOWED_EXT].join(", ")}`,
+            400,
+            { request },
+          );
+        }
+        if (body.content_type && !ALLOWED_MIME.has(body.content_type.toLowerCase())) {
+          await g.finish(400);
+          return mobileError(
+            "invalid_content_type",
+            `content_type must be one of: ${[...ALLOWED_MIME].join(", ")}`,
+            400,
+            { request },
+          );
+        }
+        const filename = rawName;
         const objectPath = `${g.key.tenantId}/${kind}/${Date.now()}-${crypto.randomUUID()}-${filename}`;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
