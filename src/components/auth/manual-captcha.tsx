@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { RefreshCw, ShieldCheck, AlertCircle } from "lucide-react";
+import { RefreshCw, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -158,12 +158,10 @@ export function ManualCaptcha({
 
   return (
     <div className="space-y-2 rounded-xl border border-border/70 bg-muted/20 p-3">
-      <div className="flex items-center justify-between text-xs">
-        <Label htmlFor="captcha-input" className="flex items-center gap-1.5 font-semibold text-foreground/90">
-          <ShieldCheck className="h-4 w-4 text-primary" />
+      <div className="flex items-center text-xs">
+        <Label htmlFor="captcha-input" className="font-semibold text-foreground/90">
           {isBn ? "সিকিউরিটি ক্যাপচা (CAPTCHA)" : "Security CAPTCHA"}
         </Label>
-        <span className="text-[11px] text-muted-foreground">{isBn ? "বট সুরক্ষা" : "Bot Protection"}</span>
       </div>
 
       <div className="flex items-center gap-2">
