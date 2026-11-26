@@ -32,6 +32,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useThemeInit } from "@/hooks/use-theme-init";
 import { supabase } from "@/integrations/supabase/client";
 import { validateAndResizeDocumentImage, type ProcessedAvatar } from "@/lib/image-security";
+import { formatFriendlyError } from "@/lib/friendly-error";
 import { LanguageSwitcher } from "@/components/common/language-switcher";
 import { useServerFn } from "@tanstack/react-start";
 import { checkLoginRateLimitFn, recordLoginAttemptFn } from "@/lib/api/auth-security.server";
@@ -242,12 +243,7 @@ function AuthPage() {
       toast.success(t("toast.welcomeBack"));
       navigate({ to: redirectTo, replace: true });
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Authentication error";
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("CONNECTION_REFUSED")) {
-        toast.error("সার্ভারে সংযোগ করা সম্ভব হয়নি। আপনার ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।");
-      } else {
-        toast.error(msg);
-      }
+      toast.error(formatFriendlyError(err, "সাইন ইন করতে সমস্যা হয়েছে।"), { duration: 6000 });
     } finally {
       setBusy(false);
     }
@@ -407,6 +403,8 @@ function AuthPage() {
       toast.success("নিবন্ধন সফল হয়েছে! অ্যাকাউন্ট সক্রিয় করতে SohojPharma কর্তৃপক্ষের সাথে যোগাযোগ করুন।", {
         duration: 8000,
       });
+    } catch (err) {
+      toast.error(formatFriendlyError(err, "নিবন্ধন সম্পন্ন করতে সমস্যা হয়েছে।"));
     } finally {
       setBusy(false);
       if (typeof window !== "undefined") {
@@ -439,7 +437,7 @@ function AuthPage() {
       setForgotSuccess(true);
       toast.success("পাসওয়ার্ড রিসেট লিংক সফলভাবে পাঠানো হয়েছে!");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "পাসওয়ার্ড রিসেট লিংক পাঠানো সম্ভব হয়নি");
+      toast.error(formatFriendlyError(err, "পাসওয়ার্ড রিসেট লিংক পাঠানো সম্ভব হয়নি"));
     } finally {
       setForgotBusy(false);
     }
