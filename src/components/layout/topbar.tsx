@@ -250,7 +250,7 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
                   className="hidden h-9 gap-2 rounded-xl border-border/70 md:flex"
                 >
                   <Building2 className="h-4 w-4 text-primary" />
-                  <span className="max-w-[140px] truncate text-xs font-semibold">
+                  <span className="max-w-[100px] lg:max-w-[140px] truncate text-xs font-semibold">
                     {currentTenant?.name ?? t("common.tenant")}
                   </span>
                   {impersonating && (
