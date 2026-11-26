@@ -12,8 +12,8 @@
  */
 
 @theme inline {
-  --font-sans: "Hind Siliguri", "Noto Sans Bengali", "Poppins", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Hind Siliguri", "Noto Sans Bengali", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Poppins", "Hind Siliguri", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Poppins", "Hind Siliguri", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
   --font-bn: "Hind Siliguri", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
 
 

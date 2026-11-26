@@ -661,7 +661,7 @@ function ProfilePanel() {
 
 /* ---------- 2. Branding ---------- */
 function BrandingPanel() {
-  const { theme, toggleTheme } = useUIStore();
+  const { theme, toggleTheme, desktopUiVersion, setDesktopUiVersion } = useUIStore();
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const { branding, save, uploadAsset, deleteAsset, isSaving } = useBrandingSettings(currentTenantId ?? undefined);
@@ -785,6 +785,40 @@ function BrandingPanel() {
           <label className={cn("flex cursor-pointer items-center gap-3 rounded-lg border border-border p-3", theme === "dark" && "border-primary")}>
             <RadioGroupItem value="dark" id="t-dark" />
             <span className="font-medium">{tt("dark", "Dark mode")}</span>
+          </label>
+        </RadioGroup>
+      </Field>
+
+      <Field label="Desktop Admin UI Version (শুধু ডেস্কটপ)">
+        <RadioGroup
+          value={desktopUiVersion}
+          onValueChange={(v) => {
+            const next = v === "v2" ? "v2" : "v1";
+            setDesktopUiVersion(next);
+            toast.success(
+              next === "v2"
+                ? "Modern Glass (v2) ডেস্কটপ UI চালু হয়েছে"
+                : "Classic (v1) ডেস্কটপ UI চালু হয়েছে",
+            );
+          }}
+          className="grid grid-cols-1 gap-3 sm:grid-cols-2"
+        >
+          <label className={cn("flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3.5 transition-colors", desktopUiVersion === "v1" && "border-primary bg-primary/5")}>
+            <RadioGroupItem value="v1" id="ui-v1" className="mt-0.5" />
+            <div>
+              <div className="font-semibold text-sm">Classic (v1)</div>
+              <div className="text-xs text-muted-foreground mt-0.5">বর্তমান ক্ল্যাসিক ডেস্কটপ অ্যাডমিন লেআউট</div>
+            </div>
+          </label>
+          <label className={cn("flex cursor-pointer items-start gap-3 rounded-xl border border-border p-3.5 transition-colors", desktopUiVersion === "v2" && "border-primary bg-primary/5")}>
+            <RadioGroupItem value="v2" id="ui-v2" className="mt-0.5" />
+            <div>
+              <div className="font-semibold text-sm flex items-center gap-2">
+                Modern Glass (v2)
+                <Badge variant="success" className="text-[10px]">New</Badge>
+              </div>
+              <div className="text-xs text-muted-foreground mt-0.5">Frosted Teal Glass · FontAwesome · Poppins &amp; Hind Siliguri</div>
+            </div>
           </label>
         </RadioGroup>
       </Field>

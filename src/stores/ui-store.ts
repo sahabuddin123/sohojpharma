@@ -3,15 +3,18 @@ import { persist } from "zustand/middleware";
 
 export type Theme = "light" | "dark";
 export type Language = "en" | "bn";
+export type DesktopUiVersion = "v1" | "v2";
 
 interface UIState {
   theme: Theme;
   language: Language;
   sidebarCollapsed: boolean;
+  desktopUiVersion: DesktopUiVersion;
   setTheme: (t: Theme) => void;
   toggleTheme: () => void;
   setLanguage: (l: Language) => void;
   toggleSidebar: () => void;
+  setDesktopUiVersion: (v: DesktopUiVersion) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -20,6 +23,7 @@ export const useUIStore = create<UIState>()(
       theme: "light",
       language: "en",
       sidebarCollapsed: false,
+      desktopUiVersion: "v1",
       setTheme: (theme) => {
         set({ theme });
         if (typeof document !== "undefined") {
@@ -34,6 +38,12 @@ export const useUIStore = create<UIState>()(
         }
       },
       toggleSidebar: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
+      setDesktopUiVersion: (desktopUiVersion) => {
+        set({ desktopUiVersion });
+        if (typeof document !== "undefined") {
+          document.documentElement.dataset.desktopUi = desktopUiVersion;
+        }
+      },
     }),
     {
       name: "sohojpharma-ui",
@@ -41,6 +51,7 @@ export const useUIStore = create<UIState>()(
         if (state && typeof document !== "undefined") {
           document.documentElement.lang = state.language;
           document.documentElement.classList.toggle("dark", state.theme === "dark");
+          document.documentElement.dataset.desktopUi = state.desktopUiVersion ?? "v1";
         }
       },
     },
