@@ -8,7 +8,6 @@ import {
   LogOut,
   Moon,
   Save,
-  ShieldCheck,
   Store,
   Sun,
   Trash2,
@@ -491,21 +490,6 @@ function MobileSettings() {
                 )}
               </div>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 rounded-xl border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-[11px] text-[#0d5c46]">
-            <span className="flex items-center gap-1.5 font-medium">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-              {avatarScanNote ?? "JPG/PNG/WebP • সিকিউরিটি স্ক্যান ও ২৫৬×২৫৬ অটো-রিসাইজ"}
-            </span>
-            <button
-              type="button"
-              disabled={uploadingAvatar}
-              onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 font-bold underline underline-offset-2"
-            >
-              ছবি বদলান
-            </button>
           </div>
 
           <div className="space-y-1">
