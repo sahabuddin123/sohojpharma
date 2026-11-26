@@ -159,21 +159,25 @@ function MobileSettings() {
       // 1. Security scan (MIME, extension, magic bytes, script/polyglot scan) + 256x256 resize
       const processed = await validateAndResizeAvatar(file);
 
-      let nextUrl = processed.dataUrl;
+      let nextUrl = "";
       if (user?.id) {
         const folder = tenantId || user.id;
         const path = `${folder}/avatar-${user.id}-${Date.now()}.jpg`;
         const { error: upErr } = await supabase.storage
           .from("branding")
           .upload(path, processed.blob, { upsert: false, contentType: "image/jpeg" });
-        if (!upErr) {
-          const { data: signed } = await supabase.storage
-            .from("branding")
-            .createSignedUrl(path, 60 * 60 * 24 * 365);
-          if (signed?.signedUrl) {
-            nextUrl = signed.signedUrl;
-          }
+        if (upErr) {
+          throw new Error(`স্টোরেজ আপলোড ব্যর্থ: ${upErr.message}`);
         }
+        const { data: signed, error: signErr } = await supabase.storage
+          .from("branding")
+          .createSignedUrl(path, 60 * 60 * 24 * 365);
+        if (signErr || !signed?.signedUrl) {
+          throw new Error(signErr?.message ?? "ছবির লিংক তৈরি করা যায়নি");
+        }
+        nextUrl = signed.signedUrl;
+      } else {
+        throw new Error("ইউজার সেশন পাওয়া যায়নি");
       }
 
       const { error: authErr } = await supabase.auth.updateUser({
