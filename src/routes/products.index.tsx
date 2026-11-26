@@ -283,22 +283,6 @@ function ProductsPage() {
               <Button asChild variant="outline">
                 <Link to="/inventory/import-v2"><Upload className="mr-1.5 h-4 w-4" /> {t("pages.products.import")}</Link>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline">
-                    <Download className="mr-1.5 h-4 w-4" /> {t("pages.products.export")}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{t("pages.products.export.scope")}</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => exportFile("page", "xlsx")}>{t("pages.products.export.filtered")} · Excel</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => exportFile("all", "xlsx")}>{t("pages.products.export.all")} · Excel</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => exportFile("all", "csv")}>{t("pages.products.export.all")} · CSV</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={downloadSampleTemplate}>{t("pages.products.import.sample")}</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
               <Button asChild>
                 <Link to="/products/new"><Plus className="mr-1.5 h-4 w-4" /> {t("pages.products.add")}</Link>
               </Button>
