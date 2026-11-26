@@ -102,19 +102,38 @@ export const upsertStaff = createServerFn({ method: "POST" })
         throw new Error("পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে");
       }
 
-      // Ensure caller is owner/manager of this tenant
-      const { data: callerRole } = await context.supabase
-        .from("tenant_memberships")
-        .select("role")
-        .eq("tenant_id", staffPayload.tenant_id)
-        .eq("user_id", context.userId)
-        .eq("is_active", true)
-        .maybeSingle();
-      if (!callerRole || !["owner", "manager"].includes(callerRole.role)) {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+      // Ensure caller is owner/manager of this tenant or platform admin
+      const [{ data: callerRole }, { data: adminRole }, { data: tenantRow }] = await Promise.all([
+        supabaseAdmin
+          .from("tenant_memberships")
+          .select("role")
+          .eq("tenant_id", staffPayload.tenant_id)
+          .eq("user_id", context.userId)
+          .eq("is_active", true)
+          .maybeSingle(),
+        supabaseAdmin
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", context.userId)
+          .in("role", ["app_admin", "super_admin"])
+          .maybeSingle(),
+        supabaseAdmin
+          .from("tenants")
+          .select("owner_user_id")
+          .eq("id", staffPayload.tenant_id)
+          .maybeSingle(),
+      ]);
+
+      const isAuthorized =
+        Boolean(adminRole) ||
+        tenantRow?.owner_user_id === context.userId ||
+        Boolean(callerRole && ["owner", "manager"].includes(callerRole.role));
+
+      if (!isAuthorized) {
         throw new Error("শুধুমাত্র স্টোর Owner বা Manager নতুন স্টাফ লগইন তৈরি করতে পারবেন");
       }
-
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       let staffUserId: string | null = staffPayload.user_id ?? null;
 
       if (!staffUserId) {
