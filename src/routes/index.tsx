@@ -62,7 +62,7 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-const T = (val: unknown): string => (typeof val === "string" ? val : "");
+const T = (val: unknown): string => (typeof val === "string" ? val.replace(/\s*—\s*/g, ", ") : "");
 
 function useT() {
   const { t, i18n } = useTranslation();
@@ -182,14 +182,10 @@ function Hero() {
     <section id="home" className="relative overflow-hidden border-b border-slate-200/70 bg-white pt-16 pb-24">
       <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(13,92,70,0.08),transparent)]" />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700 mb-6">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#0d5c46]" />
-          {t("landing.hero.badge")}
-        </div>
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-slate-900 max-w-4xl mx-auto leading-[1.08]">
-          {t("landing.hero.title")}
+          {T(t("landing.hero.title"))}
         </h1>
-        <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">{t("landing.hero.subtitle")}</p>
+        <p className="mt-5 text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">{T(t("landing.hero.subtitle"))}</p>
         <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3.5">
           <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-sm sm:text-base font-bold text-white bg-[#0d5c46] hover:bg-[#094735] shadow-sm transition">
             {t("landing.hero.ctaPrimary")} <ArrowRight className="w-4 h-4" />
@@ -211,16 +207,20 @@ function Hero() {
               <img src={heroImage} alt="SohojPharma Dashboard" className="w-full rounded-xl object-cover max-h-[540px]" />
             ) : (
               <div className="rounded-xl bg-white border border-slate-200/80 overflow-hidden text-left">
-                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-2.5">
-                  <div className="flex items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
-                    <span className="h-2.5 w-2.5 rounded-full bg-slate-300" />
+                <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/70 px-4 sm:px-6 py-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="grid h-7 w-7 place-items-center rounded-lg bg-[#0d5c46] text-white">
+                      <Pill className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="text-xs font-bold text-slate-900">
+                      {isBn ? "ফার্মেসি স্টোর ওভারভিউ" : "Pharmacy Store Overview"}
+                    </span>
                   </div>
-                  <div className="rounded-md border border-slate-200 bg-white px-3 py-0.5 text-[11px] font-mono text-slate-500">
-                    sohojpharma.cloud/dashboard
+                  <div className="hidden sm:flex items-center gap-4 text-[11px] font-semibold text-slate-500">
+                    <span className="text-[#0d5c46]">POS</span>
+                    <span>Inventory</span>
+                    <span>Accounts</span>
                   </div>
-                  <span className="text-[11px] font-semibold text-[#0d5c46]">Live</span>
                 </div>
 
                 <div className="p-4 sm:p-6 space-y-4">
@@ -319,8 +319,8 @@ function Problems() {
     <section className="py-24 bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 leading-tight">{t("landing.problems.title")}</h2>
-          <p className="mt-4 text-lg text-slate-600">{t("landing.problems.subtitle")}</p>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900 leading-tight">{T(t("landing.problems.title"))}</h2>
+          <p className="mt-4 text-lg text-slate-600">{T(t("landing.problems.subtitle"))}</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {list.map((it, i) => {
@@ -349,8 +349,8 @@ function WhySohojPharma() {
     <section id="features" className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{t("landing.why.title")}</h2>
-          <p className="mt-4 text-lg text-slate-600">{t("landing.why.subtitle")}</p>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{T(t("landing.why.title"))}</h2>
+          <p className="mt-4 text-lg text-slate-600">{T(t("landing.why.subtitle"))}</p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {items.map((it, i) => {
@@ -380,8 +380,8 @@ function Modules() {
     <section id="modules" className="py-24 bg-gradient-to-b from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-3xl mx-auto mb-14">
-          <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{t("landing.modules.title")}</h2>
-          <p className="mt-4 text-lg text-slate-600">{t("landing.modules.subtitle")}</p>
+          <h2 className="text-3xl sm:text-5xl font-black text-slate-900">{T(t("landing.modules.title"))}</h2>
+          <p className="mt-4 text-lg text-slate-600">{T(t("landing.modules.subtitle"))}</p>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
           {items.map((m, i) => {
