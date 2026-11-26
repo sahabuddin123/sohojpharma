@@ -64,7 +64,8 @@ function humanize(segment: string) {
 
 export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: TopbarProps) {
   const { t } = useTranslation();
-  const { theme, toggleTheme } = useUIStore();
+  const { theme, toggleTheme, desktopUiVersion } = useUIStore();
+  const isV2 = desktopUiVersion === "v2";
   const { user, memberships, adminTenants, impersonating, currentTenantId, setCurrentTenantId, signOut, isAppAdmin } = useAuth();
   const availableTenants = isAppAdmin ? adminTenants : memberships;
   const navigate = useNavigate();
@@ -150,7 +151,14 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
   });
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur supports-[backdrop-filter]:bg-card/70">
+    <header
+      className={cn(
+        "sticky top-0 z-30 border-b backdrop-blur-xl",
+        isV2
+          ? "border-white/60 bg-white/40 dark:border-white/10 dark:bg-[#0b181c]/60"
+          : "border-border bg-card/85 supports-[backdrop-filter]:bg-card/70",
+      )}
+    >
       <div className="flex h-14 items-center gap-1 px-2 sm:h-16 sm:gap-2 sm:px-4 lg:px-6">
         <Button
           variant="ghost"

@@ -34,8 +34,43 @@ import {
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import { useUIStore } from "@/stores/ui-store";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { PwaInstallButton } from "@/components/pwa/pwa-install-button";
+
+const FA_ICON_MAP: Record<string, string> = {
+  "/store": "fa-table-cells-large",
+  "/inventory": "fa-boxes-stacked",
+  "/inventory/batch-control": "fa-layer-group",
+  "/products": "fa-pills",
+  "/products/companies": "fa-building",
+  "/products/generics": "fa-capsules",
+  "/products/expired": "fa-calendar-xmark",
+  "/products/barcodes-2": "fa-barcode",
+  "/products/global-browse": "fa-globe",
+  "/masters": "fa-database",
+  "/sales": "fa-cash-register",
+  "/sales/returns": "fa-rotate-left",
+  "/invoices": "fa-file-invoice",
+  "/prescriptions": "fa-file-prescription",
+  "/purchases": "fa-truck-medical",
+  "/purchases/returns": "fa-arrow-rotate-left",
+  "/purchasing/requisition-list": "fa-clipboard-list",
+  "/customers": "fa-users",
+  "/suppliers": "fa-truck-field",
+  "/dues": "fa-credit-card",
+  "/dena-paona": "fa-hand-holding-dollar",
+  "/accounts": "fa-wallet",
+  "/reports": "fa-chart-pie",
+  "/billing": "fa-receipt",
+  "/staff": "fa-user-tie",
+  "/ops": "fa-shield-halved",
+  "/mobile": "fa-mobile-screen-button",
+  "/settings": "fa-gear",
+  "/admin": "fa-gauge-high",
+  "/admin/stores": "fa-store",
+  "/admin/reports": "fa-chart-line",
+};
 
 type NavItem = { to: string; k: string; icon: LucideIcon; exact?: boolean };
 type NavGroup = { label: string; items: NavItem[] };
@@ -144,30 +179,42 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { t } = useTranslation();
   const { isAppAdmin } = useAuth();
+  const isV2 = useUIStore((s) => s.desktopUiVersion === "v2");
   const groups = variant === "admin" ? adminGroups : storeGroups;
 
   return (
     <TooltipProvider delayDuration={100}>
       <aside
         className={cn(
-          "flex h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-sm transition-[width] duration-200 ease-out",
+          "flex h-screen shrink-0 flex-col transition-[width] duration-200 ease-out",
+          isV2
+            ? "sp-v2-sidebar border-r border-white/70 dark:border-white/10"
+            : "border-r border-sidebar-border bg-sidebar shadow-sm",
           collapsed ? "w-[72px]" : "w-64",
         )}
       >
         {/* Brand */}
         <div
           className={cn(
-            "flex h-16 items-center border-b border-sidebar-border",
+            "flex h-16 items-center",
+            isV2 ? "border-b border-slate-400/15 dark:border-white/10" : "border-b border-sidebar-border",
             collapsed ? "justify-center px-2" : "gap-3 px-5",
           )}
         >
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-gradient text-white shadow-glow">
-            <Pill className="h-5 w-5" />
+          <div
+            className={cn(
+              "grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white",
+              isV2
+                ? "bg-gradient-to-br from-[#0d8590] to-[#1ba7ad] shadow-md"
+                : "bg-brand-gradient shadow-glow",
+            )}
+          >
+            {isV2 ? <i className="fa-solid fa-capsules text-sm" /> : <Pill className="h-5 w-5" />}
           </div>
           {!collapsed && (
             <div className="min-w-0 leading-tight">
-              <p className="truncate text-sm font-bold text-sidebar-foreground">{t("app.name")}</p>
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+              <p className="truncate text-sm font-bold text-sidebar-foreground dark:text-white">{t("app.name")}</p>
+              <p className={cn("text-[11px] uppercase tracking-wider", isV2 ? "text-[#0d8590] dark:text-teal-300 font-medium" : "text-muted-foreground")}>
                 {variant === "admin" ? t("app.portalAdmin") : t("app.portalStore")}
               </p>
             </div>
@@ -187,34 +234,52 @@ export function SidebarNav({ variant, collapsed = false }: SidebarNavProps) {
                 const active = exact
                   ? pathname === to
                   : pathname === to || pathname.startsWith(to + "/");
+                const faIcon = FA_ICON_MAP[to] ?? "fa-circle-dot";
                 const link = (
                   <Link
                     key={to}
                     to={to as never}
                     className={cn(
-                      "group relative flex items-center rounded-xl text-sm font-medium outline-none transition-all",
+                      "group relative flex items-center text-sm font-medium outline-none transition-all",
                       "focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                      collapsed ? "h-10 justify-center" : "gap-3 px-3 py-2",
-                      active
-                        ? "bg-emerald-50/90 font-semibold text-[#0d5c46] dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "text-sidebar-foreground/80 hover:bg-slate-100/80 hover:text-sidebar-foreground dark:hover:bg-slate-800/60",
+                      isV2 ? "rounded-2xl" : "rounded-xl",
+                      collapsed ? "h-10 justify-center" : isV2 ? "gap-3 px-3.5 py-2.5" : "gap-3 px-3 py-2",
+                      isV2
+                        ? active
+                          ? "sp-v2-active-nav font-semibold text-white"
+                          : "text-slate-600 hover:bg-white/55 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+                        : active
+                          ? "bg-emerald-50/90 font-semibold text-[#0d5c46] dark:bg-emerald-950/40 dark:text-emerald-300"
+                          : "text-sidebar-foreground/80 hover:bg-slate-100/80 hover:text-sidebar-foreground dark:hover:bg-slate-800/60",
                     )}
                     aria-current={active ? "page" : undefined}
                   >
-                    {/* Left accent indicator */}
-                    <span
-                      className={cn(
-                        "absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
-                        active ? "opacity-100" : "opacity-0",
-                      )}
-                      aria-hidden
-                    />
-                    <Icon
-                      className={cn(
-                        "h-[18px] w-[18px] shrink-0 transition-colors",
-                        active ? "text-[#0d5c46] dark:text-emerald-400" : "text-muted-foreground group-hover:text-foreground",
-                      )}
-                    />
+                    {/* Left accent indicator (v1 only) */}
+                    {!isV2 && (
+                      <span
+                        className={cn(
+                          "absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-primary transition-opacity",
+                          active ? "opacity-100" : "opacity-0",
+                        )}
+                        aria-hidden
+                      />
+                    )}
+                    {isV2 ? (
+                      <i
+                        className={cn(
+                          "fa-solid w-4 text-center text-[15px] shrink-0 transition-colors",
+                          faIcon,
+                          active ? "text-white" : "text-[#0d8590] dark:text-teal-400",
+                        )}
+                      />
+                    ) : (
+                      <Icon
+                        className={cn(
+                          "h-[18px] w-[18px] shrink-0 transition-colors",
+                          active ? "text-[#0d5c46] dark:text-emerald-400" : "text-muted-foreground group-hover:text-foreground",
+                        )}
+                      />
+                    )}
                     {!collapsed && <span className="truncate">{t(k)}</span>}
                   </Link>
                 );

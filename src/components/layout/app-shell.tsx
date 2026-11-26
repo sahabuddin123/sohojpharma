@@ -10,6 +10,7 @@ import { useTenantLocale } from "@/hooks/use-tenant-locale";
 import { useApplySystemPreferences } from "@/hooks/use-system-preferences";
 import { useAuth } from "@/hooks/use-auth";
 import { useMobilePwaRedirect } from "@/hooks/use-mobile-pwa-redirect";
+import { useUIStore } from "@/stores/ui-store";
 import { cn } from "@/lib/utils";
 
 
@@ -23,6 +24,7 @@ const STORAGE_KEY = "pc.sidebar.collapsed";
 
 export function AppShell({ variant, title, children }: AppShellProps) {
   const { currentTenantId } = useAuth();
+  const desktopUiVersion = useUIStore((s) => s.desktopUiVersion);
   useThemeInit();
   useBrandingApply();
   useTenantLocale();
@@ -31,6 +33,12 @@ export function AppShell({ variant, title, children }: AppShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      document.documentElement.dataset.desktopUi = desktopUiVersion;
+    }
+  }, [desktopUiVersion]);
 
   useEffect(() => {
     try {
@@ -53,7 +61,14 @@ export function AppShell({ variant, title, children }: AppShellProps) {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#f5f7f6] dark:bg-slate-950">
+    <div
+      className={cn(
+        "flex min-h-screen w-full",
+        desktopUiVersion === "v2"
+          ? "sp-v2-canvas"
+          : "bg-[#f5f7f6] dark:bg-slate-950",
+      )}
+    >
       {/* Desktop sidebar */}
       <div
         className={cn(

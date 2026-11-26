@@ -352,3 +352,80 @@ html.compact .space-y-5 > * + * { margin-top: 0.75rem; }
     overflow-wrap: anywhere;
   }
 }
+
+/* ============================================================
+   Desktop UI v2 — Frosted Teal Glass (CoachPro Aesthetic)
+   Active ONLY when html[data-desktop-ui="v2"] is selected.
+   Mobile PWA routes (/m/*) do not use AppShell and remain untouched.
+   ============================================================ */
+html[data-desktop-ui="v2"] .sp-v2-canvas {
+  background:
+    radial-gradient(circle at 88% 28%, rgba(196, 181, 253, 0.32) 0%, rgba(196, 181, 253, 0) 40%),
+    radial-gradient(circle at 12% 18%, rgba(153, 246, 228, 0.42) 0%, rgba(153, 246, 228, 0) 45%),
+    linear-gradient(135deg, #dff2ef 0%, #e7f4f2 48%, #edf2f7 100%);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas {
+  background:
+    radial-gradient(circle at 88% 28%, rgba(139, 92, 246, 0.16) 0%, rgba(139, 92, 246, 0) 42%),
+    radial-gradient(circle at 14% 18%, rgba(20, 184, 166, 0.18) 0%, rgba(20, 184, 166, 0) 46%),
+    linear-gradient(135deg, #071316 0%, #0b1c20 50%, #0f172a 100%);
+}
+
+html[data-desktop-ui="v2"] .sp-v2-sidebar {
+  background: rgba(255, 255, 255, 0.44);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-sidebar {
+  background: rgba(11, 24, 28, 0.68);
+}
+
+html[data-desktop-ui="v2"] .sp-v2-active-nav {
+  background: linear-gradient(95deg, #0d8590 0%, #1ba7ad 100%);
+  box-shadow: 0 10px 22px -6px rgba(13, 133, 144, 0.45);
+}
+
+html[data-desktop-ui="v2"] .sp-v2-canvas [data-slot="card"] {
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.68);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10px 30px -10px rgba(15, 118, 110, 0.08);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas [data-slot="card"] {
+  background: rgba(18, 34, 40, 0.66);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+}
+
+html[data-desktop-ui="v2"] .sp-v2-canvas [role="tablist"] {
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(255, 255, 255, 0.8);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas [role="tablist"] {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html[data-desktop-ui="v2"] .sp-v2-canvas [role="tab"][data-state="active"] {
+  border-radius: 9999px;
+  background: linear-gradient(95deg, #0d8590 0%, #1ba7ad 100%);
+  color: #ffffff;
+}
+
+html[data-desktop-ui="v2"] .sp-v2-canvas table thead {
+  background: transparent;
+}
+html[data-desktop-ui="v2"] .sp-v2-canvas table thead tr {
+  border-bottom-color: rgba(148, 163, 184, 0.25);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas table thead tr {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+html[data-desktop-ui="v2"] .sp-v2-canvas table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+html.dark[data-desktop-ui="v2"] .sp-v2-canvas table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
