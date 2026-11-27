@@ -7,10 +7,11 @@ import {
   Pill, Check, ArrowRight, Boxes, ShoppingCart, BarChart3, Bell, Database,
   Receipt, AlertTriangle, FileX, ClipboardList, FileText, PackageX, TrendingDown, ShieldAlert,
   Users, Truck, RotateCcw, Cloud, Zap, Shield, RefreshCw, WifiOff, Building2, UserCog,
-  Layers, ShieldCheck, Globe, Headphones, Star, Smartphone, Apple, QrCode, Phone, MessageCircle, Mail, MapPin, Menu, X, Plus, Minus,
+  Layers, ShieldCheck, Globe, Headphones, Star, Smartphone, Apple, QrCode, Phone, MessageCircle, Mail, MapPin, Menu, X, Plus, Minus, LayoutDashboard,
 } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useThemeInit } from "@/hooks/use-theme-init";
+import { useAuth } from "@/hooks/use-auth";
 import { WhatsAppChatbot } from "@/components/common/whatsapp-chatbot";
 import { toast } from "sonner";
 
@@ -88,7 +89,10 @@ function LangToggle() {
 }
 
 function Navbar() {
-  const { t } = useT();
+  const { t, lang } = useT();
+  const { session } = useAuth();
+  const isLoggedIn = Boolean(session?.user);
+  const dashLabel = lang === "bn" ? "ড্যাশবোর্ড" : "Dashboard";
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   useEffect(() => {
@@ -126,14 +130,37 @@ function Navbar() {
           </div>
           <div className="hidden md:flex items-center gap-3">
             <LangToggle />
-            <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="text-sm font-bold text-slate-700 hover:text-[#0d5c46] px-3 py-2">{t("landing.nav.login")}</Link>
-            <Link to="/register" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95">
-              {t("landing.nav.trial")} <ArrowRight className="w-4 h-4" />
-            </Link>
+            {isLoggedIn ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                {dashLabel} <ArrowRight className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth" search={{ redirect: undefined, blocked: undefined }} className="text-sm font-bold text-slate-700 hover:text-[#0d5c46] px-3 py-2">{t("landing.nav.login")}</Link>
+                <Link to="/register" className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-md shadow-emerald-900/20 active:scale-95">
+                  {t("landing.nav.trial")} <ArrowRight className="w-4 h-4" />
+                </Link>
+              </>
+            )}
           </div>
-          <button onClick={() => setOpen(!open)} className="md:hidden p-2" aria-label="Menu">
-            {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
+          <div className="flex items-center gap-1.5 sm:gap-2 md:hidden shrink-0">
+            {isLoggedIn && (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-sm shadow-emerald-900/20 active:scale-95"
+              >
+                <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
+                {dashLabel}
+              </Link>
+            )}
+            <button onClick={() => setOpen(!open)} className="p-2" aria-label="Menu">
+              {open ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
+          </div>
         </div>
         {open && (
           <div className="md:hidden py-4 border-t border-slate-100 space-y-2">
@@ -142,7 +169,34 @@ function Navbar() {
             ))}
             <div className="pt-3 flex flex-col gap-3">
               <LangToggle />
-              <Link to="/register" className="px-5 py-2.5 rounded-full text-sm font-bold text-white bg-[#0d5c46] text-center">{t("landing.nav.trial")}</Link>
+              {isLoggedIn ? (
+                <Link
+                  to="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] text-center shadow-md shadow-emerald-900/20"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  {dashLabel} <ArrowRight className="w-4 h-4" />
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/auth"
+                    search={{ redirect: undefined, blocked: undefined }}
+                    onClick={() => setOpen(false)}
+                    className="px-5 py-2.5 rounded-full text-sm font-bold text-slate-700 border border-slate-200 text-center hover:border-[#0d5c46] hover:text-[#0d5c46] transition"
+                  >
+                    {t("landing.nav.login")}
+                  </Link>
+                  <Link
+                    to="/register"
+                    onClick={() => setOpen(false)}
+                    className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full text-sm font-bold text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] text-center"
+                  >
+                    {t("landing.nav.trial")} <ArrowRight className="w-4 h-4" />
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         )}

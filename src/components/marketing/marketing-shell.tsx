@@ -1,9 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { Pill, ArrowRight } from "lucide-react";
+import { Pill, ArrowRight, LayoutDashboard } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/use-auth";
 
 export function MarketingShell({ children }: { children: ReactNode }) {
+  const { session } = useAuth();
+  const { i18n } = useTranslation();
+  const isBn = (i18n.resolvedLanguage ?? i18n.language ?? "en").startsWith("bn");
+  const isLoggedIn = Boolean(session?.user);
+  const dashLabel = isBn ? "ড্যাশবোর্ড" : "Dashboard";
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur">
@@ -21,14 +29,25 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             <Link to="/contact" className="hover:text-foreground" activeProps={{ className: "text-foreground" }}>Contact</Link>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/auth" search={{ redirect: undefined, blocked: undefined }}>Sign in</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link to="/auth" search={{ redirect: undefined, blocked: undefined }}>
-                Start free trial <ArrowRight className="ml-1 h-4 w-4" />
-              </Link>
-            </Button>
+            {isLoggedIn ? (
+              <Button asChild size="sm">
+                <Link to="/dashboard">
+                  <LayoutDashboard className="mr-1.5 h-4 w-4" />
+                  {dashLabel} <ArrowRight className="ml-1 h-4 w-4" />
+                </Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/auth" search={{ redirect: undefined, blocked: undefined }}>Sign in</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link to="/auth" search={{ redirect: undefined, blocked: undefined }}>
+                    Start free trial <ArrowRight className="ml-1 h-4 w-4" />
+                  </Link>
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
