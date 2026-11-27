@@ -24,6 +24,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveBranch } from "@/hooks/use-active-branch";
 import { addInvoicePayment, cancelInvoice } from "@/lib/api/invoices.functions";
+import { cacheSales, listCachedSales } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 const PAYMENT_METHODS = ["cash", "bkash", "nagad", "rocket", "bank", "card", "other"] as const;
@@ -84,17 +86,67 @@ function SalesPage() {
     queryKey: ["sales-list", tenantId, from, to],
     enabled: !!tenantId,
     queryFn: async (): Promise<SaleRow[]> => {
-      let q = supabase
-        .from("sales")
-        .select("id,invoice_no,sale_date,total,paid,due,status,is_return,customer:customers(name),items:sale_items(id)")
-        .eq("tenant_id", tenantId)
-        .order("sale_date", { ascending: false })
-        .limit(300);
-      if (from) q = q.gte("sale_date", from);
-      if (to) q = q.lte("sale_date", `${to}T23:59:59`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as unknown as SaleRow[];
+      const mapCached = (list: Awaited<ReturnType<typeof listCachedSales>>): SaleRow[] =>
+        list.map((c) => ({
+          id: c.id,
+          invoice_no: c.invoice_no,
+          sale_date: c.sale_date,
+          total: c.total,
+          paid: c.paid,
+          due: c.due,
+          status: c.status,
+          is_return: Boolean(c.is_return),
+          customer: c.customer_name ? { name: c.customer_name } : null,
+          items: (c.items ?? []).map((_, i) => ({ id: `${c.id}-${i}` })),
+        }));
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return mapCached(await listCachedSales(tenantId, { from: from || undefined, to: to || undefined }));
+      }
+      try {
+        let q = supabase
+          .from("sales")
+          .select("id,invoice_no,sale_date,total,paid,due,status,is_return,customer:customers(name),items:sale_items(id)")
+          .eq("tenant_id", tenantId)
+          .order("sale_date", { ascending: false })
+          .limit(300);
+        if (from) q = q.gte("sale_date", from);
+        if (to) q = q.lte("sale_date", `${to}T23:59:59`);
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data ?? []) as unknown as SaleRow[];
+        void cacheSales(
+          tenantId,
+          rows.map((s) => ({
+            id: s.id,
+            invoice_no: s.invoice_no,
+            sale_date: s.sale_date,
+            created_at: s.sale_date,
+            subtotal: Number(s.total ?? 0),
+            discount: 0,
+            vat: 0,
+            total: Number(s.total ?? 0),
+            paid: Number(s.paid ?? 0),
+            due: Number(s.due ?? 0),
+            payment_method: "cash",
+            status: s.status,
+            is_return: s.is_return,
+            customer_name: s.customer?.name ?? null,
+            items: [],
+            pendingSync: false,
+          })),
+        ).catch(() => {});
+
+        const cachedAll = await listCachedSales(tenantId, { from: from || undefined, to: to || undefined }).catch(() => []);
+        const pendingLocal = mapCached(cachedAll.filter((c) => c.pendingSync));
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return mapCached(await listCachedSales(tenantId, { from: from || undefined, to: to || undefined }));
+        }
+        throw err;
+      }
     },
   });
 

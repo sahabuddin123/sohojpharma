@@ -1,35 +1,48 @@
-// IndexedDB-backed outbox for offline operations.
-// Stores queued ops; the sync engine drains them when online.
+// IndexedDB-backed offline store + outbox for SohojPharma.
+// Stores pending mutations (`outbox`) and local offline mirrors (`products_cache`,
+// `customers_cache`, `suppliers_cache`, `sales_cache`, `purchases_cache`, `meta_store`).
 import { openDB, type IDBPDatabase } from "idb";
 
-export type OpKind = "sale" | "purchase" | "collection";
+export type OpKind = "sale" | "purchase" | "collection" | "customer_create";
 export type OpStatus = "pending" | "syncing" | "failed" | "done";
 
 export interface OutboxOp<T = unknown> {
-  id: string;              // client_op_id (uuid)
+  id: string; // client_op_id (uuid)
   kind: OpKind;
   payload: T;
   status: OpStatus;
   attempts: number;
   lastError?: string;
-  createdAt: number;       // client timestamp (ms)
+  createdAt: number; // client timestamp (ms)
   updatedAt: number;
-  nextAttemptAt: number;   // for backoff scheduling
+  nextAttemptAt: number; // for backoff scheduling
 }
 
 const DB_NAME = "pharma-offline";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE = "outbox";
 const PRODUCTS_STORE = "products_cache";
 const CUSTOMERS_STORE = "customers_cache";
+const SUPPLIERS_STORE = "suppliers_cache";
+const SALES_STORE = "sales_cache";
+const PURCHASES_STORE = "purchases_cache";
+const META_STORE = "meta_store";
 
 export interface CachedProduct {
   key: string; // `${tenantId}:${id}`
   tenantId: string;
   id: string;
   name: string;
+  displayName?: string | null;
   form?: string | null;
   strength?: string | null;
+  generic_name?: string | null;
+  company_name?: string | null;
+  sku?: string | null;
+  barcode?: string | null;
+  unit?: string | null;
+  reorder_level?: number | null;
+  is_active?: boolean;
   cost: number;
   price: number;
   vat_rate: number;
@@ -44,13 +57,103 @@ export interface CachedCustomer {
   key: string; // `${tenantId}:${id}`
   tenantId: string;
   id: string;
+  customer_code?: string | null;
+  name: string;
+  phone: string | null;
+  email?: string | null;
+  type?: "retail" | "dealer" | "wholesale" | string | null;
+  address?: string | null;
+  due_balance: number;
+  credit_limit?: number | null;
+  pendingSync?: boolean;
+  updatedAt: number;
+}
+
+export interface CachedSupplier {
+  key: string; // `${tenantId}:${id}`
+  tenantId: string;
+  id: string;
   name: string;
   phone: string | null;
   due_balance: number;
   updatedAt: number;
 }
 
+export interface CachedSaleItem {
+  product_id: string;
+  name: string;
+  qty: number;
+  unit_price: number;
+  discount?: number;
+  vat?: number;
+  line_total: number;
+}
+
+export interface CachedSale {
+  key: string; // `${tenantId}:${id}`
+  tenantId: string;
+  id: string; // sale uuid OR client_op_id for offline sales
+  invoice_no: string;
+  sale_date: string;
+  created_at: string;
+  subtotal: number;
+  discount: number;
+  vat: number;
+  total: number;
+  paid: number;
+  due: number;
+  payment_method: string;
+  status: string;
+  is_return?: boolean;
+  customer_id?: string | null;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  items: CachedSaleItem[];
+  pendingSync?: boolean;
+  updatedAt: number;
+}
+
+export interface CachedPurchase {
+  key: string; // `${tenantId}:${id}`
+  tenantId: string;
+  id: string; // po uuid OR client_op_id for offline purchases
+  po_number: string;
+  status: string;
+  order_date: string;
+  created_at: string;
+  total: number;
+  paid?: number;
+  due?: number;
+  supplier_id?: string | null;
+  supplier_name?: string | null;
+  items?: Array<{
+    product_id: string;
+    name: string;
+    qty: number;
+    unit_cost: number;
+    batch_no?: string;
+    expiry_date?: string;
+    line_total: number;
+  }>;
+  pendingSync?: boolean;
+  updatedAt: number;
+}
+
+export interface OfflineMetaEntry<T = unknown> {
+  key: string;
+  value: T;
+  updatedAt: number;
+}
+
 let dbPromise: Promise<IDBPDatabase> | null = null;
+
+// Fast in-memory tenant mirror so typing in POS / products (33k+ SKUs) executes in < 3ms
+const productMemCache = new Map<string, CachedProduct[]>();
+
+function invalidateProductMem(tenantId?: string) {
+  if (tenantId) productMemCache.delete(tenantId);
+  else productMemCache.clear();
+}
 
 function getDb() {
   if (typeof indexedDB === "undefined") {
@@ -72,6 +175,21 @@ function getDb() {
           const cStore = db.createObjectStore(CUSTOMERS_STORE, { keyPath: "key" });
           cStore.createIndex("tenantId", "tenantId");
         }
+        if (!db.objectStoreNames.contains(SUPPLIERS_STORE)) {
+          const sStore = db.createObjectStore(SUPPLIERS_STORE, { keyPath: "key" });
+          sStore.createIndex("tenantId", "tenantId");
+        }
+        if (!db.objectStoreNames.contains(SALES_STORE)) {
+          const slStore = db.createObjectStore(SALES_STORE, { keyPath: "key" });
+          slStore.createIndex("tenantId", "tenantId");
+        }
+        if (!db.objectStoreNames.contains(PURCHASES_STORE)) {
+          const poStore = db.createObjectStore(PURCHASES_STORE, { keyPath: "key" });
+          poStore.createIndex("tenantId", "tenantId");
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          db.createObjectStore(META_STORE, { keyPath: "key" });
+        }
       },
     });
   }
@@ -79,16 +197,25 @@ function getDb() {
 }
 
 export function newOpId(): string {
-  // crypto.randomUUID is available in modern browsers
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
-  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }
 
-export async function enqueueOp<T>(kind: OpKind, payload: T): Promise<OutboxOp<T>> {
+// --- Outbox operations ---
+export async function enqueueOp<T>(
+  kind: OpKind,
+  payload: T,
+  explicitId?: string,
+): Promise<OutboxOp<T>> {
   const db = await getDb();
   const now = Date.now();
+  const id = explicitId || newOpId();
   const op: OutboxOp<T> = {
-    id: newOpId(),
+    id,
     kind,
     payload,
     status: "pending",
@@ -112,6 +239,13 @@ export async function listPending(): Promise<OutboxOp[]> {
   const now = Date.now();
   return all
     .filter((o) => (o.status === "pending" || o.status === "failed") && o.nextAttemptAt <= now)
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function listUnfinishedOps(): Promise<OutboxOp[]> {
+  const all = await listOps();
+  return all
+    .filter((o) => o.status !== "done")
     .sort((a, b) => a.createdAt - b.createdAt);
 }
 
@@ -141,7 +275,7 @@ export async function clearDone(): Promise<void> {
   notify();
 }
 
-// --- pub/sub for UI subscribers (badge, dashboard) ---
+// --- pub/sub for UI subscribers ---
 type Listener = () => void;
 const listeners = new Set<Listener>();
 export function subscribe(fn: Listener) {
@@ -154,59 +288,482 @@ function notify() {
   });
 }
 
-// --- Offline catalog cache (products & customers) ---
-export async function cacheProducts(tenantId: string, rows: Array<Omit<CachedProduct, "key" | "tenantId" | "updatedAt">>): Promise<void> {
+// --- Meta store ---
+export async function setOfflineMeta<T>(key: string, value: T): Promise<void> {
+  if (typeof indexedDB === "undefined") return;
+  const db = await getDb();
+  await db.put(META_STORE, { key, value, updatedAt: Date.now() } satisfies OfflineMetaEntry<T>);
+}
+
+export async function getOfflineMeta<T>(key: string): Promise<T | null> {
+  if (typeof indexedDB === "undefined") return null;
+  const db = await getDb();
+  const entry = (await db.get(META_STORE, key)) as OfflineMetaEntry<T> | undefined;
+  return entry ? entry.value : null;
+}
+
+// --- Products cache ---
+async function getTenantProducts(tenantId: string): Promise<CachedProduct[]> {
+  if (!tenantId) return [];
+  const hit = productMemCache.get(tenantId);
+  if (hit) return hit;
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(PRODUCTS_STORE, "tenantId", tenantId)) as CachedProduct[];
+  productMemCache.set(tenantId, all);
+  return all;
+}
+
+export type CacheProductInput = Omit<CachedProduct, "key" | "tenantId" | "updatedAt">;
+
+export async function cacheProducts(tenantId: string, rows: CacheProductInput[]): Promise<void> {
   if (!tenantId || rows.length === 0) return;
   const db = await getDb();
   const tx = db.transaction(PRODUCTS_STORE, "readwrite");
   const now = Date.now();
-  await Promise.all([
-    ...rows.map((r) =>
-      tx.store.put({
-        ...r,
-        key: `${tenantId}:${r.id}`,
-        tenantId,
-        updatedAt: now,
-      } satisfies CachedProduct),
-    ),
-    tx.done,
-  ]);
+  for (const r of rows) {
+    void tx.store.put({
+      ...r,
+      key: `${tenantId}:${r.id}`,
+      tenantId,
+      updatedAt: now,
+    } satisfies CachedProduct);
+  }
+  await tx.done;
+  invalidateProductMem(tenantId);
 }
 
-export async function searchCachedProducts(tenantId: string, query: string): Promise<CachedProduct[]> {
-  if (!tenantId) return [];
+export async function countCachedProducts(tenantId: string): Promise<number> {
+  if (!tenantId) return 0;
   const db = await getDb();
-  const all = (await db.getAllFromIndex(PRODUCTS_STORE, "tenantId", tenantId)) as CachedProduct[];
-  const q = query.trim().toLowerCase();
-  if (!q) return all.slice(0, 30);
-  return all.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 30);
+  return await db.countFromIndex(PRODUCTS_STORE, "tenantId", tenantId);
 }
 
-export async function cacheCustomers(tenantId: string, rows: Array<Omit<CachedCustomer, "key" | "tenantId" | "updatedAt">>): Promise<void> {
+export async function searchCachedProducts(
+  tenantId: string,
+  query: string,
+  limit = 30,
+): Promise<CachedProduct[]> {
+  const all = await getTenantProducts(tenantId);
+  if (all.length === 0) return [];
+  const q = query.trim().toLowerCase();
+  if (!q) return all.slice(0, limit);
+
+  const exactBarcode: CachedProduct[] = [];
+  const prefixMatches: CachedProduct[] = [];
+  const containsMatches: CachedProduct[] = [];
+
+  for (const p of all) {
+    if (p.is_active === false) continue;
+    const barcode = (p.barcode ?? "").toLowerCase();
+    const sku = (p.sku ?? "").toLowerCase();
+    if (barcode === q || sku === q) {
+      exactBarcode.push(p);
+      continue;
+    }
+    const name = p.name.toLowerCase();
+    const disp = (p.displayName ?? "").toLowerCase();
+    const gen = (p.generic_name ?? "").toLowerCase();
+    const comp = (p.company_name ?? "").toLowerCase();
+    const strength = (p.strength ?? "").toLowerCase();
+    if (name.startsWith(q) || disp.startsWith(q)) {
+      prefixMatches.push(p);
+    } else if (
+      name.includes(q) ||
+      disp.includes(q) ||
+      gen.includes(q) ||
+      comp.includes(q) ||
+      strength.includes(q) ||
+      barcode.includes(q) ||
+      sku.includes(q)
+    ) {
+      containsMatches.push(p);
+    }
+    if (exactBarcode.length + prefixMatches.length >= limit * 2 && containsMatches.length >= limit * 2) {
+      // Early cap after ample candidates are gathered
+    }
+  }
+
+  return [...exactBarcode, ...prefixMatches, ...containsMatches].slice(0, limit);
+}
+
+export async function findCachedProductByBarcode(
+  tenantId: string,
+  code: string,
+): Promise<CachedProduct | null> {
+  const clean = code.trim().toLowerCase();
+  if (!clean) return null;
+  const all = await getTenantProducts(tenantId);
+  return (
+    all.find(
+      (p) =>
+        p.is_active !== false &&
+        ((p.barcode ?? "").toLowerCase() === clean || (p.sku ?? "").toLowerCase() === clean),
+    ) ?? null
+  );
+}
+
+export async function listCachedProducts(
+  tenantId: string,
+  opts: {
+    search?: string;
+    filter?: "all" | "in" | "low" | "out" | "neg";
+    inStockOnly?: boolean;
+    sortBy?: "name" | "stock";
+    sortDir?: "asc" | "desc";
+    page?: number;
+    pageSize?: number;
+  } = {},
+): Promise<{
+  rows: CachedProduct[];
+  total: number;
+  stats: { totalProducts: number; totalStock: number; stockValue: number; inStock: number; lowStock: number; outOfStock: number; negStock: number };
+}> {
+  const all = await getTenantProducts(tenantId);
+  const q = (opts.search ?? "").trim().toLowerCase();
+  const filter = opts.filter ?? "all";
+
+  let totalStock = 0;
+  let stockValue = 0;
+  let inStock = 0;
+  let lowStock = 0;
+  let outOfStock = 0;
+  let negStock = 0;
+
+  const matched: CachedProduct[] = [];
+
+  for (const p of all) {
+    const stk = Number(p.stock ?? 0);
+    const rl = p.reorder_level ?? null;
+    if (stk < 0) negStock++;
+    else if (stk === 0) outOfStock++;
+    else if ((rl != null && stk <= rl) || (rl == null && stk <= 20)) lowStock++;
+    else inStock++;
+
+    if (stk > 0) {
+      totalStock += stk;
+      stockValue += stk * Number(p.cost ?? 0);
+    }
+
+    if (opts.inStockOnly && stk <= 0) continue;
+
+    if (filter !== "all") {
+      if (filter === "neg" && stk >= 0) continue;
+      if (filter === "out" && stk !== 0) continue;
+      if (filter === "low" && !(stk > 0 && ((rl != null && stk <= rl) || (rl == null && stk <= 20)))) continue;
+      if (filter === "in" && !(stk > (rl ?? 20))) continue;
+    }
+
+    if (q) {
+      const hay =
+        p.name.toLowerCase().includes(q) ||
+        (p.displayName ?? "").toLowerCase().includes(q) ||
+        (p.generic_name ?? "").toLowerCase().includes(q) ||
+        (p.company_name ?? "").toLowerCase().includes(q) ||
+        (p.sku ?? "").toLowerCase().includes(q) ||
+        (p.barcode ?? "").toLowerCase().includes(q);
+      if (!hay) continue;
+    }
+
+    matched.push(p);
+  }
+
+  const dir = opts.sortDir === "desc" ? -1 : 1;
+  matched.sort((a, b) => {
+    if (opts.sortBy === "stock") return (Number(a.stock ?? 0) - Number(b.stock ?? 0)) * dir;
+    return a.name.localeCompare(b.name) * dir;
+  });
+
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.max(1, opts.pageSize ?? 50);
+  const start = (page - 1) * pageSize;
+
+  return {
+    rows: matched.slice(start, start + pageSize),
+    total: matched.length,
+    stats: {
+      totalProducts: all.length,
+      totalStock,
+      stockValue,
+      inStock,
+      lowStock,
+      outOfStock,
+      negStock,
+    },
+  };
+}
+
+export async function adjustCachedProductStock(
+  tenantId: string,
+  deltas: Array<{ product_id: string; delta: number; price?: number; cost?: number; pcsPerStrip?: number; pcsPerBox?: number }>,
+): Promise<void> {
+  if (!tenantId || deltas.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(PRODUCTS_STORE, "readwrite");
+  const now = Date.now();
+  for (const d of deltas) {
+    const key = `${tenantId}:${d.product_id}`;
+    const existing = (await tx.store.get(key)) as CachedProduct | undefined;
+    if (!existing) continue;
+    await tx.store.put({
+      ...existing,
+      stock: Number(existing.stock ?? 0) + d.delta,
+      ...(d.price !== undefined ? { price: d.price } : {}),
+      ...(d.cost !== undefined ? { cost: d.cost } : {}),
+      ...(d.pcsPerStrip !== undefined ? { pcsPerStrip: d.pcsPerStrip } : {}),
+      ...(d.pcsPerBox !== undefined ? { pcsPerBox: d.pcsPerBox } : {}),
+      updatedAt: now,
+    } satisfies CachedProduct);
+  }
+  await tx.done;
+  invalidateProductMem(tenantId);
+}
+
+// --- Customers cache ---
+export async function cacheCustomers(
+  tenantId: string,
+  rows: Array<Omit<CachedCustomer, "key" | "tenantId" | "updatedAt">>,
+): Promise<void> {
   if (!tenantId || rows.length === 0) return;
   const db = await getDb();
   const tx = db.transaction(CUSTOMERS_STORE, "readwrite");
   const now = Date.now();
-  await Promise.all([
-    ...rows.map((r) =>
-      tx.store.put({
-        ...r,
-        key: `${tenantId}:${r.id}`,
-        tenantId,
-        updatedAt: now,
-      } satisfies CachedCustomer),
-    ),
-    tx.done,
-  ]);
+  for (const r of rows) {
+    const key = `${tenantId}:${r.id}`;
+    const existing = (await tx.store.get(key)) as CachedCustomer | undefined;
+    // Preserve pending local changes if item hasn't synced yet
+    if (existing?.pendingSync && !r.pendingSync) continue;
+    void tx.store.put({
+      ...r,
+      key,
+      tenantId,
+      updatedAt: now,
+    } satisfies CachedCustomer);
+  }
+  await tx.done;
 }
 
-export async function searchCachedCustomers(tenantId: string, query: string): Promise<CachedCustomer[]> {
+export async function putCachedCustomer(
+  tenantId: string,
+  row: Omit<CachedCustomer, "key" | "tenantId" | "updatedAt">,
+): Promise<void> {
+  await cacheCustomers(tenantId, [row]);
+}
+
+export async function markCustomerSynced(tenantId: string, id: string): Promise<void> {
+  if (!tenantId || !id) return;
+  const db = await getDb();
+  const existing = (await db.get(CUSTOMERS_STORE, `${tenantId}:${id}`)) as CachedCustomer | undefined;
+  if (existing) {
+    await db.put(CUSTOMERS_STORE, { ...existing, pendingSync: false, updatedAt: Date.now() });
+  }
+}
+
+export async function adjustCachedCustomerDue(
+  tenantId: string,
+  customerId: string,
+  delta: number,
+): Promise<void> {
+  if (!tenantId || !customerId || delta === 0) return;
+  const db = await getDb();
+  const key = `${tenantId}:${customerId}`;
+  const existing = (await db.get(CUSTOMERS_STORE, key)) as CachedCustomer | undefined;
+  if (!existing) return;
+  await db.put(CUSTOMERS_STORE, {
+    ...existing,
+    due_balance: Math.round((Number(existing.due_balance ?? 0) + delta) * 100) / 100,
+    updatedAt: Date.now(),
+  });
+}
+
+export async function listCachedCustomers(tenantId: string): Promise<CachedCustomer[]> {
   if (!tenantId) return [];
   const db = await getDb();
   const all = (await db.getAllFromIndex(CUSTOMERS_STORE, "tenantId", tenantId)) as CachedCustomer[];
+  return all.sort((a, b) => Number(b.due_balance ?? 0) - Number(a.due_balance ?? 0) || a.name.localeCompare(b.name));
+}
+
+export async function searchCachedCustomers(tenantId: string, query: string): Promise<CachedCustomer[]> {
+  const all = await listCachedCustomers(tenantId);
   const q = query.trim().toLowerCase();
-  if (!q) return all.slice(0, 20);
+  if (!q) return all.slice(0, 30);
   return all
     .filter((c) => c.name.toLowerCase().includes(q) || (c.phone ?? "").toLowerCase().includes(q))
-    .slice(0, 20);
+    .slice(0, 30);
+}
+
+// --- Suppliers cache ---
+export async function cacheSuppliers(
+  tenantId: string,
+  rows: Array<Omit<CachedSupplier, "key" | "tenantId" | "updatedAt">>,
+): Promise<void> {
+  if (!tenantId || rows.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(SUPPLIERS_STORE, "readwrite");
+  const now = Date.now();
+  for (const r of rows) {
+    void tx.store.put({
+      ...r,
+      key: `${tenantId}:${r.id}`,
+      tenantId,
+      updatedAt: now,
+    } satisfies CachedSupplier);
+  }
+  await tx.done;
+}
+
+export async function listCachedSuppliers(tenantId: string): Promise<CachedSupplier[]> {
+  if (!tenantId) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(SUPPLIERS_STORE, "tenantId", tenantId)) as CachedSupplier[];
+  return all.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+// --- Sales & Invoices cache ---
+export async function cacheSales(
+  tenantId: string,
+  rows: Array<Omit<CachedSale, "key" | "tenantId" | "updatedAt">>,
+): Promise<void> {
+  if (!tenantId || rows.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(SALES_STORE, "readwrite");
+  const now = Date.now();
+  for (const r of rows) {
+    const key = `${tenantId}:${r.id}`;
+    void tx.store.put({
+      ...r,
+      key,
+      tenantId,
+      updatedAt: now,
+    } satisfies CachedSale);
+  }
+  await tx.done;
+}
+
+export async function putCachedSale(
+  tenantId: string,
+  row: Omit<CachedSale, "key" | "tenantId" | "updatedAt">,
+): Promise<void> {
+  await cacheSales(tenantId, [row]);
+}
+
+export async function replaceOfflineSaleWithSynced(
+  tenantId: string,
+  clientOpId: string,
+  serverSaleId: string,
+  serverInvoiceNo: string,
+): Promise<void> {
+  if (!tenantId) return;
+  const db = await getDb();
+  const oldKey = `${tenantId}:${clientOpId}`;
+  const existing = (await db.get(SALES_STORE, oldKey)) as CachedSale | undefined;
+  if (existing) {
+    await db.delete(SALES_STORE, oldKey);
+    await db.put(SALES_STORE, {
+      ...existing,
+      id: serverSaleId,
+      key: `${tenantId}:${serverSaleId}`,
+      invoice_no: serverInvoiceNo || existing.invoice_no,
+      pendingSync: false,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
+export async function listCachedSales(
+  tenantId: string,
+  range?: { from?: string; to?: string },
+): Promise<CachedSale[]> {
+  if (!tenantId) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(SALES_STORE, "tenantId", tenantId)) as CachedSale[];
+  return all
+    .filter((s) => {
+      const ymd = (s.sale_date || s.created_at || "").slice(0, 10);
+      if (range?.from && ymd && ymd < range.from) return false;
+      if (range?.to && ymd && ymd > range.to) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export async function getCachedSale(tenantId: string, saleId: string): Promise<CachedSale | null> {
+  if (!tenantId || !saleId) return null;
+  const db = await getDb();
+  const byKey = (await db.get(SALES_STORE, `${tenantId}:${saleId}`)) as CachedSale | undefined;
+  if (byKey) return byKey;
+  const all = (await db.getAllFromIndex(SALES_STORE, "tenantId", tenantId)) as CachedSale[];
+  return all.find((s) => s.id === saleId || s.invoice_no === saleId) ?? null;
+}
+
+// --- Purchases cache ---
+export async function cachePurchases(
+  tenantId: string,
+  rows: Array<Omit<CachedPurchase, "key" | "tenantId" | "updatedAt">>,
+): Promise<void> {
+  if (!tenantId || rows.length === 0) return;
+  const db = await getDb();
+  const tx = db.transaction(PURCHASES_STORE, "readwrite");
+  const now = Date.now();
+  for (const r of rows) {
+    void tx.store.put({
+      ...r,
+      key: `${tenantId}:${r.id}`,
+      tenantId,
+      updatedAt: now,
+    } satisfies CachedPurchase);
+  }
+  await tx.done;
+}
+
+export async function putCachedPurchase(
+  tenantId: string,
+  row: Omit<CachedPurchase, "key" | "tenantId" | "updatedAt">,
+): Promise<void> {
+  await cachePurchases(tenantId, [row]);
+}
+
+export async function replaceOfflinePurchaseWithSynced(
+  tenantId: string,
+  clientOpId: string,
+  serverPoId: string,
+  serverPoNo: string,
+): Promise<void> {
+  if (!tenantId) return;
+  const db = await getDb();
+  const oldKey = `${tenantId}:${clientOpId}`;
+  const existing = (await db.get(PURCHASES_STORE, oldKey)) as CachedPurchase | undefined;
+  if (existing) {
+    await db.delete(PURCHASES_STORE, oldKey);
+    await db.put(PURCHASES_STORE, {
+      ...existing,
+      id: serverPoId,
+      key: `${tenantId}:${serverPoId}`,
+      po_number: serverPoNo || existing.po_number,
+      pendingSync: false,
+      updatedAt: Date.now(),
+    });
+  }
+}
+
+export async function listCachedPurchases(
+  tenantId: string,
+  range?: { from?: string; to?: string },
+): Promise<CachedPurchase[]> {
+  if (!tenantId) return [];
+  const db = await getDb();
+  const all = (await db.getAllFromIndex(PURCHASES_STORE, "tenantId", tenantId)) as CachedPurchase[];
+  return all
+    .filter((p) => {
+      const ymd = (p.order_date || p.created_at || "").slice(0, 10);
+      if (range?.from && ymd && ymd < range.from) return false;
+      if (range?.to && ymd && ymd > range.to) return false;
+      return true;
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export async function getCachedPurchase(tenantId: string, poId: string): Promise<CachedPurchase | null> {
+  if (!tenantId || !poId) return null;
+  const db = await getDb();
+  return ((await db.get(PURCHASES_STORE, `${tenantId}:${poId}`)) as CachedPurchase | undefined) ?? null;
 }

@@ -11,6 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { InvoiceDoc, type InvoiceData, type InvoiceFormat, type InvoiceSettings } from "./invoice-doc";
 import { useTranslation } from "react-i18next";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { getCachedSale, getOfflineMeta } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 const DEFAULT_SETTINGS: InvoiceSettings = {
   company_name: "",
@@ -152,61 +154,83 @@ export function useInvoiceSettings(tenantId: string) {
     queryKey: ["pos-invoice-print-settings", tenantId],
     enabled: !!tenantId,
     queryFn: async (): Promise<InvoiceSettings> => {
-      // Identity + branding (company_name, address, phone, BIN/TIN, licenses, logo, colors,
-      // footer) come from Pharmacy Profile + tenant_settings.branding — the single source of
-      // truth. invoice_settings contributes cosmetic overrides + per-tenant visibility toggles.
-      const [tenantRes, settingsRes, brandingRes] = await Promise.all([
-        supabase
-          .from("tenants")
-          .select("name, phone, mobile, email, website, bin, tin, trade_license_no, drug_license_no, address_line, area, district, division, postal_code, country, logo_url, receipt_logo_url")
-          .eq("id", tenantId)
-          .maybeSingle(),
-        supabase
-          .from("invoice_settings" as never)
-          .select("*")
-          .eq("tenant_id", tenantId)
-          .is("branch_id", null)
-          .maybeSingle(),
-        supabase
-          .from("tenant_settings")
-          .select("branding")
-          .eq("tenant_id", tenantId)
-          .maybeSingle(),
-      ]);
-      const cosmetic = (settingsRes.data as unknown as Partial<InvoiceSettings> & {
-        show_logo?: boolean; show_bin?: boolean; show_tin?: boolean;
-        show_drug_license?: boolean; show_signature?: boolean; drug_license?: string;
-      }) ?? {};
-      const t = (tenantRes.data ?? {}) as Record<string, unknown>;
-      const b = ((brandingRes.data?.branding ?? {}) as Record<string, unknown>);
-      const addr = [t.address_line, t.area, t.district, t.division, t.postal_code, t.country]
-        .filter((v): v is string => !!v && typeof v === "string")
-        .join(", ");
-      const storeFallback: Partial<InvoiceSettings> = {
-        company_name: firstText(t.name) ?? "",
-        address: firstText(addr),
-        phone: firstText(t.phone, t.mobile),
-        email: firstText(t.email),
-        website: firstText(t.website),
-        bin_number: firstText(t.bin),
-        tin_number: firstText(t.tin),
-        trade_license: firstText(t.trade_license_no),
-        drug_license: firstText(cosmetic.drug_license, t.drug_license_no),
-        logo_url: firstText(b.receipt_logo_url, b.logo_url, t.receipt_logo_url, t.logo_url),
-        primary_color: firstText(b.primary_color, cosmetic.primary_color),
-        footer_message: firstText(b.invoice_footer, b.receipt_footer),
-        signature_url: firstText(b.signature_url),
+      const offlineSettings = async (): Promise<InvoiceSettings> => {
+        const s = await getOfflineMeta<Record<string, unknown>>(`shopInfo:${tenantId}`);
+        if (!s) return DEFAULT_SETTINGS;
+        const addr = [s.address_line, s.area, s.district].filter((v): v is string => !!v && typeof v === "string").join(", ");
+        return {
+          ...DEFAULT_SETTINGS,
+          company_name: firstText(s.name) ?? "",
+          address: firstText(addr),
+          phone: firstText(s.mobile, s.phone),
+        };
       };
-      const identity: Partial<InvoiceSettings> = {
-        ...storeFallback,
-        company_name: firstText(cosmetic.company_name, storeFallback.company_name) ?? "",
-        address: firstText(cosmetic.address, storeFallback.address),
-        phone: firstText(cosmetic.phone, storeFallback.phone),
-        logo_url: firstText(cosmetic.logo_url, storeFallback.logo_url),
-        footer_message: firstText(cosmetic.footer_message, storeFallback.footer_message, DEFAULT_SETTINGS.footer_message),
-        terms_conditions: firstText(cosmetic.terms_conditions),
-      };
-      return { ...DEFAULT_SETTINGS, ...cosmetic, ...identity };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineSettings();
+      }
+      try {
+        // Identity + branding (company_name, address, phone, BIN/TIN, licenses, logo, colors,
+        // footer) come from Pharmacy Profile + tenant_settings.branding — the single source of
+        // truth. invoice_settings contributes cosmetic overrides + per-tenant visibility toggles.
+        const [tenantRes, settingsRes, brandingRes] = await Promise.all([
+          supabase
+            .from("tenants")
+            .select("name, phone, mobile, email, website, bin, tin, trade_license_no, drug_license_no, address_line, area, district, division, postal_code, country, logo_url, receipt_logo_url")
+            .eq("id", tenantId)
+            .maybeSingle(),
+          supabase
+            .from("invoice_settings" as never)
+            .select("*")
+            .eq("tenant_id", tenantId)
+            .is("branch_id", null)
+            .maybeSingle(),
+          supabase
+            .from("tenant_settings")
+            .select("branding")
+            .eq("tenant_id", tenantId)
+            .maybeSingle(),
+        ]);
+        if (tenantRes.error && isOfflineNetworkError(tenantRes.error)) {
+          return await offlineSettings();
+        }
+        const cosmetic = (settingsRes.data as unknown as Partial<InvoiceSettings> & {
+          show_logo?: boolean; show_bin?: boolean; show_tin?: boolean;
+          show_drug_license?: boolean; show_signature?: boolean; drug_license?: string;
+        }) ?? {};
+        const t = (tenantRes.data ?? {}) as Record<string, unknown>;
+        const b = ((brandingRes.data?.branding ?? {}) as Record<string, unknown>);
+        const addr = [t.address_line, t.area, t.district, t.division, t.postal_code, t.country]
+          .filter((v): v is string => !!v && typeof v === "string")
+          .join(", ");
+        const storeFallback: Partial<InvoiceSettings> = {
+          company_name: firstText(t.name) ?? "",
+          address: firstText(addr),
+          phone: firstText(t.phone, t.mobile),
+          email: firstText(t.email),
+          website: firstText(t.website),
+          bin_number: firstText(t.bin),
+          tin_number: firstText(t.tin),
+          trade_license: firstText(t.trade_license_no),
+          drug_license: firstText(cosmetic.drug_license, t.drug_license_no),
+          logo_url: firstText(b.receipt_logo_url, b.logo_url, t.receipt_logo_url, t.logo_url),
+          primary_color: firstText(b.primary_color, cosmetic.primary_color),
+          footer_message: firstText(b.invoice_footer, b.receipt_footer),
+          signature_url: firstText(b.signature_url),
+        };
+        const identity: Partial<InvoiceSettings> = {
+          ...storeFallback,
+          company_name: firstText(cosmetic.company_name, storeFallback.company_name) ?? "",
+          address: firstText(cosmetic.address, storeFallback.address),
+          phone: firstText(cosmetic.phone, storeFallback.phone),
+          logo_url: firstText(cosmetic.logo_url, storeFallback.logo_url),
+          footer_message: firstText(cosmetic.footer_message, storeFallback.footer_message, DEFAULT_SETTINGS.footer_message),
+          terms_conditions: firstText(cosmetic.terms_conditions),
+        };
+        return { ...DEFAULT_SETTINGS, ...cosmetic, ...identity };
+      } catch (err) {
+        if (isOfflineNetworkError(err)) return await offlineSettings();
+        throw err;
+      }
     },
   });
 }
@@ -215,55 +239,97 @@ export function useInvoiceSettings(tenantId: string) {
 
 export function useSaleInvoiceData(saleId: string | null, tenantId: string) {
   return useQuery({
-    queryKey: ["sale-invoice", saleId],
+    queryKey: ["sale-invoice", tenantId, saleId],
     enabled: !!saleId && !!tenantId,
     queryFn: async (): Promise<InvoiceData | null> => {
       if (!saleId) return null;
-      const { data: sale, error } = await supabase
-        .from("sales")
-        .select("id, invoice_no, created_at, subtotal, discount, vat, total, paid, due, payment_method, notes, customer_id, cashier_id")
-        .eq("id", saleId)
-        .maybeSingle();
-      if (error || !sale) return null;
-      const { data: items } = await supabase
-        .from("sale_items")
-        .select("qty, unit_price, discount, vat, line_total, product_id, products(name, sku, strength, medicine_type, volume, pack_size)")
-        .eq("sale_id", saleId);
-      let customer_name = "", customer_phone = "";
-      if (sale.customer_id) {
-        const { data: c } = await supabase.from("customers").select("name, phone").eq("id", sale.customer_id).maybeSingle();
-        customer_name = c?.name ?? ""; customer_phone = c?.phone ?? "";
-      }
-      let cashier = "";
-      if (sale.cashier_id) {
-        const { data: p } = await supabase.from("profiles").select("full_name").eq("id", sale.cashier_id).maybeSingle();
-        cashier = p?.full_name ?? "";
-      }
-      return {
-        invoice_no: sale.invoice_no,
-        date: sale.created_at,
-        cashier,
-        customer_name,
-        customer_phone,
-        items: (items ?? []).map((it: { qty: number; unit_price: number; discount: number; vat: number; line_total: number; products: { name: string; sku: string; strength: string | null; medicine_type: string | null; volume: string | null; pack_size: number | null } | null }) => ({
-          name: it.products ? buildProductDisplayName(it.products) : "",
-          sku: it.products?.sku ?? "",
-          qty: Number(it.qty),
-          unit_price: Number(it.unit_price),
-          discount: Number(it.discount || 0),
-          vat: Number(it.vat || 0),
-          line_total: Number(it.line_total),
-        })),
-        subtotal: Number(sale.subtotal),
-        discount: Number(sale.discount),
-        vat: Number(sale.vat),
-        total: Number(sale.total),
-        paid: Number(sale.paid),
-        due: Number(sale.due),
-        payment_method: sale.payment_method,
-        notes: sale.notes,
-        kind: "sale",
+      const loadCached = async (): Promise<InvoiceData | null> => {
+        const c = await getCachedSale(tenantId, saleId);
+        if (!c) return null;
+        return {
+          invoice_no: c.invoice_no,
+          date: c.created_at,
+          cashier: "",
+          customer_name: c.customer_name ?? "",
+          customer_phone: c.customer_phone ?? "",
+          items: (c.items ?? []).map((it) => ({
+            name: it.name,
+            sku: "",
+            qty: Number(it.qty),
+            unit_price: Number(it.unit_price),
+            discount: Number(it.discount || 0),
+            vat: Number(it.vat || 0),
+            line_total: Number(it.line_total),
+          })),
+          subtotal: Number(c.subtotal),
+          discount: Number(c.discount),
+          vat: Number(c.vat),
+          total: Number(c.total),
+          paid: Number(c.paid),
+          due: Number(c.due),
+          payment_method: c.payment_method,
+          notes: c.pendingSync ? "অফলাইন ইনভয়েস (সিঙ্ক বাকি)" : null,
+          kind: "sale",
+        };
       };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const { data: sale, error } = await supabase
+          .from("sales")
+          .select("id, invoice_no, created_at, subtotal, discount, vat, total, paid, due, payment_method, notes, customer_id, cashier_id")
+          .eq("id", saleId)
+          .maybeSingle();
+        if (error) {
+          if (isOfflineNetworkError(error)) return await loadCached();
+          return await loadCached();
+        }
+        if (!sale) return await loadCached();
+        const { data: items } = await supabase
+          .from("sale_items")
+          .select("qty, unit_price, discount, vat, line_total, product_id, products(name, sku, strength, medicine_type, volume, pack_size)")
+          .eq("sale_id", saleId);
+        let customer_name = "", customer_phone = "";
+        if (sale.customer_id) {
+          const { data: c } = await supabase.from("customers").select("name, phone").eq("id", sale.customer_id).maybeSingle();
+          customer_name = c?.name ?? ""; customer_phone = c?.phone ?? "";
+        }
+        let cashier = "";
+        if (sale.cashier_id) {
+          const { data: p } = await supabase.from("profiles").select("full_name").eq("id", sale.cashier_id).maybeSingle();
+          cashier = p?.full_name ?? "";
+        }
+        return {
+          invoice_no: sale.invoice_no,
+          date: sale.created_at,
+          cashier,
+          customer_name,
+          customer_phone,
+          items: (items ?? []).map((it: { qty: number; unit_price: number; discount: number; vat: number; line_total: number; products: { name: string; sku: string; strength: string | null; medicine_type: string | null; volume: string | null; pack_size: number | null } | null }) => ({
+            name: it.products ? buildProductDisplayName(it.products) : "",
+            sku: it.products?.sku ?? "",
+            qty: Number(it.qty),
+            unit_price: Number(it.unit_price),
+            discount: Number(it.discount || 0),
+            vat: Number(it.vat || 0),
+            line_total: Number(it.line_total),
+          })),
+          subtotal: Number(sale.subtotal),
+          discount: Number(sale.discount),
+          vat: Number(sale.vat),
+          total: Number(sale.total),
+          paid: Number(sale.paid),
+          due: Number(sale.due),
+          payment_method: sale.payment_method,
+          notes: sale.notes,
+          kind: "sale",
+        };
+      } catch (err) {
+        if (isOfflineNetworkError(err)) return await loadCached();
+        throw err;
+      }
     },
   });
 }
@@ -296,14 +362,14 @@ export function InvoicePrintDialog({ open, onOpenChange, saleId, tenantId }: Pro
   }, [settings]);
 
   async function logPrint(fmt: string) {
-    if (!saleId || !invoice) return;
+    if (!saleId || !invoice || (typeof navigator !== "undefined" && !navigator.onLine)) return;
     await supabase.from("invoice_print_logs" as never).insert({
       tenant_id: tenantId, sale_id: saleId, invoice_no: invoice.invoice_no,
       format: fmt, printed_by: user?.id,
     } as never);
   }
   async function logShare(channel: string, recipient?: string) {
-    if (!saleId || !invoice) return;
+    if (!saleId || !invoice || (typeof navigator !== "undefined" && !navigator.onLine)) return;
     await supabase.from("invoice_share_logs" as never).insert({
       tenant_id: tenantId, sale_id: saleId, invoice_no: invoice.invoice_no,
       channel, recipient, shared_by: user?.id,

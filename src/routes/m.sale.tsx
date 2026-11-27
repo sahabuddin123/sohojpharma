@@ -39,12 +39,16 @@ import { createCustomer } from "@/lib/api/customer-crud.functions";
 import {
   cacheCustomers,
   cacheProducts,
+  getOfflineMeta,
   searchCachedCustomers,
   searchCachedProducts,
 } from "@/lib/offline/db";
-import { queueSale } from "@/lib/offline/queue";
+import { queueCustomerCreate, queueSale } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveBranch } from "@/hooks/use-active-branch";
 import { useActiveRegister } from "@/hooks/use-active-register";
+import { useActiveWarehouse } from "@/hooks/use-active-warehouse";
 import {
   getAvailableUnits,
   getUnitMultiplier,
@@ -98,6 +102,8 @@ type Line = {
 function MobileSale() {
   const { currentTenantId, user } = useAuth();
   const tenantId = currentTenantId ?? "";
+  const { branchId } = useActiveBranch();
+  const { warehouseId } = useActiveWarehouse();
   const { data: register } = useActiveRegister();
   const navigate = useNavigate();
 
@@ -202,7 +208,7 @@ function MobileSale() {
         ).catch(() => {});
         return mapped;
       } catch (err) {
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
+        if (isOfflineNetworkError(err)) {
           const cached = await searchCachedProducts(tenantId, debounced);
           return cached.map((c) => ({
             product_id: c.id,
@@ -725,6 +731,8 @@ function MobileSale() {
         totalCost={totalCost}
         tenantId={tenantId}
         userId={user?.id ?? ""}
+        branchId={branchId}
+        warehouseId={warehouseId}
         registerId={register?.id ?? null}
         onDone={(saleId) => {
           setCart([]);
@@ -756,6 +764,8 @@ function BillingSheet({
   totalCost,
   tenantId,
   userId,
+  branchId,
+  warehouseId,
   registerId,
   onDone,
   onContinue,
@@ -768,6 +778,8 @@ function BillingSheet({
   totalCost: number;
   tenantId: string;
   userId: string;
+  branchId: string | null;
+  warehouseId: string | null;
   registerId: string | null;
   onDone: (saleId: string | null) => void;
   onContinue: () => void;
@@ -843,7 +855,34 @@ function BillingSheet({
       return;
     }
     setAddingCust(true);
+    const saveOfflineCustomer = async () => {
+      const created = await queueCustomerCreate({
+        tenant_id: tenantId,
+        name: newCustName.trim(),
+        phone: newCustPhone.trim(),
+        address: newCustAddress.trim() || null,
+      });
+      const cust: CustomerLite = {
+        id: created.id,
+        name: created.name,
+        phone: created.phone,
+        due_balance: 0,
+      };
+      setSelectedCustomer(cust);
+      setShowAddCust(false);
+      setNewCustName("");
+      setNewCustPhone("");
+      setNewCustAddress("");
+      setCustQuery("");
+      queryClient.invalidateQueries({ queryKey: ["m-pos-customers"] });
+      toast.success(`অফলাইনে গ্রাহক সেভ হয়েছে: ${cust.name}`);
+    };
+
     try {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        await saveOfflineCustomer();
+        return;
+      }
       const created = await createCustomerFn({
         data: {
           tenantId,
@@ -867,6 +906,10 @@ function BillingSheet({
       queryClient.invalidateQueries({ queryKey: ["m-pos-customers"] });
       toast.success(`গ্রাহক যোগ হয়েছে: ${cust.name}`);
     } catch (e) {
+      if (isOfflineNetworkError(e)) {
+        await saveOfflineCustomer();
+        return;
+      }
       toast.error(e instanceof Error ? e.message : "গ্রাহক যোগ করতে সমস্যা হয়েছে");
     } finally {
       setAddingCust(false);
@@ -902,8 +945,10 @@ function BillingSheet({
         const vat = Math.round(Math.max(0, pcsQty * l.price - (l.discount || 0)) * (l.vat_rate / 100) * 100) / 100;
         return {
           product_id: l.product_id,
+          name: l.name,
           qty: pcsQty,
           unit_price: l.price,
+          unit_cost: l.cost,
           discount: l.discount || 0,
           vat,
           line_total: Math.round((pcsQty * l.price - (l.discount || 0) + vat) * 100) / 100,
@@ -915,12 +960,22 @@ function BillingSheet({
       if (due > 0) payments.push({ method: "due", amount: due });
 
       const enqueueOfflineSale = async () => {
+        const metaReg = registerId ?? (await getOfflineMeta<string>(`openRegister:${tenantId}`).catch(() => null));
+        const metaBranches = await getOfflineMeta<Array<{ id: string }>>(`branches:${tenantId}`).catch(() => null);
+        const metaWh = await getOfflineMeta<Array<{ id: string }>>(`warehouses:${tenantId}`).catch(() => null);
+        const totalVat = items.reduce((s, it) => s + it.vat, 0);
+
         const op = await queueSale({
           tenant_id: tenantId,
+          branch_id: branchId ?? metaBranches?.[0]?.id ?? null,
+          warehouse_id: warehouseId ?? metaWh?.[0]?.id ?? null,
+          register_id: metaReg ?? null,
           customer_id: selectedCustomer?.id ?? null,
-          subtotal: total,
+          customer_name: selectedCustomer?.name ?? null,
+          customer_phone: selectedCustomer?.phone ?? null,
+          subtotal: totalPrice,
           discount: discountAmount,
-          tax: 0,
+          vat: totalVat,
           total: finalPrice,
           paid: Math.min(paid, finalPrice),
           due,
@@ -928,14 +983,16 @@ function BillingSheet({
           notes: note || undefined,
           items: items.map((it) => ({
             product_id: it.product_id,
+            name: it.name,
             qty: it.qty,
             unit_price: it.unit_price,
+            unit_cost: it.unit_cost,
             discount: it.discount,
-            tax: it.vat,
+            vat: it.vat,
             line_total: it.line_total,
           })),
         });
-        const offlineInv = `OFFLINE-${op.id.slice(0, 6).toUpperCase()}`;
+        const offlineInv = (op.payload as { invoice_no?: string })?.invoice_no || `OFFLINE-${op.id.slice(0, 6).toUpperCase()}`;
         const itemsSummary = cart.map((l) => `${l.name} (${l.qty})`).join(", ");
         setDoneSale({
           id: op.id,
@@ -970,7 +1027,7 @@ function BillingSheet({
           _discount: discountAmount,
           _notes: note || undefined,
           _client_op_id: crypto.randomUUID(),
-          _items: items.map(({ line_total: _lt, ...rest }) => rest) as never,
+          _items: items.map(({ line_total: _lt, name: _nm, unit_cost: _uc, ...rest }) => rest) as never,
           _payments: payments as never,
           _register_id: registerId!,
           _warehouse_id: null,
@@ -996,8 +1053,7 @@ function BillingSheet({
         setCustQuery("");
         toast.success(`বিক্রি সম্পন্ন — ${sale.invoice_no}`);
       } catch (rpcErr) {
-        const msg = rpcErr instanceof Error ? rpcErr.message : String(rpcErr);
-        if ((typeof navigator !== "undefined" && !navigator.onLine) || /failed to fetch|network|offline|load failed/i.test(msg)) {
+        if (isOfflineNetworkError(rpcErr)) {
           await enqueueOfflineSale();
           return;
         }

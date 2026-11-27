@@ -14,12 +14,15 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 import { reportLovableError } from "../lib/lovable-error-reporting";
-import { AuthProvider } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { AuthGate } from "@/components/auth/auth-gate";
 import { OnboardingGate } from "@/components/auth/onboarding-gate";
 import { OfflineIndicator } from "@/components/offline/offline-indicator";
 import { PWAUpdater } from "@/components/pwa/pwa-updater";
 import { Toaster } from "@/components/ui/sonner";
+import { toast } from "sonner";
+import { startSyncEngine, setSyncTenantId } from "@/lib/offline/sync";
+import { warmFullCatalog } from "@/lib/offline/warm-cache";
 import i18n from "@/i18n";
 import { I18nextProvider } from "react-i18next";
 
@@ -181,6 +184,7 @@ function RootComponent() {
     void import("@/lib/observability/sentry").then((m) => m.initSentry());
 
     const handlePreloadError = () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
       const lastReload = sessionStorage.getItem("chunk_reload_ts");
       const now = Date.now();
       if (!lastReload || now - Number(lastReload) > 10000) {
@@ -199,6 +203,7 @@ function RootComponent() {
           <AuthGate>
             <OnboardingGate>
               <Outlet />
+              <GlobalOfflineManager />
               <RootOfflineBadge />
               <PWAUpdater />
               <Toaster richColors position="top-right" />
@@ -208,6 +213,64 @@ function RootComponent() {
       </I18nextProvider>
     </QueryClientProvider>
   );
+}
+
+function GlobalOfflineManager() {
+  const { currentTenantId, session } = useAuth();
+  const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    if (!session?.user) return;
+    setSyncTenantId(currentTenantId);
+    startSyncEngine(currentTenantId);
+  }, [session?.user, currentTenantId]);
+
+  useEffect(() => {
+    if (!session?.user || !currentTenantId) return;
+    const warm = () => {
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        void warmFullCatalog(currentTenantId);
+      }
+    };
+    // Slight delay after initial route paint so first render stays snappy
+    const timer = setTimeout(warm, 800);
+    window.addEventListener("online", warm);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("online", warm);
+    };
+  }, [session?.user, currentTenantId]);
+
+  useEffect(() => {
+    const onSynced = (e: Event) => {
+      const detail = (e as CustomEvent<{ processed?: number }>).detail;
+      const n = detail?.processed ?? 0;
+      if (n > 0) {
+        toast.success(`${n}টি অফলাইন এন্ট্রি ব্যাকগ্রাউন্ডে সার্ভারে সিঙ্ক হয়েছে ✓`);
+        void queryClient.invalidateQueries({
+          predicate: (q) => {
+            const k = String(q.queryKey[0] ?? "");
+            return (
+              k.startsWith("m-") ||
+              k.includes("pos-") ||
+              k.includes("sales") ||
+              k.includes("purchase") ||
+              k.includes("customers") ||
+              k.includes("products") ||
+              k.includes("suppliers")
+            );
+          },
+        });
+        if (currentTenantId) {
+          void warmFullCatalog(currentTenantId, true);
+        }
+      }
+    };
+    window.addEventListener("sohoj:offline-synced", onSynced);
+    return () => window.removeEventListener("sohoj:offline-synced", onSynced);
+  }, [queryClient, currentTenantId]);
+
+  return null;
 }
 
 function RootOfflineBadge() {

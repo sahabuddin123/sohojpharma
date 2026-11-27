@@ -7,6 +7,8 @@ import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneEmpty, PhoneKpi, PhoneKpiGrid, money } from "@/components/mobile/phone-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { listCachedCustomers, listCachedSales } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { buildCustomerLedger } from "@/lib/api/customer-ledger-unified";
 import { cn } from "@/lib/utils";
 
@@ -30,39 +32,70 @@ function MobileCustomerLedger() {
     queryKey: ["m-customer-ledger", tenantId, id],
     enabled: !!tenantId && !!id,
     queryFn: async () => {
-      const [{ data: cust, error: cErr }, { data: sales }, { data: pays }, { data: rets }] = await Promise.all([
-        supabase
-          .from("customers")
-          .select("id,name,phone,due_balance,opening_balance")
-          .eq("tenant_id", tenantId)
-          .eq("id", id)
-          .single(),
-        supabase
-          .from("sales")
-          .select("id,invoice_no,sale_date,created_at,total,paid,due,status,is_return")
-          .eq("tenant_id", tenantId)
-          .eq("customer_id", id)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("customer_payments")
-          .select("id,payment_date,amount,reference,sale_id")
-          .eq("tenant_id", tenantId)
-          .eq("customer_id", id)
-          .order("created_at", { ascending: true }),
-        supabase
-          .from("sales_returns")
-          .select("id,return_no,return_date,created_at,total,refunded_amount")
-          .eq("tenant_id", tenantId)
-          .eq("customer_id", id)
-          .order("created_at", { ascending: true }),
-      ]);
-      if (cErr) throw cErr;
-      return {
-        customer: cust as { id: string; name: string; phone: string | null; due_balance: number | null; opening_balance: number | null },
-        sales: (sales ?? []) as any[],
-        payments: (pays ?? []) as any[],
-        returns: (rets ?? []) as any[],
+      const loadCached = async () => {
+        const custs = await listCachedCustomers(tenantId);
+        const found = custs.find((c) => c.id === id);
+        if (!found) throw new Error("অফলাইন ক্যাশে এই গ্রাহকের তথ্য নেই");
+        const allSales = await listCachedSales(tenantId);
+        const custSales = allSales.filter((s) => s.customer_id === id);
+        return {
+          customer: {
+            id: found.id,
+            name: found.name,
+            phone: found.phone,
+            due_balance: found.due_balance,
+            opening_balance: 0,
+          },
+          sales: custSales,
+          payments: [] as any[],
+          returns: [] as any[],
+        };
       };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+
+      try {
+        const [{ data: cust, error: cErr }, { data: sales }, { data: pays }, { data: rets }] = await Promise.all([
+          supabase
+            .from("customers")
+            .select("id,name,phone,due_balance,opening_balance")
+            .eq("tenant_id", tenantId)
+            .eq("id", id)
+            .single(),
+          supabase
+            .from("sales")
+            .select("id,invoice_no,sale_date,created_at,total,paid,due,status,is_return")
+            .eq("tenant_id", tenantId)
+            .eq("customer_id", id)
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("customer_payments")
+            .select("id,payment_date,amount,reference,sale_id")
+            .eq("tenant_id", tenantId)
+            .eq("customer_id", id)
+            .order("created_at", { ascending: true }),
+          supabase
+            .from("sales_returns")
+            .select("id,return_no,return_date,created_at,total,refunded_amount")
+            .eq("tenant_id", tenantId)
+            .eq("customer_id", id)
+            .order("created_at", { ascending: true }),
+        ]);
+        if (cErr) throw cErr;
+        return {
+          customer: cust as { id: string; name: string; phone: string | null; due_balance: number | null; opening_balance: number | null },
+          sales: (sales ?? []) as any[],
+          payments: (pays ?? []) as any[],
+          returns: (rets ?? []) as any[],
+        };
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
     },
   });
 

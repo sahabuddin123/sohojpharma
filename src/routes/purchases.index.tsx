@@ -15,6 +15,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Plus, Search, Eye } from "lucide-react";
 import { listPurchaseOrders } from "@/lib/api/procurement.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { cachePurchases, listCachedPurchases } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { ModernDateRangeFilter, useDateRangeFilter } from "@/components/common/date-range-filter";
 
 export const Route = createFileRoute("/purchases/")({
@@ -50,21 +52,84 @@ function PurchasesPage() {
   const [page, setPage] = useState(0);
   const { preset, from, to, setPreset, setCustom } = useDateRangeFilter("all");
 
+  type PO = { id: string; po_number: string; status: string; order_date: string; received_at: string | null; total: number; suppliers: { name: string } | null };
+
   const { data, isLoading } = useQuery({
     queryKey: ["purchase-orders", tenantId, status, search, page, from, to],
-    queryFn: () => listFn({ data: {
-      tenantId,
-      status: status === "all" ? undefined : status,
-      search: search.trim() || undefined,
-      from,
-      to,
-      limit: PAGE_SIZE,
-      offset: page * PAGE_SIZE,
-    } }),
+    queryFn: async () => {
+      const loadCached = async () => {
+        const cached = await listCachedPurchases(tenantId, { from: from || undefined, to: to || undefined });
+        const q = search.trim().toLowerCase();
+        const filtered = cached.filter((c) => {
+          if (status !== "all" && c.status !== status) return false;
+          if (q && !(c.po_number ?? "").toLowerCase().includes(q) && !(c.supplier_name ?? "").toLowerCase().includes(q)) return false;
+          return true;
+        });
+        const mapped: PO[] = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((c) => ({
+          id: c.id,
+          po_number: c.po_number,
+          status: c.status,
+          order_date: c.order_date,
+          received_at: c.created_at,
+          total: c.total,
+          suppliers: c.supplier_name ? { name: c.supplier_name } : null,
+        }));
+        return { rows: mapped, count: filtered.length };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const res = await listFn({
+          data: {
+            tenantId,
+            status: status === "all" ? undefined : status,
+            search: search.trim() || undefined,
+            from,
+            to,
+            limit: PAGE_SIZE,
+            offset: page * PAGE_SIZE,
+          },
+        });
+        const rows = (res.rows ?? []) as unknown as PO[];
+        void cachePurchases(
+          tenantId,
+          rows.map((r) => ({
+            id: r.id,
+            po_number: r.po_number,
+            status: r.status,
+            order_date: r.order_date,
+            created_at: r.received_at ?? r.order_date,
+            total: Number(r.total ?? 0),
+            supplier_name: r.suppliers?.name ?? null,
+            pendingSync: false,
+          })),
+        ).catch(() => {});
+        const cachedAll = await listCachedPurchases(tenantId, { from: from || undefined, to: to || undefined }).catch(() => []);
+        const pendingLocal: PO[] = cachedAll
+          .filter((c) => c.pendingSync && (status === "all" || c.status === status))
+          .map((c) => ({
+            id: c.id,
+            po_number: `${c.po_number} (Offline)`,
+            status: c.status,
+            order_date: c.order_date,
+            received_at: c.created_at,
+            total: c.total,
+            suppliers: c.supplier_name ? { name: c.supplier_name } : null,
+          }));
+        const seen = new Set(rows.map((r) => r.id));
+        const merged = page === 0 ? [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows] : rows;
+        return { rows: merged, count: (res.count ?? 0) + (page === 0 ? pendingLocal.length : 0) };
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
+    },
     enabled: !!tenantId,
   });
 
-  type PO = { id: string; po_number: string; status: string; order_date: string; received_at: string | null; total: number; suppliers: { name: string } | null };
   const rows = (data?.rows ?? []) as PO[];
   const total = data?.count ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));

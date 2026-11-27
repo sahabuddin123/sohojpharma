@@ -27,6 +27,14 @@ import {
 } from "@/lib/medicine-units";
 import { createPurchaseOrder, receivePurchaseOrder, updatePOStatus } from "@/lib/api/procurement.functions";
 import { recordSupplierPayment } from "@/lib/api/supplier-ledger.functions";
+import {
+  cacheSuppliers,
+  getOfflineMeta,
+  listCachedSuppliers,
+  searchCachedProducts,
+} from "@/lib/offline/db";
+import { queuePurchase } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 export const Route = createFileRoute("/m/purchase")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -207,14 +215,29 @@ function MobilePurchase() {
     queryKey: ["suppliers-active", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id,name,phone,due_balance")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await listCachedSuppliers(tenantId);
+      }
+      try {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .select("id,name,phone,due_balance")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name");
+        if (error) throw error;
+        const rows = data ?? [];
+        void cacheSuppliers(
+          tenantId,
+          rows.map((s) => ({ id: s.id, name: s.name, phone: s.phone ?? null, due_balance: Number(s.due_balance ?? 0) })),
+        ).catch(() => {});
+        return rows;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await listCachedSuppliers(tenantId);
+        }
+        throw err;
+      }
     },
   });
   const supplier = suppliers.find((s) => s.id === supplierId) ?? null;
@@ -321,29 +344,57 @@ function MobilePurchase() {
     queryKey: ["m-purchase-search", tenantId, debounced, filterByCompany ? supplierManufacturerId : null],
     enabled: !!tenantId && debounced.length >= 1,
     queryFn: async () => {
-      if (filterByCompany && supplierManufacturerId) {
-        const { data, error } = await supabase
-          .from("products")
-          .select("id, name, sku, barcode, purchase_price, retail_price, strength, medicine_type, volume, pack_size, batches(qty_on_hand)")
-          .eq("tenant_id", tenantId)
-          .eq("is_active", true)
-          .eq("manufacturer_id", supplierManufacturerId)
-          .ilike("name", `%${debounced}%`)
-          .order("name")
-          .limit(20);
-        if (error) throw error;
-        return ((data ?? []) as any[]).map((r) => ({
-          ...r,
-          qty_on_hand: Array.isArray(r.batches)
-            ? r.batches.reduce((s: number, b: any) => s + Number(b.qty_on_hand ?? 0), 0)
-            : 0,
-        })) as SearchRow[];
+      const offlineSearch = async (): Promise<SearchRow[]> => {
+        const cached = await searchCachedProducts(tenantId, debounced, 25);
+        return cached.map((c) => ({
+          id: c.id,
+          name: c.name,
+          sku: c.sku ?? null,
+          barcode: c.barcode ?? null,
+          purchase_price: c.cost,
+          retail_price: c.price,
+          qty_on_hand: c.stock,
+          strength: c.strength ?? null,
+          medicine_type: c.form ?? null,
+          volume: null,
+          pack_size: c.pcsPerStrip,
+          qty_per_box: c.pcsPerBox,
+        }));
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineSearch();
       }
-      const { data, error } = await supabase.rpc("search_products" as never, {
-        _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 15,
-      } as never);
-      if (error) throw error;
-      return (data ?? []) as SearchRow[];
+      try {
+        if (filterByCompany && supplierManufacturerId) {
+          const { data, error } = await supabase
+            .from("products")
+            .select("id, name, sku, barcode, purchase_price, retail_price, strength, medicine_type, volume, pack_size, batches(qty_on_hand)")
+            .eq("tenant_id", tenantId)
+            .eq("is_active", true)
+            .eq("manufacturer_id", supplierManufacturerId)
+            .ilike("name", `%${debounced}%`)
+            .order("name")
+            .limit(20);
+          if (error) throw error;
+          return ((data ?? []) as any[]).map((r) => ({
+            ...r,
+            qty_on_hand: Array.isArray(r.batches)
+              ? r.batches.reduce((s: number, b: any) => s + Number(b.qty_on_hand ?? 0), 0)
+              : 0,
+          })) as SearchRow[];
+        }
+        const { data, error } = await supabase.rpc("search_products" as never, {
+          _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 15,
+        } as never);
+        if (error) throw error;
+        return (data ?? []) as SearchRow[];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineSearch();
+        }
+        throw err;
+      }
     },
   });
 
@@ -432,13 +483,66 @@ function MobilePurchase() {
 
   async function handleSave() {
     if (errors.length || !tenantId) return toast.error(errors[0] ?? "Cannot save");
-    if (!branchId) return toast.error("Please select a branch first");
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    const metaBranches = await getOfflineMeta<Array<{ id: string }>>(`branches:${tenantId}`).catch(() => null);
+    const resolvedBranchId = branchId ?? metaBranches?.[0]?.id ?? null;
+    if (!isOffline && !resolvedBranchId) return toast.error("Please select a branch first");
     setSaving(true);
+
+    const saveOfflinePurchase = async () => {
+      const subtotalRaw = activeLines.reduce((s, l) => s + l.qty * lineMult(l) * l.purchase_price, 0);
+      const discRaw = activeLines.reduce((s, l) => s + l.discount, 0);
+      await queuePurchase({
+        tenant_id: tenantId,
+        branch_id: resolvedBranchId,
+        supplier_id: supplierId || null,
+        supplier_name: supplier?.name ?? null,
+        invoice_no: invoiceNo || undefined,
+        due_date: dueDate || undefined,
+        subtotal: subtotalRaw,
+        discount: discRaw,
+        vat: 0,
+        total: grandTotal,
+        paid,
+        due,
+        payment_method: payMethod,
+        items: activeLines.map((l) => {
+          const mult = lineMult(l);
+          const pcsQty = l.qty * mult;
+          const bonusPcs = l.bonus * mult;
+          return {
+            product_id: l.productId,
+            name: l.name,
+            batch_no: l.batch_no.trim(),
+            expiry_date: l.expiry_date,
+            qty: pcsQty,
+            bonus_qty: bonusPcs,
+            unit_cost: l.purchase_price,
+            sale_price: l.sale_price,
+            discount: l.discount,
+            vat: 0,
+            line_total: Math.max(0, pcsQty * l.purchase_price - l.discount),
+            pcs_per_strip: l.pcsPerStrip,
+            pcs_per_box: l.pcsPerBox,
+          };
+        }),
+      });
+      toast.success(tr("অফলাইনে ক্রয় সেভ হয়েছে! অনলাইনে এলে অটো সিঙ্ক হবে।", "Saved offline — will sync automatically when online"));
+      setPayModalOpen(false);
+      setLines([]); setPaid(0); setInvoiceNo(""); setDueDate(""); setCompanyBulkLoaded(false);
+      if (draftKey) localStorage.removeItem(draftKey);
+      navigate({ to: "/m/purchases" });
+    };
+
     try {
+      if (isOffline) {
+        await saveOfflinePurchase();
+        return;
+      }
       const { id: poId } = await createPO({
         data: {
           tenantId,
-          branch_id: branchId,
+          branch_id: resolvedBranchId!,
           supplier_id: supplierId,
           expected_delivery_date: dueDate || undefined,
           notes: invoiceNo ? `Invoice: ${invoiceNo}` : undefined,
@@ -456,7 +560,7 @@ function MobilePurchase() {
           }),
         },
       });
-      await updateStatus({ data: { id: poId, branch_id: branchId, action: "approve" } });
+      await updateStatus({ data: { id: poId, branch_id: resolvedBranchId!, action: "approve" } });
 
       const { data: items, error: itErr } = await supabase
         .from("purchase_order_items")
@@ -477,7 +581,7 @@ function MobilePurchase() {
           expiry_date: l.expiry_date,
         };
       });
-      await receivePO({ data: { id: poId, branch_id: branchId, lines: recvLines } });
+      await receivePO({ data: { id: poId, branch_id: resolvedBranchId!, lines: recvLines } });
 
       // Sync updated pack_size, qty_per_box & prices back to products table
       await Promise.all(
@@ -498,7 +602,7 @@ function MobilePurchase() {
       if (paid > 0) {
         await payPO({
           data: {
-            tenantId, branch_id: branchId, supplierId, amount: paid, method: payMethod,
+            tenantId, branch_id: resolvedBranchId!, supplierId, amount: paid, method: payMethod,
             reference: invoiceNo || undefined, notes: `Payment on PO ${poId}`,
           },
         });
@@ -510,6 +614,10 @@ function MobilePurchase() {
       if (draftKey) localStorage.removeItem(draftKey);
       navigate({ to: "/m/purchases" });
     } catch (err) {
+      if (isOfflineNetworkError(err)) {
+        await saveOfflinePurchase();
+        return;
+      }
       const msg = err instanceof Error ? err.message : "";
       const isHtml = msg.trimStart().startsWith("<") || /<!doctype\s+html/i.test(msg);
       toast.error(

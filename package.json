@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
-    "build:node": "NITRO_PRESET=node-server vite build",
+    "build": "vite build && node scripts/gen-sw-precache.mjs",
+    "build:node": "NITRO_PRESET=node-server vite build && node scripts/gen-sw-precache.mjs",
     "start": "node .output/server/index.mjs",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

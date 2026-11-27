@@ -18,6 +18,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { createCustomer, updateCustomer } from "@/lib/api/customer-crud.functions";
+import { queueCustomerCreate } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 type Mode = "create" | "edit";
 
@@ -154,10 +156,39 @@ export function CustomerFormDialog({ mode, customerId, open, onOpenChange, onSav
         if (!customerId) throw new Error("Missing customer id");
         return updateFn({ data: { ...payload, id: customerId } });
       }
-      return createFn({ data: payload });
+      const saveOffline = async () => {
+        const res = await queueCustomerCreate({
+          tenant_id: tenantId,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          email: form.email.trim() || null,
+          type: form.type,
+          opening_balance: form.opening_balance,
+          credit_limit: form.credit_limit,
+          address: form.address.trim() || null,
+          area: form.area.trim() || null,
+          district: form.district.trim() || null,
+          notes: form.notes.trim() || null,
+        });
+        toast.info("অফলাইনে কাস্টমার সেভ হয়েছে — অনলাইনে এলে সিঙ্ক হবে");
+        return res;
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await saveOffline();
+      }
+      try {
+        return await createFn({ data: payload });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await saveOffline();
+        }
+        throw err;
+      }
     },
     onSuccess: () => {
-      toast.success(isEdit ? "Customer updated" : "Customer created");
+      if (typeof navigator === "undefined" || navigator.onLine) {
+        toast.success(isEdit ? "Customer updated" : "Customer created");
+      }
       invalidateAll();
       onSaved?.();
       onOpenChange(false);

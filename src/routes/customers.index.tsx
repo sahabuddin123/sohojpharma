@@ -25,6 +25,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { cacheCustomers, listCachedCustomers } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { toast } from "sonner";
 import { CustomerFormDialog } from "@/components/customers/customer-form-dialog";
 import { EditCustomerDialog } from "@/components/customers/edit-customer-dialog";
@@ -100,28 +102,83 @@ function CustomersPage() {
     queryKey: ["customers-list", tenantId],
     enabled: !!tenantId,
     queryFn: async (): Promise<CustomerRow[]> => {
-      const { data, error } = await supabase
-        .from("v_customer_due")
-        .select("id:customer_id,customer_code,name,phone,email,nid_passport,type,due_balance,credit_limit,is_active")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("name")
-        .limit(500);
-      if (error) throw error;
-      return (data ?? [])
-        .filter((c) => c.id && c.name)
-        .map((c) => ({
-          id: c.id!,
-          customer_code: c.customer_code,
-          name: c.name!,
+      const loadCached = async (): Promise<CustomerRow[]> =>
+        (await listCachedCustomers(tenantId)).map((c) => ({
+          id: c.id,
+          customer_code: c.customer_code ?? null,
+          name: c.name,
           phone: c.phone,
-          email: c.email,
-          nid_passport: c.nid_passport,
-          type: c.type,
+          email: c.email ?? null,
+          nid_passport: null,
+          type: c.type ?? "retail",
           due_balance: c.due_balance,
-          credit_limit: c.credit_limit,
-          is_active: c.is_active,
+          credit_limit: c.credit_limit ?? 0,
+          is_active: true,
         }));
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const { data, error } = await supabase
+          .from("v_customer_due")
+          .select("id:customer_id,customer_code,name,phone,email,nid_passport,type,due_balance,credit_limit,is_active")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name")
+          .limit(500);
+        if (error) throw error;
+        const rows = (data ?? [])
+          .filter((c) => c.id && c.name)
+          .map((c) => ({
+            id: c.id!,
+            customer_code: c.customer_code,
+            name: c.name!,
+            phone: c.phone,
+            email: c.email,
+            nid_passport: c.nid_passport,
+            type: c.type,
+            due_balance: c.due_balance,
+            credit_limit: c.credit_limit,
+            is_active: c.is_active,
+          }));
+        void cacheCustomers(
+          tenantId,
+          rows.map((c) => ({
+            id: c.id,
+            customer_code: c.customer_code,
+            name: c.name,
+            phone: c.phone,
+            email: c.email,
+            type: c.type,
+            due_balance: Number(c.due_balance ?? 0),
+            credit_limit: c.credit_limit != null ? Number(c.credit_limit) : null,
+          })),
+        ).catch(() => {});
+
+        const cached = await listCachedCustomers(tenantId).catch(() => []);
+        const pendingLocal: CustomerRow[] = cached
+          .filter((c) => c.pendingSync)
+          .map((c) => ({
+            id: c.id,
+            customer_code: c.customer_code ?? null,
+            name: c.name,
+            phone: c.phone,
+            email: c.email ?? null,
+            nid_passport: null,
+            type: c.type ?? "retail",
+            due_balance: c.due_balance,
+            credit_limit: c.credit_limit ?? 0,
+            is_active: true,
+          }));
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
     },
   });
 
@@ -129,25 +186,30 @@ function CustomersPage() {
     queryKey: ["customers-sales-agg", tenantId],
     enabled: !!tenantId,
     queryFn: async (): Promise<Record<string, { count: number; total: number; last: string | null }>> => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select("customer_id,total,sale_date,status")
-        .eq("tenant_id", tenantId)
-        .not("customer_id", "is", null)
-        .neq("status", "void")
-        .limit(20000);
-      if (error) throw error;
-      const map: Record<string, { count: number; total: number; last: string | null }> = {};
-      for (const r of data ?? []) {
-        const cid = r.customer_id as string;
-        if (!map[cid]) map[cid] = { count: 0, total: 0, last: null };
-        map[cid].count += 1;
-        map[cid].total += Number(r.total ?? 0);
-        if (!map[cid].last || (r.sale_date && r.sale_date > map[cid].last)) {
-          map[cid].last = r.sale_date as string;
+      if (typeof navigator !== "undefined" && !navigator.onLine) return {};
+      try {
+        const { data, error } = await supabase
+          .from("sales")
+          .select("customer_id,total,sale_date,status")
+          .eq("tenant_id", tenantId)
+          .not("customer_id", "is", null)
+          .neq("status", "void")
+          .limit(20000);
+        if (error) throw error;
+        const map: Record<string, { count: number; total: number; last: string | null }> = {};
+        for (const r of data ?? []) {
+          const cid = r.customer_id as string;
+          if (!map[cid]) map[cid] = { count: 0, total: 0, last: null };
+          map[cid].count += 1;
+          map[cid].total += Number(r.total ?? 0);
+          if (!map[cid].last || (r.sale_date && r.sale_date > map[cid].last)) {
+            map[cid].last = r.sale_date as string;
+          }
         }
+        return map;
+      } catch {
+        return {};
       }
-      return map;
     },
   });
 

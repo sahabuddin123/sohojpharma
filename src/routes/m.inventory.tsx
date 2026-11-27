@@ -43,6 +43,8 @@ import {
   listBatches,
 } from "@/lib/api/inventory-control.functions";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { listCachedProducts } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/inventory")({
@@ -165,9 +167,36 @@ function MobileInventoryPage() {
     enabled: !!tenantId,
     staleTime: 30_000,
     queryFn: async (): Promise<OverviewResp> => {
-      const { data, error } = await supabase.rpc("get_inventory_overview", { _tenant_id: tenantId });
-      if (error) throw error;
-      return (data ?? null) as unknown as OverviewResp;
+      const offlineOverview = async (): Promise<OverviewResp> => {
+        const cached = await listCachedProducts(tenantId, { page: 1, pageSize: 1 });
+        return {
+          kpi: {
+            totalStock: cached.stats.totalStock,
+            totalValue: cached.stats.stockValue,
+            lowCount: cached.stats.lowStock,
+            outCount: cached.stats.outOfStock,
+            noBatchCount: 0,
+            noOpeningCount: 0,
+            expiredCount: 0,
+          },
+          lowStock: [],
+          outStock: [],
+          expiring: [],
+        };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineOverview();
+      }
+      try {
+        const { data, error } = await supabase.rpc("get_inventory_overview", { _tenant_id: tenantId });
+        if (error) throw error;
+        return (data ?? null) as unknown as OverviewResp;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineOverview();
+        }
+        throw err;
+      }
     },
   });
 
@@ -176,9 +205,23 @@ function MobileInventoryPage() {
     enabled: !!tenantId,
     staleTime: 30_000,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("count_products_with_stock", { _tenant_id: tenantId });
-      if (error) throw error;
-      return Number(data ?? 0);
+      const offlineCnt = async () => {
+        const cached = await listCachedProducts(tenantId, { inStockOnly: true, page: 1, pageSize: 1 });
+        return cached.total;
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineCnt();
+      }
+      try {
+        const { data, error } = await supabase.rpc("count_products_with_stock", { _tenant_id: tenantId });
+        if (error) throw error;
+        return Number(data ?? 0);
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineCnt();
+        }
+        throw err;
+      }
     },
   });
 
@@ -186,17 +229,53 @@ function MobileInventoryPage() {
     queryKey: ["m-inv-stock", tenantId, stockSearch, stockPage, sortBy, sortDir],
     enabled: !!tenantId && tab === "stock",
     staleTime: 20_000,
-    queryFn: () =>
-      listInStockFn({
-        data: {
-          tenantId,
+    queryFn: async () => {
+      const offlineStock = async () => {
+        const res = await listCachedProducts(tenantId, {
+          inStockOnly: true,
           search: stockSearch.trim(),
           page: stockPage,
           pageSize: 25,
-          sortBy,
+          sortBy: sortBy === "stock" ? "stock" : "name",
           sortDir,
-        },
-      }),
+        });
+        return {
+          rows: res.rows.map((p) => ({
+            id: p.id,
+            name: p.name,
+            generic_name: p.generic_name ?? null,
+            manufacturer_name: p.company_name ?? null,
+            stock: p.stock,
+            purchase_price: p.cost,
+            retail_price: p.price,
+            mrp: p.price,
+          })),
+          totalCount: res.total,
+          currentPage: stockPage,
+          totalPages: Math.max(1, Math.ceil(res.total / 25)),
+        };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineStock();
+      }
+      try {
+        return await listInStockFn({
+          data: {
+            tenantId,
+            search: stockSearch.trim(),
+            page: stockPage,
+            pageSize: 25,
+            sortBy,
+            sortDir,
+          },
+        });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineStock();
+        }
+        throw err;
+      }
+    },
   });
 
   const maxDaysToExpiry =

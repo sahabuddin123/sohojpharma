@@ -19,6 +19,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { cacheCustomers, listCachedCustomers } from "@/lib/offline/db";
+import { queueCustomerCreate } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { useTranslation } from "react-i18next";
 
 type CustomerType = "retail" | "dealer" | "wholesale";
@@ -49,13 +52,41 @@ export function POSCustomerSelect({
   const { data: customers = [] } = useQuery({
     queryKey: ["pos-customers", tenantId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id,name,phone,type,due_balance")
-        .eq("tenant_id", tenantId).eq("is_active", true)
-        .order("name").limit(500);
-      if (error) throw error;
-      return (data ?? []) as CustomerRow[];
+      const loadCached = async (): Promise<CustomerRow[]> =>
+        (await listCachedCustomers(tenantId)).map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          type: (c.type as CustomerType) || "retail",
+          due_balance: Number(c.due_balance ?? 0),
+        }));
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id,name,phone,type,due_balance")
+          .eq("tenant_id", tenantId).eq("is_active", true)
+          .order("name").limit(500);
+        if (error) throw error;
+        const rows = (data ?? []) as CustomerRow[];
+        void cacheCustomers(
+          tenantId,
+          rows.map((c) => ({ id: c.id, name: c.name, phone: c.phone, type: c.type, due_balance: Number(c.due_balance ?? 0) })),
+        ).catch(() => {});
+        const cached = await listCachedCustomers(tenantId).catch(() => []);
+        const pendingLocal = cached.filter((c) => c.pendingSync).map((c) => ({
+          id: c.id, name: c.name, phone: c.phone, type: (c.type as CustomerType) || "retail", due_balance: Number(c.due_balance ?? 0),
+        }));
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
     },
     enabled: !!tenantId,
   });
@@ -179,37 +210,69 @@ function QuickCreateDialog({
       if (cleanPhone.length < 6 || cleanPhone.length > 20) throw new Error(t("toast.mobileInvalid"));
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error(t("toast.emailInvalid"));
 
-      const { data: dup } = await supabase
-        .from("customers").select("id,name")
-        .eq("tenant_id", tenantId).eq("phone", cleanPhone).maybeSingle();
-      if (dup) throw new Error(t("toast.mobileTaken", { name: dup.name }));
-
       const opening_balance = Number(opening) || 0;
-      const { data, error } = await supabase
-        .from("customers")
-        .insert({
+      const saveOffline = async (): Promise<CustomerRow> => {
+        const c = await queueCustomerCreate({
           tenant_id: tenantId,
           name: name.trim(),
           phone: cleanPhone,
           type,
+          opening_balance,
           address: address.trim() || null,
           email: email.trim() || null,
-          due_balance: opening_balance,
-          credit_limit: 0,
-        })
-        .select("id,name,phone,type,due_balance")
-        .single();
-      if (error) throw new Error(error.message);
-      if (notes.trim()) {
-        await supabase.from("audit_log").insert({
-          tenant_id: tenantId,
-          action: "customer.create.quick",
-          entity_table: "customers",
-          entity_id: data.id,
-          after_data: { notes: notes.trim() } as never,
+          notes: notes.trim() || null,
         });
+        toast.info("অফলাইনে কাস্টমার সেভ হয়েছে — অনলাইনে সিঙ্ক হবে");
+        return {
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          type: (c.type as CustomerType) || "retail",
+          due_balance: c.due_balance,
+        };
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await saveOffline();
       }
-      return data as CustomerRow;
+
+      try {
+        const { data: dup } = await supabase
+          .from("customers").select("id,name")
+          .eq("tenant_id", tenantId).eq("phone", cleanPhone).maybeSingle();
+        if (dup) throw new Error(t("toast.mobileTaken", { name: dup.name }));
+
+        const { data, error } = await supabase
+          .from("customers")
+          .insert({
+            tenant_id: tenantId,
+            name: name.trim(),
+            phone: cleanPhone,
+            type,
+            address: address.trim() || null,
+            email: email.trim() || null,
+            due_balance: opening_balance,
+            credit_limit: 0,
+          })
+          .select("id,name,phone,type,due_balance")
+          .single();
+        if (error) throw new Error(error.message);
+        if (notes.trim()) {
+          await supabase.from("audit_log").insert({
+            tenant_id: tenantId,
+            action: "customer.create.quick",
+            entity_table: "customers",
+            entity_id: data.id,
+            after_data: { notes: notes.trim() } as never,
+          });
+        }
+        return data as CustomerRow;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await saveOffline();
+        }
+        throw err;
+      }
     },
     onSuccess: (c) => {
       toast.success(t("toast.customerCreated", { name: c.name }));

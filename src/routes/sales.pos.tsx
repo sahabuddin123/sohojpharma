@@ -47,6 +47,9 @@ import { usePosSettings } from "@/hooks/use-pos-settings";
 import { useServerFn } from "@tanstack/react-start";
 import { checkCustomerCredit } from "@/lib/api/customer-analytics.functions";
 import { autoEarnLoyalty } from "@/lib/api/customer-settings.functions";
+import { cacheProducts, findCachedProductByBarcode, searchCachedProducts } from "@/lib/offline/db";
+import { queueSale } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 const QuickAddProductDialog = lazy(() => import("@/components/pos/quick-add-product-dialog").then(m => ({ default: m.QuickAddProductDialog })));
 type QuickAddResult = import("@/components/pos/quick-add-product-dialog").QuickAddResult;
@@ -492,38 +495,96 @@ function POSPage() {
     getNextPageParam: (lastPage: SearchProduct[], allPages) =>
       lastPage.length < PAGE_SIZE ? undefined : allPages.length * PAGE_SIZE,
     queryFn: async ({ pageParam }): Promise<SearchProduct[]> => {
-      const { data, error } = await supabase.rpc("search_products" as never, {
-        _tenant_id: tenantId,
-        _query: debounced,
-        _branch_id: null,
-        _limit: PAGE_SIZE,
-        _warehouse_id: warehouseId,
-        _offset: pageParam as number,
-      } as never);
-      if (error) throw error;
-      type Row = {
-        id: string; name: string; sku: string | null; barcode: string | null;
-        retail_price: number | string; purchase_price: number | string;
-        vat_rate: number | string | null; qty_on_hand: number | string | null;
-        strength: string | null; medicine_type: string | null; volume: string | null; pack_size: number | null;
-        generic_name: string | null; category_name: string | null; manufacturer_name: string | null;
-        effective_price: number | string | null; nearest_expiry: string | null;
+      const searchOffline = async (): Promise<SearchProduct[]> => {
+        if (Number(pageParam ?? 0) > 0) return [];
+        const cached = await searchCachedProducts(tenantId, debounced, PAGE_SIZE);
+        return cached.map<SearchProduct>((c) => ({
+          id: c.id,
+          name: c.name,
+          displayName: c.displayName || c.name,
+          sku: c.sku ?? "",
+          barcode: c.barcode ?? "",
+          retail_price: c.price,
+          purchase_price: c.cost,
+          vat_rate: c.vat_rate,
+          stock: c.stock,
+          generic_name: c.generic_name ?? null,
+          category_name: null,
+          manufacturer_name: c.company_name ?? null,
+          strength: c.strength ?? null,
+          dosage_form: c.form ?? null,
+          nearest_expiry: null,
+        }));
       };
-      return ((data ?? []) as Row[]).map<SearchProduct>((p) => ({
-        id: p.id, name: p.name,
-        displayName: buildProductDisplayName(p),
-        sku: p.sku ?? "", barcode: p.barcode ?? "",
-        retail_price: Number(p.effective_price ?? p.retail_price ?? 0),
-        purchase_price: Number(p.purchase_price),
-        vat_rate: Number(p.vat_rate ?? 0),
-        stock: Number(p.qty_on_hand ?? 0),
-        generic_name: p.generic_name,
-        category_name: p.category_name,
-        manufacturer_name: p.manufacturer_name,
-        strength: p.strength,
-        dosage_form: p.medicine_type,
-        nearest_expiry: p.nearest_expiry,
-      }));
+
+      if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        return await searchOffline();
+      }
+
+      try {
+        const { data, error } = await supabase.rpc("search_products" as never, {
+          _tenant_id: tenantId,
+          _query: debounced,
+          _branch_id: null,
+          _limit: PAGE_SIZE,
+          _warehouse_id: warehouseId,
+          _offset: pageParam as number,
+        } as never);
+        if (error) throw error;
+        type Row = {
+          id: string; name: string; sku: string | null; barcode: string | null;
+          retail_price: number | string; purchase_price: number | string;
+          vat_rate: number | string | null; qty_on_hand: number | string | null;
+          strength: string | null; medicine_type: string | null; volume: string | null; pack_size: number | null;
+          generic_name: string | null; category_name: string | null; manufacturer_name: string | null;
+          effective_price: number | string | null; nearest_expiry: string | null;
+        };
+        const mapped = ((data ?? []) as Row[]).map<SearchProduct>((p) => ({
+          id: p.id, name: p.name,
+          displayName: buildProductDisplayName(p),
+          sku: p.sku ?? "", barcode: p.barcode ?? "",
+          retail_price: Number(p.effective_price ?? p.retail_price ?? 0),
+          purchase_price: Number(p.purchase_price),
+          vat_rate: Number(p.vat_rate ?? 0),
+          stock: Number(p.qty_on_hand ?? 0),
+          generic_name: p.generic_name,
+          category_name: p.category_name,
+          manufacturer_name: p.manufacturer_name,
+          strength: p.strength,
+          dosage_form: p.medicine_type,
+          nearest_expiry: p.nearest_expiry,
+        }));
+        void cacheProducts(
+          tenantId,
+          mapped.map((m) => {
+            const cfg = resolvePackConfig({ medicine_type: m.dosage_form, name: m.name });
+            return {
+              id: m.id,
+              name: m.name,
+              displayName: m.displayName,
+              form: m.dosage_form,
+              strength: m.strength,
+              generic_name: m.generic_name,
+              company_name: m.manufacturer_name,
+              sku: m.sku,
+              barcode: m.barcode,
+              cost: m.purchase_price,
+              price: m.retail_price,
+              vat_rate: m.vat_rate,
+              stock: m.stock,
+              hasStrip: cfg.hasStrip,
+              pcsPerStrip: cfg.pcsPerStrip,
+              pcsPerBox: cfg.pcsPerBox,
+            };
+          }),
+        ).catch(() => {});
+        return mapped;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await searchOffline();
+        }
+        throw err;
+      }
     },
   });
   const results = useMemo<SearchProduct[]>(
@@ -543,15 +604,20 @@ function POSPage() {
 
   async function verifyProductExists(productId: string): Promise<boolean> {
     if (!tenantId) return false;
-    const { data, error } = await supabase
-      .from("products")
-      .select("id")
-      .eq("id", productId)
-      .eq("tenant_id", tenantId)
-      .is("deleted_at", null)
-      .maybeSingle();
-    if (error) return true; // fail-open on transient errors; aggregation will still guard
-    return !!data;
+    if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) return true;
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id")
+        .eq("id", productId)
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
+        .maybeSingle();
+      if (error) return true; // fail-open on transient errors; aggregation will still guard
+      return !!data;
+    } catch {
+      return true;
+    }
   }
 
   async function addProductToCart(p: SearchProduct) {
@@ -600,6 +666,30 @@ function POSPage() {
   async function handleBarcode(code: string) {
     const c = code.trim();
     if (!c || !tenantId) return;
+    if (!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      const cached = await findCachedProductByBarcode(tenantId, c);
+      if (!cached) { toast.error(t("ipos.barcodeNotFound", { code: c })); return; }
+      addProductToCart({
+        id: cached.id,
+        name: cached.name,
+        displayName: cached.displayName || cached.name,
+        sku: cached.sku ?? "",
+        barcode: cached.barcode ?? "",
+        retail_price: cached.price,
+        purchase_price: cached.cost,
+        vat_rate: cached.vat_rate,
+        stock: cached.stock,
+        generic_name: cached.generic_name ?? null,
+        category_name: null,
+        manufacturer_name: cached.company_name ?? null,
+        strength: cached.strength ?? null,
+        dosage_form: cached.form ?? null,
+        nearest_expiry: null,
+      });
+      playBeep();
+      setScanInput("");
+      return;
+    }
     // 1) product_barcodes lookup
     const { data: pb } = await supabase
       .from("product_barcodes")
@@ -938,9 +1028,12 @@ function POSPage() {
       if (editInvoiceId) console.log("EDIT MODE", editInvoiceId);
       if (!tenantId) throw new Error("No tenant selected");
       if (!user?.id) throw new Error("Not signed in");
-      if (!isOnline) throw new Error("You are offline. Connect to the internet to complete the sale. Your cart is saved.");
-      if (!register) throw new Error("Open a register before completing sales");
-      if (!warehouseId) throw new Error("Select a warehouse before completing the sale");
+      const currentlyOffline = !isOnline || (typeof navigator !== "undefined" && !navigator.onLine);
+      if (editInvoiceId && currentlyOffline) {
+        throw new Error("You are offline. Editing an existing invoice requires an internet connection.");
+      }
+      if (!currentlyOffline && !register) throw new Error("Open a register before completing sales");
+      if (!currentlyOffline && !warehouseId) throw new Error("Select a warehouse before completing the sale");
       if (!cart.length) throw new Error("Cart is empty");
       if (editInvoiceId && !originalSale) throw new Error("Original invoice data is still loading. Wait a moment and try again.");
       if (!editInvoiceId && due > 0 && !customer) throw new Error("Due balance requires a customer — select a customer before completing the sale");
@@ -957,8 +1050,8 @@ function POSPage() {
       if (paid > total + 0.001) throw new Error(`Payments (৳${paid.toFixed(2)}) exceed total (৳${total.toFixed(2)})`);
       if (total > 0 && nonDueCount === 0 && due === 0) throw new Error("Enter at least one payment");
 
-      // C3: Credit control — block / warn on customer credit limit before posting.
-      if (!editInvoiceId && customer && due > 0) {
+      // C3: Credit control — block / warn on customer credit limit before posting (online only).
+      if (!currentlyOffline && !editInvoiceId && customer && due > 0) {
         const credit = await checkCredit({
           data: { tenantId, customerId: customer.id, newSaleDue: due },
         });
@@ -977,7 +1070,7 @@ function POSPage() {
 
       // Refresh stock right before posting so concurrent sales don't slip through.
       // In edit mode the atomic replacement RPC reverses the original stock inside the same transaction before checkout.
-      if (!editInvoiceId) {
+      if (!editInvoiceId && !currentlyOffline) {
         try {
           const fresh = await refetchCartStocks();
           if (fresh.data) {
@@ -1048,32 +1141,91 @@ function POSPage() {
         return sale;
       }
 
-      const { data, error } = await supabase.rpc("pos_checkout", {
-        _tenant_id: tenantId,
-        _customer_id: (customer?.id ?? null) as string,
-        _cashier_id: user.id,
-        _invoice_no: null as unknown as string, // server generates INV-YYYYMM-NNNNNN
-        _discount: invoiceDiscountAmount,
-        _notes: notes || undefined,
-        _client_op_id: client_op_id,
-        _items: items as never,
-        _payments: pays as never,
-        _register_id: register.id, // atomic cash-register entry inside RPC
-        _warehouse_id: warehouseId,
-      } as never);
-      if (error) {
-        console.error("pos_checkout failed", error);
-        const parts = [
-          error.message,
-          error.details,
-          error.hint,
-          error.code ? `(code ${error.code})` : null,
-        ].filter(Boolean) as string[];
-        const detail = parts.length ? parts.join(" · ") : JSON.stringify(error);
-        throw new Error(`Checkout failed — ${detail}`);
+      const enqueueOfflineCheckout = async (): Promise<CheckoutSale> => {
+        const primaryMethod = pays.find((p) => p.method !== "due")?.method ?? "cash";
+        const vatSum = items.reduce((s, it) => s + Number(it.vat ?? 0), 0);
+        const offlineItems = cart.map((l, idx) => {
+          const it = items[idx];
+          return {
+            product_id: it.product_id,
+            name: l.name,
+            qty: it.qty,
+            unit_price: it.unit_price,
+            unit_cost: l.cost,
+            discount: it.discount,
+            vat: it.vat,
+            line_total: Math.round((it.qty * it.unit_price - it.discount + it.vat) * 100) / 100,
+          };
+        });
+        const op = await queueSale({
+          tenant_id: tenantId,
+          warehouse_id: warehouseId ?? null,
+          register_id: register?.id ?? null,
+          customer_id: customer?.id ?? null,
+          customer_name: customer?.name ?? null,
+          customer_phone: customer?.phone ?? null,
+          subtotal: baseSum,
+          discount: invoiceDiscountAmount,
+          vat: vatSum,
+          total,
+          paid,
+          due,
+          payment_method: primaryMethod,
+          notes: notes || undefined,
+          items: offlineItems,
+        });
+        const offlineInv = (op.payload as { invoice_no?: string })?.invoice_no || `OFFLINE-${op.id.slice(0, 6).toUpperCase()}`;
+        toast.success(`অফলাইনে বিক্রি সেভ হয়েছে (${offlineInv})! অনলাইনে এলে অটো সিঙ্ক হবে।`);
+        return {
+          id: op.id,
+          invoice_no: offlineInv,
+          total,
+          paid,
+          due,
+          status: due > 0.01 ? "partial" : "completed",
+        };
+      };
+
+      if (currentlyOffline) {
+        return await enqueueOfflineCheckout();
       }
-      const sale = data as CheckoutSale;
-      return sale;
+
+      try {
+        const { data, error } = await supabase.rpc("pos_checkout", {
+          _tenant_id: tenantId,
+          _customer_id: (customer?.id ?? null) as string,
+          _cashier_id: user.id,
+          _invoice_no: null as unknown as string, // server generates INV-YYYYMM-NNNNNN
+          _discount: invoiceDiscountAmount,
+          _notes: notes || undefined,
+          _client_op_id: client_op_id,
+          _items: items as never,
+          _payments: pays as never,
+          _register_id: register!.id, // atomic cash-register entry inside RPC
+          _warehouse_id: warehouseId,
+        } as never);
+        if (error) {
+          if (isOfflineNetworkError(error)) {
+            return await enqueueOfflineCheckout();
+          }
+          console.error("pos_checkout failed", error);
+          const parts = [
+            error.message,
+            error.details,
+            error.hint,
+            error.code ? `(code ${error.code})` : null,
+          ].filter(Boolean) as string[];
+          const detail = parts.length ? parts.join(" · ") : JSON.stringify(error);
+          throw new Error(`Checkout failed — ${detail}`);
+        }
+        const sale = data as CheckoutSale;
+        return sale;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await enqueueOfflineCheckout();
+        }
+        throw err;
+      }
     },
     onSuccess: (sale) => {
       const isEdit = Boolean(editInvoiceId);

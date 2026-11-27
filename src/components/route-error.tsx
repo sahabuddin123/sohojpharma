@@ -10,19 +10,30 @@ function isStaleChunkError(msg: string): boolean {
   );
 }
 
+function isOfflineNow(): boolean {
+  return typeof navigator !== "undefined" && !navigator.onLine;
+}
+
 function getFriendlyMessage(raw: string): { title: string; body: string; isStale: boolean } {
+  if (isOfflineNow() || /network|fetch|offline|internet|err_internet_disconnected/i.test(raw)) {
+    if (isStaleChunkError(raw) && isOfflineNow()) {
+      return {
+        title: "অফলাইন মোড",
+        body: "ইন্টারনেট সংযোগ নেই এবং এই পেজের ফাইলটি এখনো ডিভাইসে ক্যাশ হয়নি। অনলাইনে একবার খুললেই এটি অফলাইনেও কাজ করবে।",
+        isStale: false,
+      };
+    }
+    return {
+      title: "ইন্টারনেট সংযোগ সমস্যা",
+      body: "সার্ভারের সাথে সংযোগ স্থাপন করা যাচ্ছে না। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
+      isStale: false,
+    };
+  }
   if (isStaleChunkError(raw)) {
     return {
       title: "নতুন আপডেট পাওয়া গেছে",
       body: "অ্যাপটির নতুন ভার্সন আপডেট হয়েছে। অনুগ্রহ করে পেজটি একবার রিফ্রেশ করুন।",
       isStale: true,
-    };
-  }
-  if (/network|fetch|offline|internet/i.test(raw)) {
-    return {
-      title: "ইন্টারনেট সংযোগ সমস্যা",
-      body: "সার্ভারের সাথে সংযোগ স্থাপন করা যাচ্ছে না। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করে আবার চেষ্টা করুন।",
-      isStale: false,
     };
   }
   if (raw.trimStart().startsWith("<") || /<!doctype\s+html/i.test(raw)) {
@@ -44,9 +55,9 @@ export function RouteErrorPanel({ error, reset }: ErrorComponentProps) {
   const raw = error instanceof Error ? error.message : "";
   const { title, body, isStale } = getFriendlyMessage(raw);
 
-  // Automatically reload once when a new deploy invalidates old JS chunk hashes
+  // Automatically reload once when online and a new deploy invalidates old JS chunk hashes
   useEffect(() => {
-    if (!isStale || typeof window === "undefined") return;
+    if (!isStale || isOfflineNow() || typeof window === "undefined") return;
     try {
       const last = Number(sessionStorage.getItem(RELOAD_KEY) || "0");
       if (Date.now() - last > 15_000) {

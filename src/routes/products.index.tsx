@@ -34,6 +34,8 @@ import {
   listProductsForManagement,
 } from "@/lib/api/product-management.functions";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { listCachedProducts } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 export const Route = createFileRoute("/products/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -107,7 +109,30 @@ function ProductsPage() {
   const stats = useQuery({
     queryKey: ["products-stats", tenantId],
     enabled: !!tenantId,
-    queryFn: () => statsFn({ data: { tenantId } }),
+    queryFn: async () => {
+      const offlineStats = async () => {
+        const res = await listCachedProducts(tenantId, { page: 1, pageSize: 1 });
+        return {
+          total: res.stats.totalProducts,
+          inStock: res.stats.inStock,
+          low: res.stats.lowStock,
+          out: res.stats.outOfStock,
+          neg: res.stats.negStock,
+          value: res.stats.stockValue,
+        };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineStats();
+      }
+      try {
+        return await statsFn({ data: { tenantId } });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineStats();
+        }
+        throw err;
+      }
+    },
     staleTime: 60_000,
   });
 
@@ -147,23 +172,60 @@ function ProductsPage() {
   };
 
   const loadPage = async (p: number, withCount: boolean) => {
-    const res = await fetchPage(p, withCount);
-    const rows = ((res.rows ?? []) as unknown as Raw[]).map((r): ProductRow => ({
-      id: r.id, name: r.name,
-      displayName: buildProductDisplayName({ name: r.name, strength: r.strength, medicine_type: r.medicine_type, volume: r.volume, pack_size: r.pack_size }),
-      sku: r.sku, barcode: r.barcode,
-      retail_price: r.retail_price, purchase_price: r.purchase_price,
-      is_active: r.is_active, reorder_level: r.reorder_level,
-      strength: r.strength,
-      medicineType: r.medicine_type,
-      unit: r.qty_per_box && r.qty_per_box > 1 ? "Box" : "Pcs",
-      generic: r.generics?.name ?? "",
-      company: r.manufacturers?.name ?? "",
-      stock: (r.batches ?? []).reduce((s, b) => s + Number(b.qty_on_hand ?? 0), 0),
-    }));
-    if (res.count != null) lastCountRef.current = { key: filterKey, count: res.count };
-    const count = res.count ?? lastCountRef.current?.count ?? rows.length;
-    return { rows, count };
+    const offlineLoad = async () => {
+      const res = await listCachedProducts(tenantId, {
+        search: debouncedSearch || undefined,
+        filter,
+        page: p,
+        pageSize,
+      });
+      const rows: ProductRow[] = res.rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        displayName: r.displayName || r.name,
+        sku: r.sku ?? null,
+        barcode: r.barcode ?? null,
+        retail_price: r.price,
+        purchase_price: r.cost,
+        is_active: r.is_active ?? true,
+        reorder_level: r.reorder_level ?? null,
+        strength: r.strength ?? null,
+        medicineType: r.form ?? null,
+        unit: r.pcsPerBox > 1 ? "Box" : "Pcs",
+        generic: r.generic_name ?? "",
+        company: r.company_name ?? "",
+        stock: r.stock,
+      }));
+      return { rows, count: res.total };
+    };
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      return await offlineLoad();
+    }
+    try {
+      const res = await fetchPage(p, withCount);
+      const rows = ((res.rows ?? []) as unknown as Raw[]).map((r): ProductRow => ({
+        id: r.id, name: r.name,
+        displayName: buildProductDisplayName({ name: r.name, strength: r.strength, medicine_type: r.medicine_type, volume: r.volume, pack_size: r.pack_size }),
+        sku: r.sku, barcode: r.barcode,
+        retail_price: r.retail_price, purchase_price: r.purchase_price,
+        is_active: r.is_active, reorder_level: r.reorder_level,
+        strength: r.strength,
+        medicineType: r.medicine_type,
+        unit: r.qty_per_box && r.qty_per_box > 1 ? "Box" : "Pcs",
+        generic: r.generics?.name ?? "",
+        company: r.manufacturers?.name ?? "",
+        stock: (r.batches ?? []).reduce((s, b) => s + Number(b.qty_on_hand ?? 0), 0),
+      }));
+      if (res.count != null) lastCountRef.current = { key: filterKey, count: res.count };
+      const count = res.count ?? lastCountRef.current?.count ?? rows.length;
+      return { rows, count };
+    } catch (err) {
+      if (isOfflineNetworkError(err)) {
+        return await offlineLoad();
+      }
+      throw err;
+    }
   };
 
   const list = useQuery({

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Camera, CheckCircle2, Loader2, Plus, ScanBarcode, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { findCachedProductByBarcode, searchCachedProducts } from "@/lib/offline/db";
 import { toast } from "sonner";
 
 export interface ScannedProductMatch {
@@ -93,16 +94,30 @@ export function MobileCameraScanner({
 
     setStatusText(`বারকোড পাওয়া গেছে: ${clean} — খোঁজা হচ্ছে...`);
 
-    const { data } = await supabase.rpc("search_products" as never, {
-      _tenant_id: tenantId,
-      _query: clean,
-      _branch_id: null,
-      _limit: 5,
-      _warehouse_id: null,
-      _offset: 0,
-    } as never);
-
-    const rows = ((data ?? []) as any[]).map(mapRow);
+    let rows: ScannedProductMatch[] = [];
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      const hit = await findCachedProductByBarcode(tenantId, clean);
+      if (hit) {
+        rows = [{ product_id: hit.id, name: hit.name, form: hit.form ?? null, strength: hit.strength ?? null, cost: hit.cost, price: hit.price, vat_rate: hit.vat_rate, stock: hit.stock }];
+      }
+    } else {
+      try {
+        const { data } = await supabase.rpc("search_products" as never, {
+          _tenant_id: tenantId,
+          _query: clean,
+          _branch_id: null,
+          _limit: 5,
+          _warehouse_id: null,
+          _offset: 0,
+        } as never);
+        rows = ((data ?? []) as any[]).map(mapRow);
+      } catch {
+        const hit = await findCachedProductByBarcode(tenantId, clean);
+        if (hit) {
+          rows = [{ product_id: hit.id, name: hit.name, form: hit.form ?? null, strength: hit.strength ?? null, cost: hit.cost, price: hit.price, vat_rate: hit.vat_rate, stock: hit.stock }];
+        }
+      }
+    }
     if (rows.length > 0) {
       navigator.vibrate?.(60);
       onAddProduct(rows[0]);
@@ -246,16 +261,34 @@ export function MobileCameraScanner({
 
       const foundMap = new Map<string, ScannedProductMatch>();
       for (const q of queries) {
-        const { data: res } = await supabase.rpc("search_products" as never, {
-          _tenant_id: tenantId,
-          _query: q,
-          _branch_id: null,
-          _limit: 5,
-          _warehouse_id: null,
-          _offset: 0,
-        } as never);
-        for (const r of (res ?? []) as any[]) {
-          if (!foundMap.has(r.id)) foundMap.set(r.id, mapRow(r));
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const cached = await searchCachedProducts(tenantId, q, 5);
+          for (const c of cached) {
+            if (!foundMap.has(c.id)) {
+              foundMap.set(c.id, { product_id: c.id, name: c.name, form: c.form ?? null, strength: c.strength ?? null, cost: c.cost, price: c.price, vat_rate: c.vat_rate, stock: c.stock });
+            }
+          }
+        } else {
+          try {
+            const { data: res } = await supabase.rpc("search_products" as never, {
+              _tenant_id: tenantId,
+              _query: q,
+              _branch_id: null,
+              _limit: 5,
+              _warehouse_id: null,
+              _offset: 0,
+            } as never);
+            for (const r of (res ?? []) as any[]) {
+              if (!foundMap.has(r.id)) foundMap.set(r.id, mapRow(r));
+            }
+          } catch {
+            const cached = await searchCachedProducts(tenantId, q, 5);
+            for (const c of cached) {
+              if (!foundMap.has(c.id)) {
+                foundMap.set(c.id, { product_id: c.id, name: c.name, form: c.form ?? null, strength: c.strength ?? null, cost: c.cost, price: c.price, vat_rate: c.vat_rate, stock: c.stock });
+              }
+            }
+          }
         }
         if (foundMap.size >= 6) break;
       }

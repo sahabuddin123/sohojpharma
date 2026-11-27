@@ -31,6 +31,9 @@ import {
 import { createPurchaseOrder, receivePurchaseOrder, updatePOStatus } from "@/lib/api/procurement.functions";
 import { recordSupplierPayment } from "@/lib/api/supplier-ledger.functions";
 import { getActiveBusinessRules } from "@/lib/api/business-rules.functions";
+import { cacheSuppliers, listCachedSuppliers, searchCachedProducts } from "@/lib/offline/db";
+import { queuePurchase } from "@/lib/offline/queue";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 
 export const Route = createFileRoute("/purchases/new")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -115,14 +118,29 @@ function NewPurchasePage() {
     queryKey: ["suppliers-active", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("suppliers")
-        .select("id,name,phone,due_balance")
-        .eq("tenant_id", tenantId)
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data ?? [];
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await listCachedSuppliers(tenantId);
+      }
+      try {
+        const { data, error } = await supabase
+          .from("suppliers")
+          .select("id,name,phone,due_balance")
+          .eq("tenant_id", tenantId)
+          .eq("is_active", true)
+          .order("name");
+        if (error) throw error;
+        const rows = data ?? [];
+        void cacheSuppliers(
+          tenantId,
+          rows.map((s) => ({ id: s.id, name: s.name, phone: s.phone ?? null, due_balance: Number(s.due_balance ?? 0) })),
+        ).catch(() => {});
+        return rows;
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await listCachedSuppliers(tenantId);
+        }
+        throw err;
+      }
     },
   });
   const selectedSupplier = suppliers.find((s) => s.id === supplierId) ?? null;
@@ -177,42 +195,68 @@ function NewPurchasePage() {
     queryKey: ["purchase-product-search", tenantId, debounced],
     enabled: !!tenantId && debounced.length >= 1,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("search_products" as never, {
-        _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 20,
-      } as never);
-      if (error) throw error;
-      const list = (data ?? []) as SearchRow[];
-      const ids = list.map((p) => p.id);
-      const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
-      if (ids.length > 0) {
-        const { data: packRows } = await supabase
-          .from("products")
-          .select("id, pack_size, qty_per_box")
-          .in("id", ids);
-        for (const pr of (packRows ?? []) as any[]) {
-          packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
-        }
+      const offlineSearch = async (): Promise<PickedProduct[]> => {
+        const cached = await searchCachedProducts(tenantId, debounced, 20);
+        return cached.map<PickedProduct>((c) => ({
+          id: c.id,
+          name: c.name,
+          displayName: c.displayName || c.name,
+          sku: c.sku ?? "",
+          barcode: c.barcode ?? "",
+          lastPurchasePrice: c.cost,
+          lastRetailPrice: c.price,
+          stock: c.stock,
+          hasStrip: c.hasStrip,
+          pcsPerStrip: c.pcsPerStrip,
+          pcsPerBox: c.pcsPerBox,
+        }));
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineSearch();
       }
-      return list.map<PickedProduct>((p) => {
-        const pk = packMap.get(p.id);
-        const cfg = resolvePackConfig({
-          medicine_type: p.medicine_type,
-          name: p.name,
-          pack_size: pk?.pack_size ?? p.pack_size,
-          qty_per_box: pk?.qty_per_box,
+      try {
+        const { data, error } = await supabase.rpc("search_products" as never, {
+          _tenant_id: tenantId, _query: debounced, _branch_id: null, _limit: 20,
+        } as never);
+        if (error) throw error;
+        const list = (data ?? []) as SearchRow[];
+        const ids = list.map((p) => p.id);
+        const packMap = new Map<string, { pack_size: number | null; qty_per_box: number | null }>();
+        if (ids.length > 0) {
+          const { data: packRows } = await supabase
+            .from("products")
+            .select("id, pack_size, qty_per_box")
+            .in("id", ids);
+          for (const pr of (packRows ?? []) as any[]) {
+            packMap.set(pr.id, { pack_size: pr.pack_size, qty_per_box: pr.qty_per_box });
+          }
+        }
+        return list.map<PickedProduct>((p) => {
+          const pk = packMap.get(p.id);
+          const cfg = resolvePackConfig({
+            medicine_type: p.medicine_type,
+            name: p.name,
+            pack_size: pk?.pack_size ?? p.pack_size,
+            qty_per_box: pk?.qty_per_box,
+          });
+          return {
+            id: p.id, name: p.name,
+            displayName: buildProductDisplayName(p),
+            sku: p.sku ?? "", barcode: p.barcode ?? "",
+            lastPurchasePrice: Number(p.purchase_price ?? 0),
+            lastRetailPrice: Number(p.retail_price ?? 0),
+            stock: Number(p.qty_on_hand ?? 0),
+            hasStrip: cfg.hasStrip,
+            pcsPerStrip: cfg.pcsPerStrip,
+            pcsPerBox: cfg.pcsPerBox,
+          };
         });
-        return {
-          id: p.id, name: p.name,
-          displayName: buildProductDisplayName(p),
-          sku: p.sku ?? "", barcode: p.barcode ?? "",
-          lastPurchasePrice: Number(p.purchase_price ?? 0),
-          lastRetailPrice: Number(p.retail_price ?? 0),
-          stock: Number(p.qty_on_hand ?? 0),
-          hasStrip: cfg.hasStrip,
-          pcsPerStrip: cfg.pcsPerStrip,
-          pcsPerBox: cfg.pcsPerBox,
-        };
-      });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineSearch();
+        }
+        throw err;
+      }
     },
   });
 
@@ -295,16 +339,60 @@ function NewPurchasePage() {
       toast.error(errors[0] ?? "Cannot save");
       return;
     }
-    if (!branchId) {
+    const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+    if (!isOffline && !branchId) {
       toast.error("Please select a branch first. প্রথমে একটি শাখা নির্বাচন করুন।");
       return;
     }
     setSaving(true);
+    const saveOfflinePurchase = async () => {
+      await queuePurchase({
+        tenant_id: tenantId,
+        branch_id: branchId ?? null,
+        supplier_id: supplierId,
+        supplier_name: selectedSupplier?.name ?? null,
+        invoice_no: invoiceNo || undefined,
+        due_date: dueDate || undefined,
+        subtotal,
+        discount: discountTotal,
+        vat: vatTotal,
+        total: grandTotal,
+        paid,
+        due,
+        payment_method: "cash",
+        notes: notes || undefined,
+        items: lines.map((l) => {
+          const mult = lineMult(l);
+          return {
+            product_id: l.product.id,
+            name: l.product.displayName || l.product.name,
+            batch_no: l.batch_no.trim(),
+            expiry_date: l.expiry_date,
+            qty: l.qty * mult,
+            bonus_qty: l.bonus * mult,
+            unit_cost: l.purchase_price,
+            sale_price: l.sale_price,
+            discount: l.discount,
+            vat: l.vat,
+            line_total: lineTotal(l),
+            pcs_per_strip: l.pcsPerStrip,
+            pcs_per_box: l.pcsPerBox,
+          };
+        }),
+      });
+      toast.success("অফলাইনে ক্রয় সেভ হয়েছে! অনলাইনে এলে অটো সিঙ্ক হবে।");
+      navigate({ to: "/purchases" });
+    };
+
     try {
+      if (isOffline) {
+        await saveOfflinePurchase();
+        return;
+      }
       const { id: poId } = await createPO({
         data: {
           tenantId,
-          branch_id: branchId,
+          branch_id: branchId!,
           supplier_id: supplierId,
           expected_delivery_date: dueDate || undefined,
           notes: [invoiceNo ? `Invoice: ${invoiceNo}` : "", notes].filter(Boolean).join(" — ") || undefined,
@@ -324,7 +412,7 @@ function NewPurchasePage() {
       });
 
       // Auto-approve + receive (PO approval workflow will be added later)
-      await updateStatus({ data: { id: poId, branch_id: branchId, action: "approve" } });
+      await updateStatus({ data: { id: poId, branch_id: branchId!, action: "approve" } });
 
 
       // Fetch newly created PO items to map item_id → line
@@ -348,12 +436,12 @@ function NewPurchasePage() {
         };
       });
 
-      await receivePO({ data: { id: poId, branch_id: branchId, lines: recvLines } });
+      await receivePO({ data: { id: poId, branch_id: branchId!, lines: recvLines } });
 
       if (paid > 0) {
         await payPO({
           data: {
-            tenantId, branch_id: branchId, supplierId, amount: paid, method: "cash",
+            tenantId, branch_id: branchId!, supplierId, amount: paid, method: "cash",
             reference: invoiceNo || undefined,
             notes: `Payment on PO ${poId}`,
           },
@@ -363,6 +451,10 @@ function NewPurchasePage() {
       toast.success("Purchase saved — stock & ledger updated");
       navigate({ to: "/procurement/$id", params: { id: poId } });
     } catch (err) {
+      if (isOfflineNetworkError(err)) {
+        await saveOfflinePurchase();
+        return;
+      }
       toast.error(err instanceof Error ? err.message : "Save failed");
     } finally {
       setSaving(false);

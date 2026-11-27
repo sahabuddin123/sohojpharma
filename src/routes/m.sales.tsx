@@ -12,6 +12,8 @@ import {
 } from "@/components/mobile/phone-ui";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { cacheSales, listCachedSales } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/sales")({
@@ -42,6 +44,7 @@ type SaleRow = {
   due: number | null;
   discount: number | null;
   status: string | null;
+  pendingSync?: boolean;
   customer: { name: string | null; phone: string | null } | null;
 };
 
@@ -93,17 +96,71 @@ function MobileSaleRecord() {
     queryKey: ["m-sales", currentTenantId, from, to],
     enabled: !!currentTenantId,
     queryFn: async () => {
-      let q = supabase
-        .from("sales")
-        .select("id,invoice_no,sale_date,created_at,total,paid,due,discount,status,customer:customers(name,phone)")
-        .eq("tenant_id", currentTenantId!)
-        .order("created_at", { ascending: false })
-        .limit(300);
-      if (from) q = q.gte("created_at", `${from}T00:00:00+06:00`);
-      if (to) q = q.lte("created_at", `${to}T23:59:59.999+06:00`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as SaleRow[];
+      const tid = currentTenantId!;
+      const mapCached = (list: Awaited<ReturnType<typeof listCachedSales>>): SaleRow[] =>
+        list.map((c) => ({
+          id: c.id,
+          invoice_no: c.invoice_no,
+          sale_date: c.sale_date,
+          created_at: c.created_at,
+          total: c.total,
+          paid: c.paid,
+          due: c.due,
+          discount: c.discount,
+          status: c.status,
+          pendingSync: c.pendingSync,
+          customer: c.customer_name || c.customer_phone ? { name: c.customer_name ?? null, phone: c.customer_phone ?? null } : null,
+        }));
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return mapCached(await listCachedSales(tid, { from, to }));
+      }
+      try {
+        let q = supabase
+          .from("sales")
+          .select("id,invoice_no,sale_date,created_at,total,paid,due,discount,status,customer:customers(name,phone)")
+          .eq("tenant_id", tid)
+          .order("created_at", { ascending: false })
+          .limit(300);
+        if (from) q = q.gte("created_at", `${from}T00:00:00+06:00`);
+        if (to) q = q.lte("created_at", `${to}T23:59:59.999+06:00`);
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data ?? []) as SaleRow[];
+
+        // Cache fetched rows locally & prepend still-pending offline sales
+        void cacheSales(
+          tid,
+          rows.map((s) => ({
+            id: s.id,
+            invoice_no: s.invoice_no ?? "",
+            sale_date: s.sale_date ?? s.created_at,
+            created_at: s.created_at,
+            subtotal: Number(s.total ?? 0),
+            discount: Number(s.discount ?? 0),
+            vat: 0,
+            total: Number(s.total ?? 0),
+            paid: Number(s.paid ?? 0),
+            due: Number(s.due ?? 0),
+            payment_method: "cash",
+            status: s.status ?? "completed",
+            customer_name: s.customer?.name ?? null,
+            customer_phone: s.customer?.phone ?? null,
+            items: [],
+            pendingSync: false,
+          })),
+        ).catch(() => {});
+
+        const cachedAll = await listCachedSales(tid, { from, to }).catch(() => []);
+        const pendingLocal = mapCached(cachedAll.filter((c) => c.pendingSync));
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return mapCached(await listCachedSales(tid, { from, to }));
+        }
+        throw err;
+      }
     },
   });
 
@@ -257,6 +314,11 @@ function MobileSaleRecord() {
                     <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", badge.cls)}>
                       {badge.label}
                     </span>
+                    {s.pendingSync && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                        সিঙ্ক বাকি
+                      </span>
+                    )}
                   </div>
                   <p className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-slate-600">
                     <UserRound className="h-3 w-3 shrink-0 text-slate-400" />

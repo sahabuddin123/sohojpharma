@@ -1,8 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle } from "lucide-react";
+import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle, WifiOff, RefreshCw, Database } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { countPending, subscribe as subscribeOutbox } from "@/lib/offline/db";
+import { subscribeSync, flushNow, type SyncState } from "@/lib/offline/sync";
+import { subscribeWarmStatus, type WarmStatus } from "@/lib/offline/warm-cache";
 import { SupportTicketDialog } from "./support-ticket-dialog";
 
 const tabs: Array<{ to: string; label: string; icon: typeof Home; exact?: boolean }> = [
@@ -135,6 +138,69 @@ export function PhoneTabBar() {
 }
 
 
+function PhoneOfflineBanner() {
+  const [pending, setPending] = useState(0);
+  const [sync, setSync] = useState<SyncState>({ online: true, syncing: false, lastRunAt: null, lastError: null });
+  const [warm, setWarm] = useState<WarmStatus>({ syncingCatalog: false, cachedProducts: 0, totalProducts: 0, lastSyncedAt: null });
+
+  useEffect(() => {
+    const refresh = () => { void countPending().then(setPending); };
+    refresh();
+    const u1 = subscribeOutbox(refresh);
+    const u2 = subscribeSync(setSync);
+    const u3 = subscribeWarmStatus(setWarm);
+    return () => { u1(); u2(); u3(); };
+  }, []);
+
+  if (sync.online && pending === 0 && !warm.syncingCatalog) return null;
+
+  return (
+    <div className="mx-auto max-w-md px-4 pt-2.5">
+      <div
+        className={cn(
+          "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold",
+          !sync.online
+            ? "border-amber-200 bg-amber-50 text-amber-900"
+            : pending > 0
+              ? "border-sky-200 bg-sky-50 text-sky-900"
+              : "border-emerald-200 bg-emerald-50/80 text-[#0d5c46]",
+        )}
+      >
+        <Link to={"/m/sync" as never} className="flex min-w-0 flex-1 items-center gap-2">
+          {!sync.online ? (
+            <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+          ) : pending > 0 ? (
+            <RefreshCw className={cn("h-3.5 w-3.5 shrink-0 text-sky-600", sync.syncing && "animate-spin")} />
+          ) : (
+            <Database className="h-3.5 w-3.5 shrink-0 animate-pulse text-[#0d5c46]" />
+          )}
+          <span className="truncate">
+            {!sync.online
+              ? pending > 0
+                ? `অফলাইন মোড · ${pending}টি এন্ট্রি পেন্ডিং`
+                : `অফলাইন মোড · ${warm.cachedProducts > 0 ? `${warm.cachedProducts} পণ্য প্রস্তুত` : "লোকাল মোড"}`
+              : pending > 0
+                ? sync.syncing
+                  ? `সার্ভারে সিঙ্ক হচ্ছে (${pending}টি বাকি)...`
+                  : `${pending}টি অফলাইন এন্ট্রি সিঙ্ক অপেক্ষায়`
+                : `অফলাইন ডাটা সিঙ্ক হচ্ছে (${warm.cachedProducts}${warm.totalProducts ? `/${warm.totalProducts}` : ""})...`}
+          </span>
+        </Link>
+        {sync.online && pending > 0 && (
+          <button
+            type="button"
+            onClick={() => void flushNow()}
+            disabled={sync.syncing}
+            className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-[#0d5c46] shadow-xs"
+          >
+            সিঙ্ক
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function PhoneShell({
   children,
   title,
@@ -151,6 +217,7 @@ export function PhoneShell({
   return (
     <div className="min-h-screen bg-[color-mix(in_oklab,var(--color-primary)_5%,var(--color-background))]">
       <PhoneHeader title={title} back={back} help={help} />
+      <PhoneOfflineBanner />
       <main className={cn("mx-auto max-w-md px-4 pb-32 pt-4", contentClassName)}>{children}</main>
 
       <PhoneTabBar />

@@ -12,6 +12,8 @@ import {
   type MobileProductStuckRow,
 } from "@/lib/api/mobile-products.functions";
 import { useAuth } from "@/hooks/use-auth";
+import { listCachedProducts } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -178,18 +180,73 @@ function MobileProducts() {
     queryKey: ["m-products-accounting", currentTenantId, dateRange.from, dateRange.to, mode, search, page],
     enabled: !!currentTenantId,
     placeholderData: keepPreviousData,
-    queryFn: () =>
-      fetchAccounting({
-        data: {
-          tenantId: currentTenantId!,
-          dateFrom: dateRange.from,
-          dateTo: dateRange.to,
-          mode,
-          search: search || undefined,
-          page,
-          pageSize: PAGE_SIZE,
-        },
-      }),
+    queryFn: async () => {
+      const offlineFallback = async () => {
+        const tid = currentTenantId!;
+        const cached = await listCachedProducts(tid, { search, page, pageSize: PAGE_SIZE });
+        const stuckRows: MobileProductStuckRow[] = cached.rows.map((p) => ({
+          id: p.id,
+          name: p.name,
+          strength: p.strength ?? null,
+          medicine_type: p.form ?? null,
+          unit: p.unit ?? null,
+          qty_per_box: p.pcsPerBox,
+          manufacturer_name: p.company_name ?? null,
+          stock_qty: p.stock,
+          stuck_value: Math.round(p.stock * p.cost),
+          earliest_expiry: null,
+          days_to_expiry: null,
+        }));
+        const salesRows: MobileProductSalesRow[] = cached.rows.map((p) => ({
+          id: p.id,
+          name: p.name,
+          strength: p.strength ?? null,
+          medicine_type: p.form ?? null,
+          unit: p.unit ?? null,
+          qty_per_box: p.pcsPerBox,
+          manufacturer_name: p.company_name ?? null,
+          sold_qty: 0,
+          revenue: p.price,
+          profit: Math.max(0, p.price - p.cost),
+          stock_qty: p.stock,
+        }));
+        return {
+          summary: {
+            soldBrandCount: cached.stats.totalProducts,
+            totalRevenue: cached.stats.stockValue,
+            totalProfit: 0,
+            totalSoldQty: cached.stats.totalStock,
+            stuckBrandCount: cached.stats.inStock + cached.stats.lowStock,
+            totalStuckValue: cached.stats.stockValue,
+            nextExpiry: null,
+          },
+          rows: mode === "stuck" ? stuckRows : salesRows,
+          totalCount: cached.total,
+        };
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineFallback();
+      }
+      try {
+        return await fetchAccounting({
+          data: {
+            tenantId: currentTenantId!,
+            dateFrom: dateRange.from,
+            dateTo: dateRange.to,
+            mode,
+            search: search || undefined,
+            page,
+            pageSize: PAGE_SIZE,
+          },
+        });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineFallback();
+        }
+        throw err;
+      }
+    },
   });
 
   const summary = data?.summary ?? {

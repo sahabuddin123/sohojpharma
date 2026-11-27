@@ -30,6 +30,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { deletePurchaseOrder, getPurchaseOrder } from "@/lib/api/procurement.functions";
+import { cachePurchases, getCachedPurchase, listCachedPurchases } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/purchases")({
@@ -56,6 +58,7 @@ type PoRow = {
   order_date: string | null;
   total: number | null;
   created_at: string;
+  pendingSync?: boolean;
   suppliers: { name: string | null } | null;
 };
 
@@ -123,24 +126,99 @@ function MobilePurchaseRecord() {
     queryKey: ["m-purchases", tenantId, from, to],
     enabled: !!tenantId,
     queryFn: async () => {
-      let q = supabase
-        .from("purchase_orders")
-        .select("id,po_number,status,order_date,total,created_at,suppliers(name)")
-        .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false })
-        .limit(300);
-      if (from) q = q.gte("created_at", `${from}T00:00:00+06:00`);
-      if (to) q = q.lte("created_at", `${to}T23:59:59.999+06:00`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return (data ?? []) as unknown as PoRow[];
+      const mapCached = (list: Awaited<ReturnType<typeof listCachedPurchases>>): PoRow[] =>
+        list.map((c) => ({
+          id: c.id,
+          po_number: c.po_number,
+          status: c.status,
+          order_date: c.order_date,
+          total: c.total,
+          created_at: c.created_at,
+          pendingSync: c.pendingSync,
+          suppliers: c.supplier_name ? { name: c.supplier_name } : null,
+        }));
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return mapCached(await listCachedPurchases(tenantId, { from, to }));
+      }
+      try {
+        let q = supabase
+          .from("purchase_orders")
+          .select("id,po_number,status,order_date,total,created_at,suppliers(name)")
+          .eq("tenant_id", tenantId)
+          .order("created_at", { ascending: false })
+          .limit(300);
+        if (from) q = q.gte("created_at", `${from}T00:00:00+06:00`);
+        if (to) q = q.lte("created_at", `${to}T23:59:59.999+06:00`);
+        const { data, error } = await q;
+        if (error) throw error;
+        const rows = (data ?? []) as unknown as PoRow[];
+        void cachePurchases(
+          tenantId,
+          rows.map((po) => ({
+            id: po.id,
+            po_number: po.po_number ?? "",
+            status: po.status ?? "draft",
+            order_date: po.order_date ?? po.created_at,
+            created_at: po.created_at,
+            total: Number(po.total ?? 0),
+            supplier_name: po.suppliers?.name ?? null,
+            pendingSync: false,
+          })),
+        ).catch(() => {});
+
+        const cachedAll = await listCachedPurchases(tenantId, { from, to }).catch(() => []);
+        const pendingLocal = mapCached(cachedAll.filter((c) => c.pendingSync));
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return mapCached(await listCachedPurchases(tenantId, { from, to }));
+        }
+        throw err;
+      }
     },
   });
 
   const { data: viewDetail, isLoading: loadingDetail } = useQuery({
-    queryKey: ["m-purchase-view", viewId],
+    queryKey: ["m-purchase-view", tenantId, viewId],
     enabled: !!viewId,
-    queryFn: () => loadPOFn({ data: { id: viewId! } }),
+    queryFn: async () => {
+      const loadCachedDetail = async () => {
+        const c = await getCachedPurchase(tenantId, viewId!);
+        if (!c) return null;
+        return {
+          po: {
+            po_number: c.po_number,
+            status: c.status,
+            order_date: c.order_date,
+            created_at: c.created_at,
+            total: c.total,
+            notes: c.pendingSync ? "অফলাইনে সংরক্ষিত (সিঙ্ক বাকি)" : null,
+            suppliers: c.supplier_name ? { name: c.supplier_name } : null,
+          },
+          items: (c.items ?? []).map((it, idx) => ({
+            id: `${it.product_id}-${idx}`,
+            qty_ordered: it.qty,
+            qty_received: it.qty,
+            unit_cost: it.unit_cost,
+            discount: 0,
+            products: { name: it.name },
+          })),
+        };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCachedDetail();
+      }
+      try {
+        return await loadPOFn({ data: { id: viewId! } });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCachedDetail();
+        }
+        throw err;
+      }
+    },
   });
 
   const deleteMut = useMutation({

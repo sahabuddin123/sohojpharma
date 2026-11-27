@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { getCachedSale, getOfflineMeta } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { isConnected } from "@/lib/printing/qz/connection";
 import { findDefaultPrinter, findPrinters } from "@/lib/printing/qz/printer";
 import { printHtmlReceipt } from "@/lib/printing/qz/receipt";
@@ -61,27 +63,67 @@ function MobileInvoicePreview() {
     queryKey: ["m-invoice-shop", tenantId],
     enabled: !!tenantId,
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tenants")
-        .select("name,owner_name,address_line,area,district,phone,mobile")
-        .eq("id", tenantId)
-        .maybeSingle();
-      return (data ?? null) as ShopInfo | null;
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return (await getOfflineMeta<ShopInfo>(`shopInfo:${tenantId}`)) ?? null;
+      }
+      try {
+        const { data } = await supabase
+          .from("tenants")
+          .select("name,owner_name,address_line,area,district,phone,mobile")
+          .eq("id", tenantId)
+          .maybeSingle();
+        return (data ?? null) as ShopInfo | null;
+      } catch {
+        return (await getOfflineMeta<ShopInfo>(`shopInfo:${tenantId}`)) ?? null;
+      }
     },
   });
 
   const { data, isLoading } = useQuery({
-    queryKey: ["m-invoice", saleId],
+    queryKey: ["m-invoice", tenantId, saleId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("sales")
-        .select(
-          "id,invoice_no,created_at,total,paid,due,status,customers(name,phone),sale_items(qty,unit_price,line_total,products(name))",
-        )
-        .eq("id", saleId)
-        .maybeSingle();
-      if (error) throw error;
-      return data as unknown as SaleRow | null;
+      const loadCached = async (): Promise<SaleRow | null> => {
+        if (!tenantId) return null;
+        const c = await getCachedSale(tenantId, saleId);
+        if (!c) return null;
+        return {
+          id: c.id,
+          invoice_no: c.invoice_no,
+          created_at: c.created_at,
+          total: c.total,
+          paid: c.paid,
+          due: c.due,
+          status: c.status,
+          customers: c.customer_name || c.customer_phone ? { name: c.customer_name ?? null, phone: c.customer_phone ?? null } : null,
+          sale_items: (c.items ?? []).map((it) => ({
+            qty: it.qty,
+            unit_price: it.unit_price,
+            line_total: it.line_total,
+            products: { name: it.name },
+          })),
+        };
+      };
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const { data, error } = await supabase
+          .from("sales")
+          .select(
+            "id,invoice_no,created_at,total,paid,due,status,customers(name,phone),sale_items(qty,unit_price,line_total,products(name))",
+          )
+          .eq("id", saleId)
+          .maybeSingle();
+        if (error) throw error;
+        if (data) return data as unknown as SaleRow;
+        return await loadCached();
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
     },
   });
 

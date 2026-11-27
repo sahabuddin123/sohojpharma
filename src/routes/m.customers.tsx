@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { cacheCustomers, listCachedCustomers } from "@/lib/offline/db";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/customers")({
@@ -30,7 +32,7 @@ export const Route = createFileRoute("/m/customers")({
   component: MobileCustomers,
 });
 
-type Row = { id: string; name: string; phone: string | null; due_balance: number | null };
+type Row = { id: string; name: string; phone: string | null; due_balance: number | null; pendingSync?: boolean };
 
 function MobileCustomers() {
   const { currentTenantId } = useAuth();
@@ -41,15 +43,49 @@ function MobileCustomers() {
     queryKey: ["m-customers", currentTenantId],
     enabled: !!currentTenantId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("customers")
-        .select("id,name,phone,due_balance")
-        .eq("tenant_id", currentTenantId!)
-        .eq("is_active", true)
-        .order("due_balance", { ascending: false })
-        .limit(500);
-      if (error) throw error;
-      return (data ?? []) as Row[];
+      const tid = currentTenantId!;
+      const loadCached = async (): Promise<Row[]> =>
+        (await listCachedCustomers(tid)).map((c) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          due_balance: c.due_balance,
+          pendingSync: c.pendingSync,
+        }));
+
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await loadCached();
+      }
+      try {
+        const { data, error } = await supabase
+          .from("customers")
+          .select("id,name,phone,due_balance")
+          .eq("tenant_id", tid)
+          .eq("is_active", true)
+          .order("due_balance", { ascending: false })
+          .limit(500);
+        if (error) throw error;
+        const rows = (data ?? []) as Row[];
+        void cacheCustomers(
+          tid,
+          rows.map((c) => ({
+            id: c.id,
+            name: c.name,
+            phone: c.phone,
+            due_balance: Number(c.due_balance ?? 0),
+          })),
+        ).catch(() => {});
+
+        const cached = await loadCached().catch(() => []);
+        const pendingLocal = cached.filter((c) => c.pendingSync);
+        const seen = new Set(rows.map((r) => r.id));
+        return [...pendingLocal.filter((p) => !seen.has(p.id)), ...rows];
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await loadCached();
+        }
+        throw err;
+      }
     },
   });
 
