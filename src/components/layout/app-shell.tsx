@@ -94,16 +94,17 @@ export function AppShell({ variant, title, children }: AppShellProps) {
           onCollapseToggle={toggleCollapsed}
           collapsed={collapsed}
           title={title}
+          variant={variant}
         />
         <main className="flex-1 px-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-4 sm:px-4 sm:pt-6 lg:px-8 lg:pb-10">
           <div className="mx-auto w-full max-w-[1400px]">
-            <SubscriptionBanner />
+            {variant === "store" && <SubscriptionBanner />}
             {children}
           </div>
         </main>
       </div>
 
-      <MobileBottomNav />
+      {variant === "store" && <MobileBottomNav />}
     </div>
   );
 }

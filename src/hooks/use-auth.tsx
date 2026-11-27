@@ -23,7 +23,8 @@ interface AuthContextValue {
   adminTenants: AdminTenant[];
   impersonating: boolean;
   currentTenantId: string | null;
-  setCurrentTenantId: (id: string) => void;
+  setCurrentTenantId: (id: string | null) => void;
+  clearImpersonation: () => void;
   signOut: () => Promise<void>;
   isAppAdmin: boolean;
 }
@@ -31,6 +32,30 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const TENANT_KEY = "pc_tenant";
+const ADMIN_IMPERSONATE_KEY = "pc_admin_impersonate";
+
+export function resolveInitialTenantId(params: {
+  isAdmin: boolean;
+  memberships: Array<{ tenant_id: string; is_default?: boolean }>;
+  adminTenants: Array<{ tenant_id: string }>;
+  storedMemberTenant: string | null;
+  storedImpersonateTenant: string | null;
+}): string | null {
+  const { isAdmin, memberships, adminTenants, storedMemberTenant, storedImpersonateTenant } = params;
+  const memberDefault =
+    memberships.find((m) => m.tenant_id === storedMemberTenant)?.tenant_id ??
+    memberships.find((m) => m.is_default)?.tenant_id ??
+    memberships[0]?.tenant_id ??
+    null;
+
+  if (isAdmin) {
+    // App admins only enter impersonation mode when explicitly stored for this browser session.
+    const activeImp = adminTenants.find((t) => t.tenant_id === storedImpersonateTenant)?.tenant_id;
+    return activeImp ?? memberDefault;
+  }
+
+  return memberDefault;
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -143,7 +168,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         setMemberships(list as unknown as TenantMembership[]);
 
-        const stored = typeof window !== "undefined" ? localStorage.getItem(TENANT_KEY) : null;
+        const storedMemberTenant = typeof window !== "undefined" ? localStorage.getItem(TENANT_KEY) : null;
+        const storedImpersonateTenant =
+          typeof window !== "undefined" ? sessionStorage.getItem(ADMIN_IMPERSONATE_KEY) : null;
 
         // App admins hydrate selectable tenants from admin_list_tenants
         let admins: AdminTenant[] = [];
@@ -174,16 +201,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setAdminTenants([]);
         }
 
-        const pool = isAdmin ? admins : list;
-        const fromStorage = pool.find((m) => m.tenant_id === stored)?.tenant_id;
-        const def =
-          (pool as Array<{ tenant_id: string; is_default?: boolean }>).find((m) => m.is_default)?.tenant_id ??
-          pool[0]?.tenant_id ??
-          null;
-        const resolvedTenantId = fromStorage ?? def;
+        const resolvedTenantId = resolveInitialTenantId({
+          isAdmin: !!isAdmin,
+          memberships: list,
+          adminTenants: admins,
+          storedMemberTenant,
+          storedImpersonateTenant,
+        });
         setCurrent(resolvedTenantId);
-        if (resolvedTenantId && typeof window !== "undefined" && !stored) {
-          localStorage.setItem(TENANT_KEY, resolvedTenantId);
+        if (typeof window !== "undefined") {
+          if (isAdmin && list.length === 0) {
+            localStorage.removeItem(TENANT_KEY);
+          } else if (resolvedTenantId && !storedMemberTenant && list.some((m) => m.tenant_id === resolvedTenantId)) {
+            localStorage.setItem(TENANT_KEY, resolvedTenantId);
+          }
         }
       } catch (err) {
         console.error("[Auth] Error fetching tenant context:", err);
@@ -197,21 +228,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const queryClient = useQueryClient();
 
-  const setCurrentTenantId = (id: string) => {
+  const setCurrentTenantId = (id: string | null) => {
     if (id !== currentTenantId) {
       queryClient.clear();
     }
     setCurrent(id);
-    if (typeof window !== "undefined") localStorage.setItem(TENANT_KEY, id);
-    if (isAppAdmin) {
+    if (typeof window !== "undefined") {
+      if (!id) {
+        sessionStorage.removeItem(ADMIN_IMPERSONATE_KEY);
+      } else if (isAppAdmin && !memberships.some((m) => m.tenant_id === id)) {
+        sessionStorage.setItem(ADMIN_IMPERSONATE_KEY, id);
+      } else {
+        sessionStorage.removeItem(ADMIN_IMPERSONATE_KEY);
+        localStorage.setItem(TENANT_KEY, id);
+      }
+    }
+    if (isAppAdmin && id && !memberships.some((m) => m.tenant_id === id)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase.rpc as any)("admin_switch_tenant", { _tenant_id: id }).then(() => {});
     }
   };
 
+  const clearImpersonation = () => {
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem(ADMIN_IMPERSONATE_KEY);
+    }
+    const ownDefault =
+      memberships.find((m) => m.is_default)?.tenant_id ??
+      memberships[0]?.tenant_id ??
+      null;
+    setCurrentTenantId(ownDefault);
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
-    if (typeof window !== "undefined") localStorage.removeItem(TENANT_KEY);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(TENANT_KEY);
+      sessionStorage.removeItem(ADMIN_IMPERSONATE_KEY);
+    }
   };
 
   const isMemberOfCurrentTenant = memberships.some(
@@ -230,6 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         impersonating,
         currentTenantId,
         setCurrentTenantId,
+        clearImpersonation,
         signOut,
         isAppAdmin,
       }}

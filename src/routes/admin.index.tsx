@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { RouteErrorPanel } from "@/components/route-error";
 import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import {
   Building2, DollarSign, Users, Package, ShoppingCart, Truck,
@@ -12,7 +13,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { supabase } from "@/integrations/supabase/client";
+import { getAdminOverviewStats } from "@/lib/api/admin-overview.functions";
 
 export const Route = createFileRoute("/admin/")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -27,38 +28,10 @@ export const Route = createFileRoute("/admin/")({
 
 function AdminDashboard() {
   const { t } = useTranslation();
-  const { data: stats } = useQuery({
+  const fetchStats = useServerFn(getAdminOverviewStats);
+  const { data: stats, isLoading, isError, error } = useQuery({
     queryKey: ["admin", "stats"],
-    queryFn: async () => {
-      const [tenants, subs, users, products, sales, purchases] = await Promise.all([
-        supabase.from("tenants").select("id,plan,created_at,name"),
-        supabase.from("subscriptions").select("tenant_id,status"),
-        supabase.from("tenant_members").select("user_id", { count: "exact", head: true }),
-        supabase.from("products").select("id", { count: "exact", head: true }),
-        supabase.from("sales").select("total").neq("status", "void"),
-        supabase.from("purchase_orders").select("id", { count: "exact", head: true }),
-      ]);
-      const tt = tenants.data ?? [];
-      const subMap = new Map<string, string>();
-      (subs.data ?? []).forEach((s: { tenant_id: string; status: string | null }) => {
-        if (!subMap.has(s.tenant_id)) subMap.set(s.tenant_id, s.status ?? "active");
-      });
-      const totalRev = (sales.data ?? []).reduce(
-        (s, r: { total: number | null }) => s + Number(r.total ?? 0), 0,
-      );
-      const statusOf = (id: string) => subMap.get(id) ?? "active";
-      return {
-        tenants: tt,
-        userCount: users.count ?? 0,
-        productCount: products.count ?? 0,
-        salesCount: (sales.data ?? []).length,
-        purchaseCount: purchases.count ?? 0,
-        totalRevenue: totalRev,
-        active: tt.filter((x) => statusOf(x.id) === "active").length,
-        trial: tt.filter((x) => statusOf(x.id) === "trial").length,
-        expired: tt.filter((x) => statusOf(x.id) === "expired").length,
-      };
-    },
+    queryFn: () => fetchStats(),
   });
 
   const recent = (stats?.tenants ?? [])
@@ -66,32 +39,46 @@ function AdminDashboard() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 6);
 
-  const fmt = (n: number) => n.toLocaleString("en-IN");
+  const fmt = (n: number | undefined) =>
+    isLoading && n === undefined ? "…" : (n ?? 0).toLocaleString("en-IN");
 
   return (
     <AppShell variant="admin" title={t("app.portalAdmin")}>
       <PageHeader title={t("admin.overview.title")} description={t("admin.overview.desc")} />
 
+      {isError && (
+        <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error instanceof Error ? error.message : t("common.error", "Failed to load statistics")}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label={t("admin.overview.totalPharmacies")} value={fmt(stats?.tenants.length ?? 0)} icon={Building2} tone="primary" />
-        <StatCard label={t("common.active")} value={fmt(stats?.active ?? 0)} icon={CheckCircle2} tone="success" />
-        <StatCard label={t("admin.overview.trial")} value={fmt(stats?.trial ?? 0)} icon={Clock} tone="warning" />
-        <StatCard label={t("admin.overview.expired")} value={fmt(stats?.expired ?? 0)} icon={AlertCircle} tone="secondary" />
+        <StatCard label={t("admin.overview.totalPharmacies")} value={fmt(stats?.tenants.length)} icon={Building2} tone="primary" />
+        <StatCard label={t("common.active")} value={fmt(stats?.active)} icon={CheckCircle2} tone="success" />
+        <StatCard label={t("admin.overview.trial")} value={fmt(stats?.trial)} icon={Clock} tone="warning" />
+        <StatCard label={t("admin.overview.expired")} value={fmt(stats?.expired)} icon={AlertCircle} tone="secondary" />
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard label={t("admin.overview.totalRevenue")} value={`৳ ${fmt(Math.round(stats?.totalRevenue ?? 0))}`} icon={DollarSign} tone="success" />
-        <StatCard label={t("admin.overview.totalUsers")} value={fmt(stats?.userCount ?? 0)} icon={Users} tone="secondary" />
-        <StatCard label={t("admin.overview.totalProducts")} value={fmt(stats?.productCount ?? 0)} icon={Package} tone="primary" />
-        <StatCard label={t("admin.overview.totalSales")} value={fmt(stats?.salesCount ?? 0)} icon={ShoppingCart} tone="success" />
-        <StatCard label={t("admin.overview.totalPurchases")} value={fmt(stats?.purchaseCount ?? 0)} icon={Truck} tone="warning" />
+        <StatCard
+          label={t("admin.overview.totalRevenue")}
+          value={isLoading && !stats ? "…" : `৳ ${Math.round(stats?.totalRevenue ?? 0).toLocaleString("en-IN")}`}
+          icon={DollarSign}
+          tone="success"
+        />
+        <StatCard label={t("admin.overview.totalUsers")} value={fmt(stats?.userCount)} icon={Users} tone="secondary" />
+        <StatCard label={t("admin.overview.totalProducts")} value={fmt(stats?.productCount)} icon={Package} tone="primary" />
+        <StatCard label={t("admin.overview.totalSales")} value={fmt(stats?.salesCount)} icon={ShoppingCart} tone="success" />
+        <StatCard label={t("admin.overview.totalPurchases")} value={fmt(stats?.purchaseCount)} icon={Truck} tone="warning" />
       </div>
 
       <div className="mt-6">
         <Card className="shadow-card">
           <CardHeader><CardTitle className="text-base flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" /> {t("admin.overview.recent")}</CardTitle></CardHeader>
           <CardContent className="space-y-3">
-            {recent.length === 0 ? (
+            {isLoading && !stats ? (
+              <p className="text-sm text-muted-foreground">{t("common.loading", "Loading…")}</p>
+            ) : recent.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("admin.overview.noRecent")}</p>
             ) : recent.map((r) => (
               <div key={r.id} className="flex items-center gap-3">

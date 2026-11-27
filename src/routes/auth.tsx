@@ -208,6 +208,15 @@ function AuthPage() {
       const authUser = userRes?.user;
       if (authUser) {
         const { data: isAdmin } = await supabase.rpc("is_app_admin", { _user_id: authUser.id });
+        if (isAdmin) {
+          await recordAttempt({ data: { email, success: true } });
+          setRemainingAttempts(5);
+          setCooldown(0);
+          toast.success(t("toast.welcomeBack"));
+          const adminTarget = redirectTo === "/dashboard" ? "/admin" : redirectTo;
+          navigate({ to: adminTarget, replace: true });
+          return;
+        }
         if (!isAdmin) {
           const { data: memberships } = await supabase
             .from("tenant_members")

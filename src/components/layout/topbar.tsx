@@ -55,6 +55,7 @@ interface TopbarProps {
   onCollapseToggle?: () => void;
   collapsed?: boolean;
   title?: string;
+  variant?: "admin" | "store";
 }
 
 const UUID_SEGMENT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,11 +66,11 @@ function humanize(segment: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: TopbarProps) {
+export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title, variant = "store" }: TopbarProps) {
   const { t } = useTranslation();
   const { theme, toggleTheme, desktopUiVersion } = useUIStore();
   const isV2 = desktopUiVersion === "v2";
-  const { user, memberships, adminTenants, impersonating, currentTenantId, setCurrentTenantId, signOut, isAppAdmin } = useAuth();
+  const { user, memberships, adminTenants, impersonating, currentTenantId, setCurrentTenantId, clearImpersonation, signOut, isAppAdmin } = useAuth();
   const availableTenants = isAppAdmin ? adminTenants : memberships;
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -248,8 +249,8 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
             <Search className="h-5 w-5" />
           </Button>
 
-          {/* Pharmacy switcher — also used by app admins for tenant impersonation */}
-          {availableTenants.length > 0 && (
+          {/* Pharmacy switcher — only shown inside Store portal, never in SaaS Super Admin portal */}
+          {variant === "store" && availableTenants.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -285,6 +286,21 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
                     {m.tenant_id === currentTenantId && <Check className="h-4 w-4 text-primary" />}
                   </DropdownMenuItem>
                 ))}
+                {impersonating && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => {
+                        clearImpersonation();
+                        navigate({ to: "/admin" as never });
+                      }}
+                      className="text-amber-600 focus:text-amber-700"
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>{t("nav.switchToAdmin", "Back to Super Admin")}</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -432,9 +448,11 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
               <DropdownMenuItem onClick={() => navigate({ to: "/admin/profile" as never })}>
                 <UserIcon className="mr-2 h-4 w-4" /> {t("topbar.profile")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => navigate({ to: "/settings" as never })}>
-                <Settings className="mr-2 h-4 w-4" /> {t("nav.settings")}
-              </DropdownMenuItem>
+              {variant === "store" && (
+                <DropdownMenuItem onClick={() => navigate({ to: "/settings" as never })}>
+                  <Settings className="mr-2 h-4 w-4" /> {t("nav.settings")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-destructive" onClick={handleSignOut}>
                 <LogOut className="mr-2 h-4 w-4" /> {t("auth.signOut")}
