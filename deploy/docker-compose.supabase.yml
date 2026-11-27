@@ -14,7 +14,7 @@ services:
       KONG_DNS_ORDER: LAST,A,CNAME
       KONG_PLUGINS: request-transformer,cors,key-auth,acl
       SUPABASE_ANON_KEY: ${SUPABASE_PUBLISHABLE_KEY:?Set SUPABASE_PUBLISHABLE_KEY in .env}
-      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-CHANGE_ME_SERVICE_ROLE_KEY}
+      SUPABASE_SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Set SUPABASE_SERVICE_ROLE_KEY in .env}
     volumes:
       - ./kong.yml:/var/lib/kong/kong.yml:ro
     depends_on:
@@ -50,13 +50,13 @@ services:
       GOTRUE_URI_ALLOW_LIST: "${APP_PUBLIC_URL:-https://sohojpharma.cloud}/*"
       GOTRUE_DISABLE_SIGNUP: "false"
       GOTRUE_JWT_DEFAULT_GROUP_NAME: "authenticated"
-      GOTRUE_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
+      GOTRUE_JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       GOTRUE_JWT_EXP: 3600
       # SMTP Email Configuration for Password Recovery, Invites & Confirmations
       GOTRUE_SMTP_HOST: ${SMTP_HOST:-mail.sohojpharma.cloud}
       GOTRUE_SMTP_PORT: ${SMTP_PORT:-587}
       GOTRUE_SMTP_USER: ${SMTP_USER:-support@sohojpharma.cloud}
-      GOTRUE_SMTP_PASS: ${SMTP_PASS:-CHANGE_ME}
+      GOTRUE_SMTP_PASS: ${SMTP_PASS:-}
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL:-support@sohojpharma.cloud}
       GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME:-SohojPharma}
       GOTRUE_MAILER_AUTOCONFIRM: "true"
@@ -85,7 +85,7 @@ services:
       PGRST_DB_URI: postgres://postgres:${POSTGRES_PASSWORD:-postgres}@sohojpharma_db:5432/postgres?sslmode=disable
       PGRST_DB_SCHEMAS: public,storage
       PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET}
+      PGRST_JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
       PGRST_DB_USE_LEGACY_GUCS: "false"
     depends_on:
       supabase-db:

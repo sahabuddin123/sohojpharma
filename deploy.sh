@@ -127,13 +127,10 @@ sed -i 's|^VITE_SUPABASE_URL=.*|VITE_SUPABASE_URL=https://sohojpharma.cloud|' .e
 sed -i 's|^SUPABASE_URL=.*|SUPABASE_URL=http://127.0.0.1:54321|' .env
 sed -i 's|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=postgres|' .env
 grep -q '^POSTGRES_PASSWORD=' .env || echo "POSTGRES_PASSWORD=postgres" >> .env
-sed -i 's|^BKASH_MERCHANT_NUMBER=.*|BKASH_MERCHANT_NUMBER=01951413828|' .env
-
-# Ensure SMTP WebMail settings (support@sohojpharma.cloud)
+# Note: set BKASH_MERCHANT_NUMBER, SMTP_PASS, SUPABASE_SERVICE_ROLE_KEY in .env directly (never committed to git)
 grep -q '^SMTP_HOST=' .env && sed -i 's|^SMTP_HOST=.*|SMTP_HOST=mail.sohojpharma.cloud|' .env || echo "SMTP_HOST=mail.sohojpharma.cloud" >> .env
 grep -q '^SMTP_PORT=' .env && sed -i 's|^SMTP_PORT=.*|SMTP_PORT=587|' .env || echo "SMTP_PORT=587" >> .env
 grep -q '^SMTP_USER=' .env && sed -i 's|^SMTP_USER=.*|SMTP_USER=support@sohojpharma.cloud|' .env || echo "SMTP_USER=support@sohojpharma.cloud" >> .env
-grep -q '^SMTP_PASS=' .env && sed -i 's|^SMTP_PASS=.*|SMTP_PASS=CHANGE_ME|' .env || echo "SMTP_PASS=CHANGE_ME" >> .env
 grep -q '^SMTP_ADMIN_EMAIL=' .env && sed -i 's|^SMTP_ADMIN_EMAIL=.*|SMTP_ADMIN_EMAIL=support@sohojpharma.cloud|' .env || echo "SMTP_ADMIN_EMAIL=support@sohojpharma.cloud" >> .env
 grep -q '^SMTP_SENDER_NAME=' .env && sed -i 's|^SMTP_SENDER_NAME=.*|SMTP_SENDER_NAME="SohojPharma"|' .env || echo 'SMTP_SENDER_NAME="SohojPharma"' >> .env
 grep -q '^EMAIL_FROM=' .env && sed -i 's|^EMAIL_FROM=.*|EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"|' .env || echo 'EMAIL_FROM="SohojPharma <support@sohojpharma.cloud>"' >> .env
@@ -214,9 +211,13 @@ docker exec -e PGPASSWORD=postgres sohojpharma_db bash -c '
 # Ensure Superadmin (superadmin@gmail.com / 123456) and Demo Store Admin exist in auth.users & app_admins
 echo -e "Ensuring superadmin credentials (superadmin@gmail.com / 123456) are active..."
 python3 - << 'PYEOF'
-import hmac, hashlib, base64, json, urllib.request, urllib.error, os
+import hmac, hashlib, base64, json, urllib.request, urllib.error, os, sys
 
-jwt_secret = os.getenv("JWT_SECRET", "CHANGE_ME_JWT_SECRET").encode('utf-8')
+jwt_secret_raw = os.getenv("JWT_SECRET")
+if not jwt_secret_raw:
+    print("JWT_SECRET not set; skipping admin API bootstrap")
+    sys.exit(0)
+jwt_secret = jwt_secret_raw.encode('utf-8')
 
 def b64url(b):
     return base64.urlsafe_b64encode(b).rstrip(b'=').decode('ascii')

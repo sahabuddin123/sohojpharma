@@ -229,7 +229,9 @@ function CheckoutPage() {
           className={cn(
             "rounded-lg py-1.5 text-xs font-semibold transition",
             cycle === "monthly"
-              ? "bg-card text-primary shadow-xs"
+              ? isMobileView
+                ? "bg-card text-[#0d5c46] shadow-xs"
+                : "bg-card text-primary shadow-xs"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -241,7 +243,9 @@ function CheckoutPage() {
           className={cn(
             "rounded-lg py-1.5 text-xs font-semibold transition",
             cycle === "yearly"
-              ? "bg-card text-primary shadow-xs"
+              ? isMobileView
+                ? "bg-card text-[#0d5c46] shadow-xs"
+                : "bg-card text-primary shadow-xs"
               : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -270,7 +274,9 @@ function CheckoutPage() {
 
         <div className="flex items-baseline justify-between border-t border-border/70 pt-2.5">
           <span className="text-sm font-bold text-foreground">{t("billing.checkout.totalPayable")}</span>
-          <span className="text-xl font-black text-primary">{formatBdt(manualTotalAmount)}</span>
+          <span className={cn("text-xl font-black", isMobileView ? "text-[#0d5c46]" : "text-primary")}>
+            {formatBdt(manualTotalAmount)}
+          </span>
         </div>
       </div>
     </div>

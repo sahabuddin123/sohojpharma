@@ -152,7 +152,7 @@ export function PhoneTabBar() {
                 className={cn(
                   "flex flex-col items-center justify-center gap-0.5 rounded-2xl py-2 text-[11px] font-medium transition-colors",
                   active
-                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    ? "bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#0f766e] text-white font-semibold shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -242,7 +242,7 @@ export function PhoneShell({
   contentClassName?: string;
 }) {
   return (
-    <div className="min-h-screen bg-[color-mix(in_oklab,var(--color-primary)_5%,var(--color-background))]">
+    <div className="min-h-screen bg-[#f3f7f4] dark:bg-slate-950">
       <PhoneHeader title={title} back={back} help={help} />
       <PhoneOfflineBanner />
       <main className={cn("mx-auto max-w-md px-4 pb-32 pt-4", contentClassName)}>{children}</main>
