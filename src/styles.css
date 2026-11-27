@@ -513,3 +513,14 @@ html[data-desktop-ui="v2"] .sp-v2-sidebar nav::-webkit-scrollbar-thumb {
 html[data-desktop-ui="v2"] .sp-v2-sidebar:hover nav::-webkit-scrollbar-thumb {
   background: rgba(13, 133, 144, 0.24);
 }
+
+/* bKash Classic Checkout Modal: override upstream missing-semicolon cssText & ensure top stacking */
+#bKashFrameWrapper {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  z-index: 99999 !important;
+  overflow-y: auto !important;
+  pointer-events: auto !important;
+}

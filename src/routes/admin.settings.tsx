@@ -14,6 +14,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useUIStore } from "@/stores/ui-store";
 import { Upload } from "lucide-react";
+import { BkashGatewayConfig } from "@/components/admin/bkash-gateway-config";
 
 
 export const Route = createFileRoute("/admin/settings")({
@@ -33,11 +34,16 @@ function AdminSettings() {
       <Tabs defaultValue="general">
         <TabsList className="flex flex-wrap">
           <TabsTrigger value="general">{t("admin.settings.general")}</TabsTrigger>
+          <TabsTrigger value="payment">পেমেন্ট গেটওয়ে (bKash)</TabsTrigger>
           <TabsTrigger value="localization">{t("admin.settings.localization")}</TabsTrigger>
           <TabsTrigger value="system">{t("admin.settings.system")}</TabsTrigger>
           <TabsTrigger value="email">{t("admin.settings.email")}</TabsTrigger>
           <TabsTrigger value="sms">{t("admin.settings.sms")}</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="payment" className="mt-4">
+          <BkashGatewayConfig />
+        </TabsContent>
 
         <TabsContent value="general" className="mt-4 space-y-4">
           <Card className="shadow-card">

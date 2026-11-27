@@ -53,7 +53,7 @@ function BillingPage() {
   });
 
   async function handleDowngrade() {
-    const plans = await listPlansFn();
+    const plans = ((await listPlansFn()) as any[]).filter((p) => p?.code !== "free");
     const code = window.prompt(t("billing.downgrade_prompt"), plans.map((p: any) => p.code).join(", "));
     if (!code) return;
     const target = plans.find((p: any) => p.code === code);

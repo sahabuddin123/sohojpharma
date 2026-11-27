@@ -30,10 +30,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useServerFn } from "@tanstack/react-start";
-import { createBkashPayment, executeBkashPayment, cancelBkashPayment } from "@/lib/api/bkash.functions";
+import {
+  createBkashPayment,
+  executeBkashPayment,
+  cancelBkashPayment,
+  getBkashCheckoutPublicConfig,
+} from "@/lib/api/bkash.functions";
 import { cn } from "@/lib/utils";
 
-const BKASH_MERCHANT_NUMBER = "01951413828";
+const DEFAULT_BKASH_MERCHANT_NUMBER = "01951413828";
 
 const search = z.object({
   cycle: z.enum(["monthly", "yearly"]).default("monthly"),
@@ -98,6 +103,13 @@ function CheckoutPage() {
   const isMobileView = !forceDesktop && (from === "mobile" || viewportMobile);
   const backTarget = isMobileView ? "/m/subscription" : "/billing/plans";
 
+  const getBkashPublicFn = useServerFn(getBkashCheckoutPublicConfig);
+  const { data: bkashPublic } = useQuery({
+    queryKey: ["bkash-checkout-public-config"],
+    queryFn: () => getBkashPublicFn(),
+    staleTime: 30_000,
+  });
+
   const { data: plan, isLoading } = useQuery({
     queryKey: ["plan-detail", planId],
     queryFn: async () => {
@@ -117,8 +129,10 @@ function CheckoutPage() {
       : Number(plan.price_bdt)
     : 0;
 
-  // bKash gateway fee calculation: 1.5% (15tk per 1000tk)
-  const instantBkashFee = Math.round(baseAmount * 0.015);
+  const merchantNumber = bkashPublic?.merchant_number || DEFAULT_BKASH_MERCHANT_NUMBER;
+  const feePercent = Number(bkashPublic?.gateway_fee_percent ?? 1.5);
+  const feeRate = Number.isFinite(feePercent) && feePercent >= 0 ? feePercent / 100 : 0.015;
+  const instantBkashFee = Math.round(baseAmount * feeRate);
   const instantBkashTotal = baseAmount + instantBkashFee;
   const isManualBkash = method === "bkash";
   const manualGatewayFee = isManualBkash ? instantBkashFee : 0;
@@ -135,7 +149,7 @@ function CheckoutPage() {
         proofUrl = up.data.path;
       }
       const noteWithFee = manualGatewayFee > 0
-        ? `${notes ? notes + " | " : ""}Gateway charge: ৳${manualGatewayFee} (1.5%) included. Subtotal: ৳${baseAmount}.`
+        ? `${notes ? notes + " | " : ""}Gateway charge: ৳${manualGatewayFee} (${feePercent}%) included. Subtotal: ৳${baseAmount}.`
         : notes || null;
       const { error } = await supabase.from("subscription_payments").insert({
         tenant_id: currentTenantId,
@@ -160,12 +174,12 @@ function CheckoutPage() {
 
   const handleCopyNumber = async () => {
     try {
-      await navigator.clipboard.writeText(BKASH_MERCHANT_NUMBER);
+      await navigator.clipboard.writeText(merchantNumber);
       setCopied(true);
       toast.success(t("billing.checkout.copiedNumber"));
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error(BKASH_MERCHANT_NUMBER);
+      toast.error(merchantNumber);
     }
   };
 
@@ -188,10 +202,14 @@ function CheckoutPage() {
     );
   }
 
-  if (!plan) {
+  if (!plan || plan.code === "free") {
     return shellWrap(
       <div className={cn("space-y-3 py-8 text-center", isMobileView && "mt-3")}>
-        <p className="text-sm font-medium text-muted-foreground">{t("billing.checkout.notFound")}</p>
+        <p className="text-sm font-medium text-muted-foreground">
+          {plan?.code === "free"
+            ? "ফ্রি প্ল্যানটি শুধুমাত্র প্রথমবার সাইনআপের জন্য প্রযোজ্য। অনুগ্রহ করে একটি পেইড প্ল্যান নির্বাচন করুন।"
+            : t("billing.checkout.notFound")}
+        </p>
         <Button asChild variant="outline" size="sm">
           <Link to={backTarget as never}>
             <ArrowLeft className="mr-2 h-4 w-4" />
@@ -290,7 +308,14 @@ function CheckoutPage() {
             <Zap className="h-4 w-4" />
           </span>
           <div>
-            <h2 className="text-sm font-bold text-foreground">{t("billing.checkout.instantTitle")}</h2>
+            <h2 className="text-sm font-bold text-foreground flex flex-wrap items-center gap-1.5">
+              <span>{t("billing.checkout.instantTitle")}</span>
+              {bkashPublic?.active_mode === "sandbox" && (
+                <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                  Sandbox Test
+                </span>
+              )}
+            </h2>
             <p className="text-[11px] text-muted-foreground">{t("billing.checkout.instantFeeNote")}</p>
           </div>
         </div>
@@ -303,12 +328,18 @@ function CheckoutPage() {
         {t("billing.checkout.instantDesc")}
       </p>
 
-      <BkashPayButton
-        planId={planId}
-        cycle={cycle}
-        amount={instantBkashTotal}
-        isMobileView={isMobileView}
-      />
+      {bkashPublic?.is_enabled === false ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          বিকাশ অনলাইন পেমেন্ট সাময়িকভাবে বন্ধ রয়েছে। অনুগ্রহ করে নিচের ম্যানুয়াল পেমেন্ট অপশন ব্যবহার করুন।
+        </div>
+      ) : (
+        <BkashPayButton
+          planId={planId}
+          cycle={cycle}
+          amount={instantBkashTotal}
+          isMobileView={isMobileView}
+        />
+      )}
     </div>
   );
 
@@ -333,7 +364,7 @@ function CheckoutPage() {
             onClick={handleCopyNumber}
             className="inline-flex items-center gap-1.5 rounded-lg border border-pink-300 bg-white px-2.5 py-1 font-mono text-xs font-bold text-[#E2136E] shadow-2xs transition hover:bg-pink-50 dark:border-pink-800 dark:bg-background"
           >
-            <span>{BKASH_MERCHANT_NUMBER}</span>
+            <span>{merchantNumber}</span>
             {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
         </div>
@@ -580,33 +611,52 @@ declare global {
   }
 }
 
-function loadScriptOnce(src: string, isReady: () => boolean): Promise<void> {
-  if (isReady()) return Promise.resolve();
+function cleanupBkashDom() {
+  if (typeof document === "undefined") return;
+  document.getElementById("bKashFrameWrapper")?.remove();
+  document.getElementById("sp-bkash-host")?.remove();
+}
+
+function loadBkashSdk(scriptUrl: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
-    if (existing) {
-      if (existing.dataset.failed === "1") {
-        existing.remove();
-      } else if (isReady()) {
-        resolve();
-        return;
-      } else {
-        existing.addEventListener("load", () => resolve(), { once: true });
-        existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
-        return;
+    const existingAll = Array.from(
+      document.querySelectorAll<HTMLScriptElement>('script[data-bkash-sdk="1"], script[src*="bKash-checkout"]'),
+    );
+    for (const s of existingAll) {
+      if (s.src !== scriptUrl || s.dataset.failed === "1") {
+        s.remove();
+        delete window.bKash;
       }
     }
+
+    if (window.bKash) {
+      resolve();
+      return;
+    }
+
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${scriptUrl}"]`);
+    if (existing) {
+      existing.addEventListener("load", () => {
+        if (window.bKash) resolve();
+        else reject(new Error(`Script loaded without bKash global: ${scriptUrl}`));
+      }, { once: true });
+      existing.addEventListener("error", () => reject(new Error(`Failed to load ${scriptUrl}`)), { once: true });
+      return;
+    }
+
     const script = document.createElement("script");
-    script.src = src;
+    script.src = scriptUrl;
     script.async = true;
-    script.onload = () => resolve();
+    script.dataset.bkashSdk = "1";
+    script.onload = () => {
+      if (window.bKash) resolve();
+      else reject(new Error(`Script loaded without bKash global: ${scriptUrl}`));
+    };
     script.onerror = () => {
       script.dataset.failed = "1";
-      reject(new Error(`Failed to load ${src}`));
+      reject(new Error(`Failed to load ${scriptUrl}`));
     };
     document.body.appendChild(script);
-  }).then(() => {
-    if (!isReady()) throw new Error(`Script loaded without global for ${src}`);
   });
 }
 
@@ -630,8 +680,13 @@ function BkashPayButton({
   const cancelFn = useServerFn(cancelBkashPayment);
 
   const [phase, setPhase] = useState<"idle" | "creating" | "modal" | "executing">("idle");
-  const btnHostRef = useRef<HTMLSpanElement | null>(null);
   const settledRef = useRef(false);
+
+  useEffect(() => {
+    return () => {
+      cleanupBkashDom();
+    };
+  }, []);
 
   const pay = useMutation({
     mutationFn: async () => {
@@ -647,16 +702,28 @@ function BkashPayButton({
 
       if (res?.mode === "checkout" && res.payment_data?.paymentID && res.script_url && currentTenantId) {
         try {
-          await loadScriptOnce("https://code.jquery.com/jquery-3.7.1.min.js", () => Boolean(window.jQuery || window.$));
-          if (window.jQuery && !window.$) window.$ = window.jQuery;
-          await loadScriptOnce(res.script_url, () => Boolean(window.bKash));
+          await loadBkashSdk(res.script_url);
 
-          if (!btnHostRef.current || !window.bKash) {
+          if (!window.bKash) {
             throw new Error(t("billing.checkout.bkashScriptFailed"));
           }
 
-          // Re-mount fresh #bKash_button before every init so handlers never stack across retries.
-          btnHostRef.current.innerHTML = '<button id="bKash_button" type="button">bKash</button>';
+          // IMPORTANT: Mount #bKash_button directly in an unclipped container on document.body!
+          // bKash-checkout.js inserts #bKashFrameWrapper right next to #bKash_button — never wrap
+          // its parent in .sr-only / overflow:hidden / clip, otherwise the modal clips to 1x1px!
+          cleanupBkashDom();
+          const host = document.createElement("div");
+          host.id = "sp-bkash-host";
+          const hiddenBtn = document.createElement("button");
+          hiddenBtn.id = "bKash_button";
+          hiddenBtn.type = "button";
+          hiddenBtn.className = "sr-only";
+          hiddenBtn.tabIndex = -1;
+          hiddenBtn.setAttribute("aria-hidden", "true");
+          hiddenBtn.textContent = "bKash";
+          host.appendChild(hiddenBtn);
+          document.body.appendChild(host);
+
           settledRef.current = false;
           setPhase("modal");
 
@@ -686,6 +753,7 @@ function BkashPayButton({
                 },
               })
                 .then(async (execRes) => {
+                  cleanupBkashDom();
                   await Promise.all([
                     queryClient.invalidateQueries({ queryKey: ["subscription-status"] }),
                     queryClient.invalidateQueries({ queryKey: ["billing-history"] }),
@@ -701,12 +769,14 @@ function BkashPayButton({
                 })
                 .catch((err: unknown) => {
                   window.bKash?.execute().onError();
+                  cleanupBkashDom();
                   setPhase("idle");
                   const msg = err instanceof Error ? err.message : t("billing.checkout.bkashExecuteFailed");
                   toast.error(msg);
                 });
             },
             onClose: () => {
+              cleanupBkashDom();
               if (settledRef.current) return;
               setPhase("idle");
               cancelFn({
@@ -716,10 +786,18 @@ function BkashPayButton({
             },
           });
 
-          const hiddenBtn = document.getElementById("bKash_button") as HTMLButtonElement | null;
-          if (!hiddenBtn) throw new Error(t("billing.checkout.bkashScriptFailed"));
           hiddenBtn.click();
+
+          // Safety check: confirm #bKashFrameWrapper actually mounted cleanly
+          window.setTimeout(() => {
+            if (!settledRef.current && !document.getElementById("bKashFrameWrapper")) {
+              cleanupBkashDom();
+              setPhase((cur) => (cur === "modal" ? "idle" : cur));
+              toast.error(t("billing.checkout.bkashScriptFailed"));
+            }
+          }, 1500);
         } catch (err) {
+          cleanupBkashDom();
           setPhase("idle");
           const msg = err instanceof Error ? err.message : t("billing.checkout.bkashScriptFailed");
           toast.error(msg);
@@ -731,6 +809,7 @@ function BkashPayButton({
       toast.error(t("billing.checkout.bkashStartFailed"));
     },
     onError: (e: Error) => {
+      cleanupBkashDom();
       setPhase("idle");
       toast.error(e.message);
     },
@@ -745,17 +824,14 @@ function BkashPayButton({
         : t("billing.checkout.payWithBkash", { amount: amount.toLocaleString("en-IN") });
 
   return (
-    <>
-      <span ref={btnHostRef} className="sr-only" aria-hidden="true" />
-      <Button
-        type="button"
-        className="h-11 w-full rounded-xl bg-[#E2136E] font-bold text-white shadow-xs hover:bg-[#c80f60]"
-        disabled={busy || amount <= 0}
-        onClick={() => pay.mutate()}
-      >
-        <Zap className="mr-2 h-4 w-4" />
-        {label}
-      </Button>
-    </>
+    <Button
+      type="button"
+      className="h-11 w-full rounded-xl bg-[#E2136E] font-bold text-white shadow-xs hover:bg-[#c80f60]"
+      disabled={busy || amount <= 0}
+      onClick={() => pay.mutate()}
+    >
+      <Zap className="mr-2 h-4 w-4" />
+      {label}
+    </Button>
   );
 }

@@ -44,9 +44,10 @@ function PlansPage() {
         .from("plans")
         .select("*")
         .eq("is_active", true)
+        .neq("code", "free")
         .order("sort_order", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as PlanRow[];
+      return ((data ?? []) as unknown as PlanRow[]).filter((p) => p.code !== "free");
     },
   });
 

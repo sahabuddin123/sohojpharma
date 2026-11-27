@@ -1,7 +1,9 @@
-// Server-only bKash Checkout client (supports Classic Checkout Modal & Tokenized Redirect).
-// Reads credentials from env at call time. Never import from the browser.
+// Server-only bKash Checkout client (supports Classic Checkout Modal & Tokenized Redirect,
+// plus dynamic Sandbox / Live credentials managed from SaaS Admin Panel with .env fallback).
+// Never import from browser bundles.
 
 export type BkashMode = "checkout" | "tokenized";
+export type BkashEnvironmentMode = "sandbox" | "live";
 
 export type BkashEnv = {
   mode: BkashMode;
@@ -12,7 +14,65 @@ export type BkashEnv = {
   password: string;
   app_key: string;
   app_secret: string;
+  isEnabled?: boolean;
+  merchantNumber?: string;
+  feePercent?: number;
+  source?: "database" | "env" | "mixed";
 };
+
+export interface PlatformBkashGatewayRow {
+  provider: string;
+  is_enabled: boolean;
+  active_mode: BkashEnvironmentMode;
+  checkout_flow: BkashMode;
+  merchant_number: string | null;
+  gateway_fee_percent: number | string | null;
+  sandbox_app_key: string | null;
+  sandbox_app_secret: string | null;
+  sandbox_username: string | null;
+  sandbox_password: string | null;
+  sandbox_base_url: string | null;
+  live_app_key: string | null;
+  live_app_secret: string | null;
+  live_username: string | null;
+  live_password: string | null;
+  live_base_url: string | null;
+  updated_at?: string | null;
+}
+
+export function defaultBkashBaseUrl(mode: BkashMode, isSandbox: boolean): string {
+  if (mode === "tokenized") {
+    return isSandbox
+      ? "https://tokenized.sandbox.bka.sh/v1.2.0-beta"
+      : "https://tokenized.pay.bka.sh/v1.2.0-beta";
+  }
+  return isSandbox
+    ? "https://checkout.sandbox.bka.sh/v1.2.0-beta"
+    : "https://checkout.pay.bka.sh/v1.2.0-beta";
+}
+
+export function bkashScriptUrl(isSandbox: boolean): string {
+  return isSandbox
+    ? "https://scripts.sandbox.bka.sh/versions/1.2.0-beta/checkout/bKash-checkout-sandbox.js"
+    : "https://scripts.pay.bka.sh/versions/1.2.0-beta/checkout/bKash-checkout.js";
+}
+
+function pickCompatibleBaseUrl(
+  explicitUrl: string | null | undefined,
+  mode: BkashMode,
+  isSandbox: boolean,
+): string {
+  const cleaned = (explicitUrl || "").trim().replace(/\/+$/, "");
+  if (!cleaned) return defaultBkashBaseUrl(mode, isSandbox);
+  // Avoid mismatching e.g. checkout.sandbox URL when flow switched to tokenized (or vice versa)
+  if (mode === "tokenized" && cleaned.includes("checkout.") && !cleaned.includes("tokenized")) {
+    return defaultBkashBaseUrl(mode, isSandbox);
+  }
+  if (mode === "checkout" && cleaned.includes("tokenized.") && !cleaned.includes("checkout")) {
+    return defaultBkashBaseUrl(mode, isSandbox);
+  }
+  return cleaned;
+}
 
 export function resolveBkashConfig(raw: Record<string, string | undefined>): BkashEnv {
   const username = (raw.BKASH_USERNAME || raw.BKASH_CHECKOUT_USER_NAME || "").trim();
@@ -35,34 +95,180 @@ export function resolveBkashConfig(raw: Record<string, string | undefined>): Bka
       ? "tokenized"
       : "checkout";
 
-  const base =
-    explicitBase ||
-    (mode === "tokenized"
-      ? isSandbox
-        ? "https://tokenized.sandbox.bka.sh/v1.2.0-beta"
-        : "https://tokenized.pay.bka.sh/v1.2.0-beta"
-      : isSandbox
-        ? "https://checkout.sandbox.bka.sh/v1.2.0-beta"
-        : "https://checkout.pay.bka.sh/v1.2.0-beta");
+  const base = explicitBase || defaultBkashBaseUrl(mode, isSandbox);
+  const scriptUrl = bkashScriptUrl(isSandbox);
 
-  const scriptUrl = isSandbox
-    ? "https://scripts.sandbox.bka.sh/versions/1.2.0-beta/checkout/bKash-checkout-sandbox.js"
-    : "https://scripts.pay.bka.sh/versions/1.2.0-beta/checkout/bKash-checkout.js";
-
-  return { mode, isSandbox, base, scriptUrl, username, password, app_key, app_secret };
+  return { mode, isSandbox, base, scriptUrl, username, password, app_key, app_secret, source: "env" };
 }
 
-function env(): BkashEnv {
-  return resolveBkashConfig(process.env as Record<string, string | undefined>);
+export function resolveBkashFromPlatformRow(
+  row: Partial<PlatformBkashGatewayRow> | null | undefined,
+  rawEnv: Record<string, string | undefined>,
+  overrideEnvironment?: BkashEnvironmentMode,
+): BkashEnv {
+  const explicitEnvBase = (rawEnv.BKASH_BASE_URL || "").trim().replace(/\/+$/, "");
+  const envIsSandbox =
+    rawEnv.BKASH_IS_SANDBOX === "true" ||
+    (explicitEnvBase.length > 0 && explicitEnvBase.includes("sandbox"));
+
+  const activeEnvMode: BkashEnvironmentMode =
+    overrideEnvironment ??
+    (row?.active_mode === "sandbox" || row?.active_mode === "live"
+      ? row.active_mode
+      : envIsSandbox
+        ? "sandbox"
+        : "live");
+
+  const isSandbox = activeEnvMode === "sandbox";
+
+  const rawFlow = (row?.checkout_flow || rawEnv.BKASH_CHECKOUT_MODE || "").trim().toLowerCase();
+  const mode: BkashMode = rawFlow === "tokenized" ? "tokenized" : "checkout";
+
+  const dbKey = (isSandbox ? row?.sandbox_app_key : row?.live_app_key)?.trim() || "";
+  const dbSecret = (isSandbox ? row?.sandbox_app_secret : row?.live_app_secret)?.trim() || "";
+  const dbUser = (isSandbox ? row?.sandbox_username : row?.live_username)?.trim() || "";
+  const dbPass = (isSandbox ? row?.sandbox_password : row?.live_password)?.trim() || "";
+  const dbBase = (isSandbox ? row?.sandbox_base_url : row?.live_base_url)?.trim() || "";
+
+  // Environment fallback only matches the corresponding mode (never leak live creds into sandbox)
+  const envKey = isSandbox
+    ? (rawEnv.BKASH_SANDBOX_APP_KEY || (envIsSandbox ? rawEnv.BKASH_APP_KEY || rawEnv.BKASH_CHECKOUT_APP_KEY : "") || "").trim()
+    : (rawEnv.BKASH_LIVE_APP_KEY || (!envIsSandbox ? rawEnv.BKASH_APP_KEY || rawEnv.BKASH_CHECKOUT_APP_KEY : "") || "").trim();
+  const envSecret = isSandbox
+    ? (rawEnv.BKASH_SANDBOX_APP_SECRET || (envIsSandbox ? rawEnv.BKASH_APP_SECRET || rawEnv.BKASH_CHECKOUT_APP_SECRET : "") || "").trim()
+    : (rawEnv.BKASH_LIVE_APP_SECRET || (!envIsSandbox ? rawEnv.BKASH_APP_SECRET || rawEnv.BKASH_CHECKOUT_APP_SECRET : "") || "").trim();
+  const envUser = isSandbox
+    ? (rawEnv.BKASH_SANDBOX_USERNAME || (envIsSandbox ? rawEnv.BKASH_USERNAME || rawEnv.BKASH_CHECKOUT_USER_NAME : "") || "").trim()
+    : (rawEnv.BKASH_LIVE_USERNAME || (!envIsSandbox ? rawEnv.BKASH_USERNAME || rawEnv.BKASH_CHECKOUT_USER_NAME : "") || "").trim();
+  const envPass = isSandbox
+    ? (rawEnv.BKASH_SANDBOX_PASSWORD || (envIsSandbox ? rawEnv.BKASH_PASSWORD || rawEnv.BKASH_CHECKOUT_PASSWORD : "") || "").trim()
+    : (rawEnv.BKASH_LIVE_PASSWORD || (!envIsSandbox ? rawEnv.BKASH_PASSWORD || rawEnv.BKASH_CHECKOUT_PASSWORD : "") || "").trim();
+  const envBase = isSandbox
+    ? (rawEnv.BKASH_SANDBOX_BASE_URL || (envIsSandbox ? explicitEnvBase : "") || "").trim()
+    : (rawEnv.BKASH_LIVE_BASE_URL || (!envIsSandbox ? explicitEnvBase : "") || "").trim();
+
+  const app_key = dbKey || envKey;
+  const app_secret = dbSecret || envSecret;
+  const username = dbUser || envUser;
+  const password = dbPass || envPass;
+
+  if (!username || !password || !app_key || !app_secret) {
+    throw new Error(
+      isSandbox
+        ? "bKash Sandbox credentials are not configured. Set them in SaaS Admin > Payments."
+        : "bKash Live credentials are not configured. Set them in SaaS Admin > Payments or .env.",
+    );
+  }
+
+  const hasDbCreds = Boolean(dbKey && dbSecret && dbUser && dbPass);
+  const hasEnvCreds = Boolean(envKey && envSecret && envUser && envPass);
+  const source: "database" | "env" | "mixed" = hasDbCreds
+    ? "database"
+    : dbKey || dbSecret || dbUser || dbPass
+      ? "mixed"
+      : hasEnvCreds
+        ? "env"
+        : "env";
+
+  const base = pickCompatibleBaseUrl(dbBase || envBase, mode, isSandbox);
+  const scriptUrl = bkashScriptUrl(isSandbox);
+  const isEnabled = row?.is_enabled ?? true;
+  const merchantNumber = (row?.merchant_number || rawEnv.BKASH_MERCHANT_NUMBER || "01951413828").trim();
+  const parsedFee = Number(row?.gateway_fee_percent ?? 1.5);
+  const feePercent = Number.isFinite(parsedFee) && parsedFee >= 0 ? parsedFee : 1.5;
+
+  return {
+    mode,
+    isSandbox,
+    base,
+    scriptUrl,
+    username,
+    password,
+    app_key,
+    app_secret,
+    isEnabled,
+    merchantNumber,
+    feePercent,
+    source,
+  };
+}
+
+export async function loadPlatformBkashRow(): Promise<PlatformBkashGatewayRow | null> {
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data, error } = await supabaseAdmin
+      .from("platform_payment_gateways" as any)
+      .select("*")
+      .eq("provider", "bkash")
+      .maybeSingle();
+    if (error) return null;
+    return (data as unknown as PlatformBkashGatewayRow | null) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getBkashConfig(overrideEnvironment?: BkashEnvironmentMode): Promise<BkashEnv> {
+  const row = await loadPlatformBkashRow();
+  return resolveBkashFromPlatformRow(
+    row,
+    process.env as Record<string, string | undefined>,
+    overrideEnvironment,
+  );
+}
+
+export async function getBkashPublicStatus() {
+  const row = await loadPlatformBkashRow();
+  const rawEnv = process.env as Record<string, string | undefined>;
+  let configured = false;
+  let activeMode: BkashEnvironmentMode = row?.active_mode === "sandbox" ? "sandbox" : "live";
+  let checkoutFlow: BkashMode = row?.checkout_flow === "tokenized" ? "tokenized" : "checkout";
+  let merchantNumber = (row?.merchant_number || rawEnv.BKASH_MERCHANT_NUMBER || "01951413828").trim();
+  let feePercent = Number(row?.gateway_fee_percent ?? 1.5);
+  if (!Number.isFinite(feePercent) || feePercent < 0) feePercent = 1.5;
+
+  try {
+    const cfg = resolveBkashFromPlatformRow(row, rawEnv);
+    configured = true;
+    activeMode = cfg.isSandbox ? "sandbox" : "live";
+    checkoutFlow = cfg.mode;
+    merchantNumber = cfg.merchantNumber ?? merchantNumber;
+    feePercent = cfg.feePercent ?? feePercent;
+  } catch {
+    configured = false;
+  }
+
+  return {
+    is_enabled: row?.is_enabled ?? true,
+    active_mode: activeMode,
+    checkout_flow: checkoutFlow,
+    merchant_number: merchantNumber,
+    gateway_fee_percent: feePercent,
+    configured,
+  };
+}
+
+export function maskSecretValue(val: string | null | undefined): string {
+  const s = (val || "").trim();
+  if (!s) return "";
+  if (s.length <= 6) return "•".repeat(s.length);
+  return `${s.slice(0, 3)}${"•".repeat(Math.min(8, s.length - 6))}${s.slice(-3)}`;
 }
 
 let cachedToken: { key: string; token: string; expires_at: number } | null = null;
 
-async function grantToken(e: BkashEnv, forceRefresh = false): Promise<string> {
+export function clearBkashTokenCache(): void {
+  cachedToken = null;
+}
+
+async function grantToken(e: BkashEnv, forceRefresh = false): Promise<{ token: string; expiresIn: number }> {
   const now = Date.now();
   const cacheKey = `${e.base}|${e.app_key}|${e.username}`;
   if (!forceRefresh && cachedToken && cachedToken.key === cacheKey && cachedToken.expires_at > now + 30_000) {
-    return cachedToken.token;
+    return {
+      token: cachedToken.token,
+      expiresIn: Math.max(1, Math.round((cachedToken.expires_at - now) / 1000)),
+    };
   }
 
   const tokenPath =
@@ -93,12 +299,35 @@ async function grantToken(e: BkashEnv, forceRefresh = false): Promise<string> {
     );
   }
 
+  const expiresIn = Number(json.expires_in ?? 3500);
   cachedToken = {
     key: cacheKey,
     token: json.id_token,
-    expires_at: now + Math.min(Number(json.expires_in ?? 3500) * 1000, 3_500_000),
+    expires_at: now + Math.min(expiresIn * 1000, 3_500_000),
   };
-  return cachedToken.token;
+  return { token: cachedToken.token, expiresIn };
+}
+
+export async function testBkashTokenGrant(e: BkashEnv): Promise<{
+  ok: boolean;
+  base: string;
+  mode: BkashMode;
+  isSandbox: boolean;
+  expiresIn?: number;
+  error?: string;
+}> {
+  try {
+    const { expiresIn } = await grantToken(e, true);
+    return { ok: true, base: e.base, mode: e.mode, isSandbox: e.isSandbox, expiresIn };
+  } catch (err: unknown) {
+    return {
+      ok: false,
+      base: e.base,
+      mode: e.mode,
+      isSandbox: e.isSandbox,
+      error: err instanceof Error ? err.message : "bKash token grant failed",
+    };
+  }
 }
 
 // Retry wrapper: 3 attempts with exponential backoff for network / 5xx / 429 / expired token.
@@ -129,13 +358,13 @@ async function withRetry<T>(
 }
 
 async function authedFetch<T = any>(
+  e: BkashEnv,
   path: string,
   body?: unknown,
   method: "GET" | "POST" = "POST",
 ): Promise<{ result: T; retries: number; env: BkashEnv }> {
-  const e = env();
   const { result, retries } = await withRetry<T>(async (attempt) => {
-    const token = await grantToken(e, attempt > 0 && cachedToken === null);
+    const { token } = await grantToken(e, attempt > 0 && cachedToken === null);
     const res = await fetch(`${e.base}${path}`, {
       method,
       headers: {
@@ -182,8 +411,8 @@ export type BkashCreateResponse = {
 
 export async function bkashCreatePayment(
   input: BkashCreateInput,
-): Promise<BkashCreateResponse & { _retries: number; _mode: BkashMode; _scriptUrl: string }> {
-  const e = env();
+): Promise<BkashCreateResponse & { _retries: number; _mode: BkashMode; _scriptUrl: string; _isSandbox: boolean }> {
+  const e = await getBkashConfig();
   const path = e.mode === "tokenized" ? "/tokenized/checkout/create" : "/checkout/payment/create";
   const payload =
     e.mode === "tokenized"
@@ -203,8 +432,14 @@ export async function bkashCreatePayment(
           merchantInvoiceNumber: input.invoice,
         };
 
-  const { result, retries } = await authedFetch<BkashCreateResponse>(path, payload, "POST");
-  return { ...result, _retries: retries, _mode: e.mode, _scriptUrl: e.scriptUrl };
+  const { result, retries } = await authedFetch<BkashCreateResponse>(e, path, payload, "POST");
+  return {
+    ...result,
+    _retries: retries,
+    _mode: e.mode,
+    _scriptUrl: e.scriptUrl,
+    _isSandbox: e.isSandbox,
+  };
 }
 
 export type BkashExecuteResponse = {
@@ -229,9 +464,10 @@ export function isBkashPaymentSuccess(res: BkashExecuteResponse | null | undefin
 export async function bkashExecutePayment(
   paymentID: string,
 ): Promise<BkashExecuteResponse & { _retries: number }> {
-  const e = env();
+  const e = await getBkashConfig();
   if (e.mode === "tokenized") {
     const { result, retries } = await authedFetch<BkashExecuteResponse>(
+      e,
       "/tokenized/checkout/execute",
       { paymentID },
       "POST",
@@ -239,6 +475,7 @@ export async function bkashExecutePayment(
     return { ...result, _retries: retries };
   }
   const { result, retries } = await authedFetch<BkashExecuteResponse>(
+    e,
     `/checkout/payment/execute/${encodeURIComponent(paymentID)}`,
     undefined,
     "POST",
@@ -249,9 +486,10 @@ export async function bkashExecutePayment(
 export async function bkashQueryPayment(
   paymentID: string,
 ): Promise<BkashExecuteResponse & { _retries: number }> {
-  const e = env();
+  const e = await getBkashConfig();
   if (e.mode === "tokenized") {
     const { result, retries } = await authedFetch<BkashExecuteResponse>(
+      e,
       "/tokenized/checkout/payment/status",
       { paymentID },
       "POST",
@@ -259,6 +497,7 @@ export async function bkashQueryPayment(
     return { ...result, _retries: retries };
   }
   const { result, retries } = await authedFetch<BkashExecuteResponse>(
+    e,
     `/checkout/payment/query/${encodeURIComponent(paymentID)}`,
     undefined,
     "GET",

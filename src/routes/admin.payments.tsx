@@ -18,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BkashGatewayConfig } from "@/components/admin/bkash-gateway-config";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -45,6 +46,7 @@ function PaymentsPage() {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const [active, setActive] = useState<any | null>(null);
+  const [section, setSection] = useState<"payments" | "gateway">("payments");
   const [tab, setTab] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [search, setSearch] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -106,16 +108,42 @@ function PaymentsPage() {
     <AppShell variant="admin" title={t("nav.payments")}>
       <PageHeader
         title={t("admin.payments.title")}
-        description="Review and approve store subscription renewal and upgrade payments."
+        description="Review store subscription payments and configure bKash Sandbox / Live gateway."
         actions={
-          <Button onClick={() => setManualOpen(true)} className="gap-2 font-semibold shadow-sm">
-            <Plus className="h-4 w-4" />
-            ম্যানুয়াল পেমেন্ট রেকর্ড করুন
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-lg border bg-muted p-1">
+              <Button
+                size="sm"
+                variant={section === "payments" ? "default" : "ghost"}
+                onClick={() => setSection("payments")}
+                className="h-8 text-xs font-semibold"
+              >
+                পেমেন্ট তালিকা
+              </Button>
+              <Button
+                size="sm"
+                variant={section === "gateway" ? "default" : "ghost"}
+                onClick={() => setSection("gateway")}
+                className="h-8 text-xs font-semibold"
+              >
+                bKash গেটওয়ে (Sandbox & Live)
+              </Button>
+            </div>
+            {section === "payments" && (
+              <Button onClick={() => setManualOpen(true)} className="gap-2 font-semibold shadow-sm">
+                <Plus className="h-4 w-4" />
+                ম্যানুয়াল পেমেন্ট রেকর্ড করুন
+              </Button>
+            )}
+          </div>
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {section === "gateway" ? (
+        <BkashGatewayConfig />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t("admin.payments.pending")} value={pendingCount.toString()} icon={Clock} tone="warning" />
         <StatCard label={t("admin.payments.approvedMo")} value={approvedCount.toString()} icon={CircleCheck} tone="success" />
         <StatCard label={t("admin.payments.rejected")} value={rejectedCount.toString()} icon={CircleX} tone="secondary" />
@@ -201,6 +229,8 @@ function PaymentsPage() {
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
 
       {/* Review Dialog */}
       <Dialog open={!!active} onOpenChange={(o) => { if (!o) { setActive(null); setReviewNotes(""); } }}>
