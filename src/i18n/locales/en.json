@@ -3117,7 +3117,12 @@
       "submitBtn": "Submit for approval",
       "submitting": "Submitting…",
       "submitSuccess": "Payment submitted — awaiting admin approval.",
-      "notSignedIn": "Not signed in"
+      "notSignedIn": "Not signed in",
+      "bkashExecuting": "Confirming bKash payment…",
+      "bkashSuccess": "bKash payment confirmed! TrxID: {{trxId}}",
+      "bkashCancelled": "bKash payment popup was closed.",
+      "bkashExecuteFailed": "Payment could not be completed. Please try again.",
+      "bkashScriptFailed": "Unable to load bKash Checkout. Please refresh and retry."
     }
   },
   "errors": {

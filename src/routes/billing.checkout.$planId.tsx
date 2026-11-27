@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -30,7 +30,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useServerFn } from "@tanstack/react-start";
-import { createBkashPayment } from "@/lib/api/bkash.functions";
+import { createBkashPayment, executeBkashPayment, cancelBkashPayment } from "@/lib/api/bkash.functions";
 import { cn } from "@/lib/utils";
 
 const BKASH_MERCHANT_NUMBER = "01951413828";
@@ -297,7 +297,12 @@ function CheckoutPage() {
         {t("billing.checkout.instantDesc")}
       </p>
 
-      <BkashPayButton planId={planId} cycle={cycle} amount={instantBkashTotal} />
+      <BkashPayButton
+        planId={planId}
+        cycle={cycle}
+        amount={instantBkashTotal}
+        isMobileView={isMobileView}
+      />
     </div>
   );
 
@@ -549,41 +554,202 @@ function CheckoutPage() {
   );
 }
 
+interface BkashGlobal {
+  init: (opts: {
+    paymentMode: "checkout" | "agreement";
+    paymentRequest: { amount: string; intent: string; currency?: string; merchantInvoiceNumber?: string };
+    createRequest: (request: unknown) => void;
+    executeRequestOnAuthorization: () => void;
+    onClose?: () => void;
+  }) => void;
+  create: () => { onSuccess: (data: unknown) => void; onError: () => void };
+  execute: () => { onError: () => void };
+}
+
+declare global {
+  interface Window {
+    jQuery?: unknown;
+    $?: unknown;
+    bKash?: BkashGlobal;
+  }
+}
+
+function loadScriptOnce(src: string, isReady: () => boolean): Promise<void> {
+  if (isReady()) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.failed === "1") {
+        existing.remove();
+      } else if (isReady()) {
+        resolve();
+        return;
+      } else {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error(`Failed to load ${src}`)), { once: true });
+        return;
+      }
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      script.dataset.failed = "1";
+      reject(new Error(`Failed to load ${src}`));
+    };
+    document.body.appendChild(script);
+  }).then(() => {
+    if (!isReady()) throw new Error(`Script loaded without global for ${src}`);
+  });
+}
+
 function BkashPayButton({
   planId,
   cycle,
   amount,
+  isMobileView,
 }: {
   planId: string;
   cycle: "monthly" | "yearly";
   amount: number;
+  isMobileView: boolean;
 }) {
   const { t } = useTranslation();
   const { currentTenantId } = useAuth();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const createFn = useServerFn(createBkashPayment);
+  const executeFn = useServerFn(executeBkashPayment);
+  const cancelFn = useServerFn(cancelBkashPayment);
+
+  const [phase, setPhase] = useState<"idle" | "creating" | "modal" | "executing">("idle");
+  const btnHostRef = useRef<HTMLSpanElement | null>(null);
+  const settledRef = useRef(false);
+
   const pay = useMutation({
     mutationFn: async () => {
       if (!currentTenantId) throw new Error(t("billing.checkout.notSignedIn"));
+      setPhase("creating");
       return createFn({ data: { tenant_id: currentTenantId, plan_id: planId, billing_cycle: cycle } });
     },
-    onSuccess: (res) => {
-      if (res?.redirect_url) window.location.href = res.redirect_url;
-      else toast.error(t("billing.checkout.bkashStartFailed"));
+    onSuccess: async (res) => {
+      if (res?.mode === "tokenized" && res?.redirect_url) {
+        window.location.href = res.redirect_url;
+        return;
+      }
+
+      if (res?.mode === "checkout" && res.payment_data?.paymentID && res.script_url && currentTenantId) {
+        try {
+          await loadScriptOnce("https://code.jquery.com/jquery-3.7.1.min.js", () => Boolean(window.jQuery || window.$));
+          if (window.jQuery && !window.$) window.$ = window.jQuery;
+          await loadScriptOnce(res.script_url, () => Boolean(window.bKash));
+
+          if (!btnHostRef.current || !window.bKash) {
+            throw new Error(t("billing.checkout.bkashScriptFailed"));
+          }
+
+          // Re-mount fresh #bKash_button before every init so handlers never stack across retries.
+          btnHostRef.current.innerHTML = '<button id="bKash_button" type="button">bKash</button>';
+          settledRef.current = false;
+          setPhase("modal");
+
+          const bkashPaymentID = String(res.payment_data.paymentID);
+          const paymentRowId = res.payment_id;
+          const tenantId = currentTenantId;
+
+          window.bKash.init({
+            paymentMode: "checkout",
+            paymentRequest: {
+              amount: String(res.payment_data.amount ?? amount.toFixed(2)),
+              intent: String(res.payment_data.intent ?? "sale"),
+              currency: "BDT",
+              merchantInvoiceNumber: String(res.payment_data.merchantInvoiceNumber ?? ""),
+            },
+            createRequest: () => {
+              window.bKash?.create().onSuccess(res.payment_data);
+            },
+            executeRequestOnAuthorization: () => {
+              settledRef.current = true;
+              setPhase("executing");
+              executeFn({
+                data: {
+                  tenant_id: tenantId,
+                  payment_row_id: paymentRowId,
+                  bkash_payment_id: bkashPaymentID,
+                },
+              })
+                .then(async (execRes) => {
+                  await Promise.all([
+                    queryClient.invalidateQueries({ queryKey: ["subscription-status"] }),
+                    queryClient.invalidateQueries({ queryKey: ["billing-history"] }),
+                    queryClient.invalidateQueries({ queryKey: ["usage"] }),
+                  ]);
+                  toast.success(
+                    t("billing.checkout.bkashSuccess", { trxId: execRes.trxID ?? bkashPaymentID }),
+                  );
+                  setPhase("idle");
+                  navigate({
+                    to: (isMobileView ? "/m/subscription" : "/billing/history") as never,
+                  });
+                })
+                .catch((err: unknown) => {
+                  window.bKash?.execute().onError();
+                  setPhase("idle");
+                  const msg = err instanceof Error ? err.message : t("billing.checkout.bkashExecuteFailed");
+                  toast.error(msg);
+                });
+            },
+            onClose: () => {
+              if (settledRef.current) return;
+              setPhase("idle");
+              cancelFn({
+                data: { tenant_id: tenantId, payment_row_id: paymentRowId, reason: "cancelled" },
+              }).catch(() => {});
+              toast.info(t("billing.checkout.bkashCancelled"));
+            },
+          });
+
+          const hiddenBtn = document.getElementById("bKash_button") as HTMLButtonElement | null;
+          if (!hiddenBtn) throw new Error(t("billing.checkout.bkashScriptFailed"));
+          hiddenBtn.click();
+        } catch (err) {
+          setPhase("idle");
+          const msg = err instanceof Error ? err.message : t("billing.checkout.bkashScriptFailed");
+          toast.error(msg);
+        }
+        return;
+      }
+
+      setPhase("idle");
+      toast.error(t("billing.checkout.bkashStartFailed"));
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      setPhase("idle");
+      toast.error(e.message);
+    },
   });
 
-  return (
-    <Button
-      type="button"
-      className="h-11 w-full rounded-xl bg-[#E2136E] font-bold text-white shadow-xs hover:bg-[#c80f60]"
-      disabled={pay.isPending || amount <= 0}
-      onClick={() => pay.mutate()}
-    >
-      <Zap className="mr-2 h-4 w-4" />
-      {pay.isPending
+  const busy = pay.isPending || phase !== "idle";
+  const label =
+    phase === "executing"
+      ? t("billing.checkout.bkashExecuting")
+      : phase === "creating" || phase === "modal"
         ? t("billing.checkout.redirectingBkash")
-        : t("billing.checkout.payWithBkash", { amount: amount.toLocaleString("en-IN") })}
-    </Button>
+        : t("billing.checkout.payWithBkash", { amount: amount.toLocaleString("en-IN") });
+
+  return (
+    <>
+      <span ref={btnHostRef} className="sr-only" aria-hidden="true" />
+      <Button
+        type="button"
+        className="h-11 w-full rounded-xl bg-[#E2136E] font-bold text-white shadow-xs hover:bg-[#c80f60]"
+        disabled={busy || amount <= 0}
+        onClick={() => pay.mutate()}
+      >
+        <Zap className="mr-2 h-4 w-4" />
+        {label}
+      </Button>
+    </>
   );
 }

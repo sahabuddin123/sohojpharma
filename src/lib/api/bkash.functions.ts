@@ -17,6 +17,20 @@ async function getOrigin(): Promise<string> {
   throw new Error("APP_PUBLIC_URL is not configured; cannot build bKash callback URL");
 }
 
+async function assertTenantMember(
+  supabase: any,
+  tenantId: string,
+  userId: string,
+) {
+  const { data: member } = await supabase
+    .from("tenant_members")
+    .select("tenant_id")
+    .eq("tenant_id", tenantId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!member) throw new Error("Forbidden: not a member of this tenant");
+}
+
 export const createBkashPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
@@ -28,17 +42,11 @@ export const createBkashPayment = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
-    // Verify caller belongs to tenant.
-    const { data: member } = await supabase
-      .from("tenant_members")
-      .select("tenant_id")
-      .eq("tenant_id", data.tenant_id)
-      .eq("user_id", userId)
-      .maybeSingle();
-    if (!member) throw new Error("Forbidden: not a member of this tenant");
+    await assertTenantMember(supabase, data.tenant_id, userId);
 
-    const { data: plan, error: planErr } = await supabase
+    const { data: plan, error: planErr } = await supabaseAdmin
       .from("plans")
       .select("id,name,price_bdt,price_yearly_bdt,is_active")
       .eq("id", data.plan_id)
@@ -56,8 +64,8 @@ export const createBkashPayment = createServerFn({ method: "POST" })
     const gatewayFee = Math.round(baseAmount * 0.015);
     const amount = baseAmount + gatewayFee;
 
-    // Insert a pending payment row first (so we have an id for the invoice).
-    const { data: row, error: insErr } = await supabase
+    // Insert a pending payment row first (so we have an id for invoice/callback ref).
+    const { data: row, error: insErr } = await supabaseAdmin
       .from("subscription_payments")
       .insert({
         tenant_id: data.tenant_id,
@@ -87,19 +95,22 @@ export const createBkashPayment = createServerFn({ method: "POST" })
       payerReference: data.tenant_id.slice(0, 12),
     });
 
-    if (!created.paymentID || !created.bkashURL) {
-      await supabase
+    const missingRedirect = created._mode === "tokenized" && !created.bkashURL;
+    if (!created.paymentID || missingRedirect || created.errorCode) {
+      const msg = created.errorMessage ?? created.statusMessage ?? "unknown";
+      await supabaseAdmin
         .from("subscription_payments")
         .update({
           status: "failed",
           payment_status: "failed",
+          gateway_error: msg,
           gateway_response: created as any,
         })
         .eq("id", row.id);
-      throw new Error(`bKash create failed: ${created.statusMessage ?? "unknown"}`);
+      throw new Error(`bKash create failed: ${msg}`);
     }
 
-    const { error: updErr } = await supabase
+    const { error: updErr } = await supabaseAdmin
       .from("subscription_payments")
       .update({
         gateway_payment_id: created.paymentID,
@@ -109,8 +120,7 @@ export const createBkashPayment = createServerFn({ method: "POST" })
       .eq("id", row.id);
     if (updErr) throw new Error(updErr.message);
 
-    // Audit
-    await supabase.from("audit_log").insert({
+    await supabaseAdmin.from("audit_log").insert({
       tenant_id: data.tenant_id,
       user_id: userId,
       action: "payment_created",
@@ -118,24 +128,127 @@ export const createBkashPayment = createServerFn({ method: "POST" })
       entity_id: row.id,
       after_data: {
         gateway: "bkash",
+        mode: created._mode,
         gateway_payment_id: created.paymentID,
         amount,
       } as any,
     });
 
-    // Billing event (idempotent via event_id)
-    await supabase.rpc("write_billing_event" as any, {
+    await supabaseAdmin.rpc("write_billing_event" as any, {
       _tenant_id: data.tenant_id,
       _subscription_id: null,
       _event_type: "payment_created",
-      _payload: { gateway: "bkash", gateway_payment_id: created.paymentID, plan_id: data.plan_id } as any,
+      _payload: {
+        gateway: "bkash",
+        mode: created._mode,
+        gateway_payment_id: created.paymentID,
+        plan_id: data.plan_id,
+      } as any,
       _amount: amount,
       _currency: "BDT",
       _status: "processing",
       _event_id: `payment_created:${row.id}`,
     } as any);
 
-    return { payment_id: row.id, redirect_url: created.bkashURL };
+    const { _retries: _r, _mode, _scriptUrl, ...paymentData } = created;
+    return {
+      payment_id: row.id,
+      mode: _mode,
+      redirect_url: created.bkashURL ?? null,
+      script_url: _scriptUrl,
+      payment_data: paymentData,
+    };
+  });
+
+export const executeBkashPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      tenant_id: z.string().uuid(),
+      payment_row_id: z.string().uuid(),
+      bkash_payment_id: z.string().min(4),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    await assertTenantMember(supabase, data.tenant_id, userId);
+
+    const { data: row, error: lookupErr } = await supabaseAdmin
+      .from("subscription_payments")
+      .select("id,tenant_id,subscription_id,amount,currency,transaction_id,processed_at,gateway_payment_id,gateway_transaction_id")
+      .eq("id", data.payment_row_id)
+      .eq("tenant_id", data.tenant_id)
+      .maybeSingle();
+
+    if (lookupErr) throw new Error(lookupErr.message);
+    if (!row) throw new Error("Payment not found");
+
+    if (row.gateway_payment_id && row.gateway_payment_id !== data.bkash_payment_id) {
+      throw new Error("bKash payment ID mismatch");
+    }
+
+    const { settleBkashPayment } = await import("./bkash.server");
+    const result = await settleBkashPayment({
+      row,
+      bkashPaymentID: data.bkash_payment_id,
+    });
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return result;
+  });
+
+export const cancelBkashPayment = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      tenant_id: z.string().uuid(),
+      payment_row_id: z.string().uuid(),
+      reason: z.enum(["cancelled", "failed"]).default("cancelled"),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+    await assertTenantMember(supabase, data.tenant_id, userId);
+
+    const { data: row } = await supabaseAdmin
+      .from("subscription_payments")
+      .select("id,processed_at,status,payment_status,subscription_id,amount,currency")
+      .eq("id", data.payment_row_id)
+      .eq("tenant_id", data.tenant_id)
+      .maybeSingle();
+
+    if (!row || row.processed_at || row.payment_status === "paid" || row.status === "paid") {
+      return { updated: false };
+    }
+
+    await supabaseAdmin
+      .from("subscription_payments")
+      .update({
+        status: data.reason,
+        payment_status: data.reason,
+        callback_processed_at: new Date().toISOString(),
+      })
+      .eq("id", row.id);
+
+    await supabaseAdmin.rpc("write_billing_event" as any, {
+      _tenant_id: data.tenant_id,
+      _subscription_id: row.subscription_id,
+      _event_type: `payment_${data.reason}`,
+      _payload: { reason: data.reason } as any,
+      _amount: row.amount,
+      _currency: row.currency,
+      _status: data.reason,
+      _event_id: `payment_${data.reason}:${row.id}`,
+    } as any);
+
+    return { updated: true };
   });
 
 export const verifyBkashPayment = createServerFn({ method: "POST" })

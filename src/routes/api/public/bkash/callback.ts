@@ -137,85 +137,17 @@ async function handle(request: Request): Promise<Response> {
 
   if (!effectivePaymentID) return jsonError("missing_payment_id", 400);
 
-  // Execute the payment (with retry inside bkash.server.ts).
-  const { bkashExecutePayment, bkashQueryPayment } = await import("@/lib/api/bkash.server");
-  let exec: any;
-  let retries = 0;
-  let executeErr: string | null = null;
-  try {
-    exec = await bkashExecutePayment(effectivePaymentID);
-    retries += exec?._retries ?? 0;
-  } catch (e: any) {
-    executeErr = e?.message ?? "execute_failed";
-  }
+  // Execute & activate via shared settlement helper.
+  const { settleBkashPayment } = await import("@/lib/api/bkash.server");
+  const res = await settleBkashPayment({ row, bkashPaymentID: effectivePaymentID, ip, ua });
 
-  // Fallback to query if execute did not confirm.
-  if (!exec || (exec.statusCode !== "0000" && exec.transactionStatus !== "Completed")) {
-    try {
-      const q = await bkashQueryPayment(effectivePaymentID);
-      retries += q?._retries ?? 0;
-      exec = q;
-    } catch (e: any) {
-      executeErr = (executeErr ? executeErr + " | " : "") + (e?.message ?? "query_failed");
-    }
-  }
-
-  const ok = exec && (exec.statusCode === "0000" || exec.transactionStatus === "Completed");
-  if (!ok) {
-    await supabaseAdmin
-      .from("subscription_payments")
-      .update({
-        status: "failed",
-        payment_status: "failed",
-        gateway_response: exec as any,
-        gateway_error: executeErr ?? `unexpected_status:${exec?.statusCode ?? "none"}`,
-        gateway_retry_count: retries,
-        callback_processed_at: new Date().toISOString(),
-      })
-      .eq("id", row.id);
-    await supabaseAdmin.from("audit_log").insert({
-      tenant_id: row.tenant_id,
-      action: "payment_failed",
-      entity_table: "subscription_payments",
-      entity_id: row.id,
-      after_data: { stage: "execute", response: exec, error: executeErr, ip, ua } as any,
-    });
-    await writeEvent("payment_failed", { stage: "execute", error: executeErr, response: exec }, "failed");
+  if (!res.ok) {
+    if (res.httpStatus >= 500) return jsonError(res.error, res.httpStatus);
     return back(`bkash=failed&ref=${row.id}`);
   }
-
-  // Persist execute result.
-  const { error: updErr } = await supabaseAdmin
-    .from("subscription_payments")
-    .update({
-      payment_status: "paid",
-      status: "paid",
-      gateway_transaction_id: exec.trxID ?? null,
-      gateway_response: exec as any,
-      gateway_retry_count: retries,
-      verified_at: new Date().toISOString(),
-      transaction_id: exec.trxID ?? row.transaction_id,
-      callback_processed_at: new Date().toISOString(),
-    })
-    .eq("id", row.id);
-  if (updErr) return jsonError(updErr.message, 500);
-
-  await supabaseAdmin.from("audit_log").insert({
-    tenant_id: row.tenant_id,
-    action: "payment_executed",
-    entity_table: "subscription_payments",
-    entity_id: row.id,
-    after_data: { trxID: exec.trxID, amount: exec.amount, ip, ua } as any,
-  });
-  await writeEvent("payment_executed", { trxID: exec.trxID, amount: exec.amount }, "paid");
-
-  // Activate subscription (idempotent; RPC writes its own audit + billing_event).
-  const { error: actErr } = await supabaseAdmin.rpc(
-    "activate_subscription_from_payment" as any,
-    { _payment_id: row.id } as any,
-  );
-  if (actErr) return back(`bkash=activation_failed&ref=${row.id}`);
-
+  if (res.activationFailed) {
+    return back(`bkash=activation_failed&ref=${row.id}`);
+  }
   return back(`bkash=success&ref=${row.id}`);
 }
 
