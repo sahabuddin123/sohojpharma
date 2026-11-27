@@ -367,22 +367,24 @@ function MobileSale() {
       </div>
 
       {/* Quick Control Chips */}
-      <PhoneChipRow className="mt-2.5">
-        <PhoneChip active={showCost} onClick={() => setShowCost((v) => !v)}>
-          <Eye className="mr-1 inline h-3.5 w-3.5" />
-          {showCost ? "ক্রয়মূল্য লুকান" : "ক্রয়মূল্য দেখুন"}
-        </PhoneChip>
-        {cart.length > 0 && (
-          <PhoneChip
-            onClick={() => {
-              setCart([]);
-              toast.info("বিল তালিকা খালি করা হয়েছে");
-            }}
-          >
-            সব মুছুন ({cart.length})
+      <div className="mt-2.5">
+        <PhoneChipRow>
+          <PhoneChip active={showCost} onClick={() => setShowCost((v) => !v)}>
+            <Eye className="mr-1 inline h-3.5 w-3.5" />
+            {showCost ? "ক্রয়মূল্য লুকান" : "ক্রয়মূল্য দেখুন"}
           </PhoneChip>
-        )}
-      </PhoneChipRow>
+          {cart.length > 0 && (
+            <PhoneChip
+              onClick={() => {
+                setCart([]);
+                toast.info("বিল তালিকা খালি করা হয়েছে");
+              }}
+            >
+              সব মুছুন ({cart.length})
+            </PhoneChip>
+          )}
+        </PhoneChipRow>
+      </div>
 
       {/* Active Search Results Panel (auto-clears once qty is added) */}
       {debounced.length > 0 && (

@@ -2,7 +2,7 @@
 // inside an iframe, or when the URL has ?sw=off. In any refused context, any
 // existing /sw.js registration is unregistered to clean up stale workers.
 
-const SW_URL = "/sw.js";
+const SW_URL = "/sw.js?v=5";
 
 function isRefusedContext(): boolean {
   if (typeof window === "undefined") return true;
@@ -36,7 +36,7 @@ async function unregisterMatching() {
     regs
       .filter((r) => {
         const url = r.active?.scriptURL || r.installing?.scriptURL || r.waiting?.scriptURL || "";
-        return url.endsWith(SW_URL);
+        return url.includes("/sw.js");
       })
       .map((r) => r.unregister()),
   );
@@ -53,7 +53,7 @@ export async function registerPWA(
 
   try {
     const { Workbox } = await import("workbox-window");
-    const wb = new Workbox(SW_URL);
+    const wb = new Workbox(SW_URL, { scope: "/", updateViaCache: "none" });
 
     wb.addEventListener("waiting", () => {
       onUpdate?.(() => {
@@ -62,10 +62,11 @@ export async function registerPWA(
       });
     });
 
-    await wb.register();
+    const reg = await wb.register();
     if (navigator.onLine) {
-      const reg = await navigator.serviceWorker.ready;
-      reg.active?.postMessage({ type: "REFRESH_PRECACHE" });
+      await reg?.update().catch(() => {});
+      const ready = await navigator.serviceWorker.ready;
+      ready.active?.postMessage({ type: "REFRESH_PRECACHE" });
     }
   } catch (err) {
     console.warn("[pwa] registration failed", err);

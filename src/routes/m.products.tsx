@@ -189,6 +189,7 @@ function MobileProducts() {
           name: p.name,
           strength: p.strength ?? null,
           medicine_type: p.form ?? null,
+          generic_name: p.generic_name ?? null,
           unit: p.unit ?? null,
           qty_per_box: p.pcsPerBox,
           manufacturer_name: p.company_name ?? null,
@@ -197,19 +198,26 @@ function MobileProducts() {
           earliest_expiry: null,
           days_to_expiry: null,
         }));
-        const salesRows: MobileProductSalesRow[] = cached.rows.map((p) => ({
-          id: p.id,
-          name: p.name,
-          strength: p.strength ?? null,
-          medicine_type: p.form ?? null,
-          unit: p.unit ?? null,
-          qty_per_box: p.pcsPerBox,
-          manufacturer_name: p.company_name ?? null,
-          sold_qty: 0,
-          revenue: p.price,
-          profit: Math.max(0, p.price - p.cost),
-          stock_qty: p.stock,
-        }));
+        const salesRows: MobileProductSalesRow[] = cached.rows.map((p) => {
+          const profit = Math.max(0, p.price - p.cost);
+          return {
+            id: p.id,
+            name: p.name,
+            strength: p.strength ?? null,
+            medicine_type: p.form ?? null,
+            generic_name: p.generic_name ?? null,
+            unit: p.unit ?? null,
+            qty_per_box: p.pcsPerBox,
+            manufacturer_name: p.company_name ?? null,
+            sold_qty: 0,
+            revenue: p.price,
+            cost: p.cost,
+            profit,
+            margin_pct: p.price > 0 ? Math.round((profit / p.price) * 100) : 0,
+            stock_qty: p.stock,
+            days_left: null,
+          };
+        });
         return {
           summary: {
             soldBrandCount: cached.stats.totalProducts,

@@ -375,7 +375,7 @@ export const syncPurchase = createServerFn({ method: "POST" })
     const { data: existing } = await supabase
       .from("purchase_orders")
       .select("id, po_number")
-      .eq("client_op_id", data.client_op_id)
+      .eq("client_op_id" as never, data.client_op_id)
       .eq("tenant_id", data.tenant_id)
       .maybeSingle();
     if (existing) {
@@ -415,7 +415,7 @@ export const syncPurchase = createServerFn({ method: "POST" })
         created_by: userId,
         approved_by: userId,
         approved_at: orderIso,
-      })
+      } as never)
       .select("id, po_number")
       .single();
     if (poErr || !po) throw new Error(poErr?.message ?? "purchase_orders insert failed");
@@ -477,7 +477,7 @@ export const syncPurchase = createServerFn({ method: "POST" })
         if (it.sale_price != null && it.sale_price > 0) patch.retail_price = it.sale_price;
         if (it.pcs_per_strip && it.pcs_per_strip > 0) patch.pack_size = it.pcs_per_strip;
         if (it.pcs_per_box && it.pcs_per_box > 0) patch.qty_per_box = it.pcs_per_box;
-        await supabase.from("products").update(patch).eq("id", it.product_id).eq("tenant_id", data.tenant_id);
+        await supabase.from("products").update(patch as never).eq("id", it.product_id).eq("tenant_id", data.tenant_id);
       }
     }
 

@@ -639,10 +639,10 @@ function POSPage() {
         return c.map((l) => l.product_id === p.id ? { ...l, qty: l.qty + 1 } : l);
       }
       const cfg = resolvePackConfig({
-        medicine_type: p.medicine_type,
+        medicine_type: p.dosage_form ?? (p as { medicine_type?: string | null }).medicine_type,
         name: p.name,
-        pack_size: p.pack_size,
-        qty_per_box: (p as any).qty_per_box,
+        pack_size: (p as { pack_size?: number | null }).pack_size,
+        qty_per_box: (p as { qty_per_box?: number | null }).qty_per_box,
       });
       return [...c, {
         product_id: p.id, name: p.displayName ?? p.name, sku: p.sku,
@@ -1123,7 +1123,7 @@ function POSPage() {
           _client_op_id: client_op_id,
           _items: items as never,
           _payments: pays as never,
-          _register_id: register.id,
+          _register_id: register?.id,
         } as never);
         if (error) {
           console.error("edit_sale_invoice failed", error);
