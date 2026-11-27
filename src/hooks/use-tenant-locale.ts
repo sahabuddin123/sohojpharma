@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo } from "react";
-import i18n from "@/i18n";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import i18n, { hasExplicitLangPreference } from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocaleSettings } from "@/hooks/use-locale-settings";
 import { DEFAULT_LOCALE, type LocaleSettings } from "@/lib/api/locale.functions";
@@ -88,9 +88,14 @@ export function useTenantLocale() {
   const { locale } = useLocaleSettings(currentTenantId ?? undefined);
   const active: LocaleSettings = locale ?? DEFAULT_LOCALE;
 
+  const initializedRef = useRef(false);
+
   useEffect(() => {
-    if (!active.language) return;
-    if (i18n.language !== active.language) {
+    if (initializedRef.current || !active.language) return;
+    initializedRef.current = true;
+    // Never clobber an explicit language choice stored in browser localStorage.
+    if (hasExplicitLangPreference()) return;
+    if ((i18n.resolvedLanguage ?? i18n.language) !== active.language) {
       i18n.changeLanguage(active.language).catch(() => {});
     }
     if (typeof document !== "undefined") {

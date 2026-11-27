@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import {
   Building2,
   Calendar,
@@ -39,16 +40,17 @@ export const Route = createFileRoute("/m/report")({
 type ReportType = "sales" | "purchase" | "pnl" | "customer_due" | "supplier_due" | "stock";
 type DatePreset = "today" | "yesterday" | "7d" | "month" | "custom";
 
-const REPORT_TYPES: Array<{ id: ReportType; label: string; icon: typeof FileText }> = [
-  { id: "pnl", label: "লাভ-ক্ষতি ও ক্যাশ", icon: TrendingUp },
-  { id: "sales", label: "বিক্রি রিপোর্ট", icon: ShoppingCart },
-  { id: "purchase", label: "ক্রয় রিপোর্ট", icon: Truck },
-  { id: "customer_due", label: "গ্রাহক বাকি", icon: Users },
-  { id: "supplier_due", label: "সরবরাহকারী বাকি", icon: Building2 },
-  { id: "stock", label: "স্টক ও মেয়াদ", icon: Package },
+const REPORT_TYPES: Array<{ id: ReportType; key: string; icon: typeof FileText }> = [
+  { id: "pnl", key: "m.report.pnl", icon: TrendingUp },
+  { id: "sales", key: "m.report.sales", icon: ShoppingCart },
+  { id: "purchase", key: "m.report.purchase", icon: Truck },
+  { id: "customer_due", key: "m.report.customerDue", icon: Users },
+  { id: "supplier_due", key: "m.report.supplierDue", icon: Building2 },
+  { id: "stock", key: "m.report.stock", icon: Package },
 ];
 
 function MobileReport() {
+  const { t } = useTranslation();
   const { currentTenantId, memberships } = useAuth();
   const tenantId = currentTenantId ?? "";
   const tenantName =
@@ -160,8 +162,8 @@ function MobileReport() {
 
   const copySummary = async () => {
     const lines = [
-      `${tenantName} — ${activeMeta.label}`,
-      `তারিখ: ${dateLabel}`,
+      `${tenantName} — ${t(activeMeta.key)}`,
+      `${dateLabel}`,
       "----------------",
     ];
     if (reportType === "pnl" && k) {
@@ -191,7 +193,7 @@ function MobileReport() {
   };
 
   return (
-    <PhoneShell title="রিপোর্ট সেন্টার" back>
+    <PhoneShell title={t("m.report.title")} back>
       {/* Report Type Grid */}
       <div className="phone-grid-keep grid grid-cols-3 gap-2">
         {REPORT_TYPES.map((r) => {
@@ -210,7 +212,7 @@ function MobileReport() {
               )}
             >
               <Icon className="h-4 w-4 shrink-0" />
-              <span className="text-[11px] font-bold leading-tight">{r.label}</span>
+              <span className="text-[11px] font-bold leading-tight">{t(r.key)}</span>
             </button>
           );
         })}
@@ -223,11 +225,11 @@ function MobileReport() {
             <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
             {(
               [
-                ["today", "আজ"],
-                ["yesterday", "গতকাল"],
-                ["7d", "৭ দিন"],
-                ["month", "এই মাস"],
-                ["custom", "তারিখ"],
+                ["today", t("m.presets.today")],
+                ["yesterday", t("m.presets.yesterday")],
+                ["7d", t("m.presets.7d")],
+                ["month", t("m.presets.month")],
+                ["custom", t("m.presets.custom")],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -275,7 +277,7 @@ function MobileReport() {
           className="h-10 rounded-xl bg-[#0d5c46] hover:bg-[#094735] text-white text-xs font-bold gap-1.5"
         >
           <Printer className="h-4 w-4" />
-          রিপোর্ট প্রিন্ট / PDF
+          {t("m.report.print")}
         </Button>
         <Button
           type="button"
@@ -284,20 +286,20 @@ function MobileReport() {
           className="h-10 rounded-xl text-xs font-bold gap-1.5"
         >
           <Copy className="h-4 w-4" />
-          সামারি কপি করুন
+          {t("m.report.copy")}
         </Button>
       </div>
 
       {/* Report Preview */}
       <div className="mt-3 space-y-3">
         {(loadingDash || loadingRows) && (
-          <p className="py-10 text-center text-sm text-muted-foreground">রিপোর্ট তৈরি হচ্ছে…</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">{t("m.common.loading")}</p>
         )}
 
         {!loadingDash && reportType === "pnl" && k && (
           <PhoneCard className="space-y-1">
             <div className="mb-2 border-b border-slate-100 pb-2">
-              <p className="text-sm font-extrabold text-slate-900">{activeMeta.label}</p>
+              <p className="text-sm font-extrabold text-slate-900">{t(activeMeta.key)}</p>
               <p className="text-[11px] text-slate-500">সময়কাল: {dateLabel}</p>
             </div>
             <PhoneRow label="মোট বিক্রি" value={money(k.todaySales)} />
@@ -323,7 +325,7 @@ function MobileReport() {
           <PhoneCard className="space-y-2">
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div>
-                <p className="text-sm font-extrabold text-slate-900">{activeMeta.label}</p>
+                <p className="text-sm font-extrabold text-slate-900">{t(activeMeta.key)}</p>
                 {isDateReport && <p className="text-[11px] text-slate-500">সময়কাল: {dateLabel}</p>}
               </div>
               <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-[#0d5c46]">
@@ -420,7 +422,7 @@ function MobileReport() {
               {tenantName}
             </div>
             <div style={{ textAlign: "center", fontWeight: 600, fontSize: 13, marginBottom: 4 }}>
-              {activeMeta.label}
+              {t(activeMeta.key)}
             </div>
             <div style={{ textAlign: "center", fontSize: 11, marginBottom: 8 }}>
               {isDateReport ? `সময়কাল: ${dateLabel}` : `তারিখ: ${bdToday}`}

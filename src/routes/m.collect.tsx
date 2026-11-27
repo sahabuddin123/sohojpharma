@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, HandCoins, Loader2, Plus, Search, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
@@ -60,15 +61,15 @@ type DatePreset =
   | "last_month"
   | "custom";
 
-const DATE_PRESETS: Array<{ id: DatePreset; label: string }> = [
-  { id: "all", label: "সব" },
-  { id: "today", label: "আজ" },
-  { id: "yesterday", label: "গতকাল" },
-  { id: "this_week", label: "এই সপ্তাহ" },
-  { id: "last_week", label: "গত সপ্তাহ" },
-  { id: "this_month", label: "এই মাস" },
-  { id: "last_month", label: "গত মাস" },
-  { id: "custom", label: "কাস্টম" },
+const DATE_PRESETS: Array<{ id: DatePreset; key: string }> = [
+  { id: "all", key: "m.presets.all" },
+  { id: "today", key: "m.presets.today" },
+  { id: "yesterday", key: "m.presets.yesterday" },
+  { id: "this_week", key: "m.presets.thisWeek" },
+  { id: "last_week", key: "m.presets.lastWeek" },
+  { id: "this_month", key: "m.presets.month" },
+  { id: "last_month", key: "m.presets.lastMonth" },
+  { id: "custom", key: "m.presets.customLabel" },
 ];
 
 const toIsoDate = (d: Date) =>
@@ -113,6 +114,7 @@ function getPresetRange(preset: DatePreset, customFrom: string, customTo: string
 }
 
 function MobileCashCollect() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
   const { branchId } = useActiveBranch();
@@ -368,17 +370,17 @@ function MobileCashCollect() {
   };
 
   return (
-    <PhoneShell title="ক্যাশ কালেক্ট (বাকি আদায়)" back>
+    <PhoneShell title={t("m.collect.title")} back>
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl border border-emerald-200/80 bg-white p-3.5 text-center shadow-xs">
           <p className="text-[11px] font-medium text-slate-500">
-            আদায় ({DATE_PRESETS.find((p) => p.id === preset)?.label ?? "সব"})
+            {t("m.sales.cashPaid")} ({t(DATE_PRESETS.find((p) => p.id === preset)?.key ?? "m.presets.all")})
           </p>
           <p className="mt-1 text-lg font-extrabold text-[#0d6e4e]">{money(stats.collected)}</p>
         </div>
         <div className="rounded-2xl border border-rose-200/80 bg-white p-3.5 text-center shadow-xs">
-          <p className="text-[11px] font-medium text-slate-500">মোট বাকি ({stats.dueCount}টি)</p>
+          <p className="text-[11px] font-medium text-slate-500">{t("m.customers.totalDue")} ({stats.dueCount})</p>
           <p className="mt-1 text-lg font-extrabold text-rose-600">{money(stats.due)}</p>
         </div>
       </div>
@@ -390,7 +392,7 @@ function MobileCashCollect() {
         className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0d5c46] py-3 text-sm font-bold text-white shadow-xs hover:bg-[#094735] active:scale-[0.98] transition"
       >
         <Plus className="h-4 w-4" />
-        ডাইরেক্ট কালেকশন (গ্রাহক থেকে আদায়)
+        {t("m.home.dueCollection")}
       </button>
 
       {/* Date Filter + Search + Status Tabs */}
@@ -410,7 +412,7 @@ function MobileCashCollect() {
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
                 )}
               >
-                {p.label}
+                {t(p.key)}
               </button>
             );
           })}
@@ -419,7 +421,7 @@ function MobileCashCollect() {
         {preset === "custom" && (
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
             <div className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">শুরু</span>
+              <span className="text-[11px] font-medium text-slate-500">{t("m.presets.start")}</span>
               <Input
                 type="date"
                 value={customFrom}
@@ -428,7 +430,7 @@ function MobileCashCollect() {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">শেষ</span>
+              <span className="text-[11px] font-medium text-slate-500">{t("m.presets.end")}</span>
               <Input
                 type="date"
                 value={customTo}
@@ -444,7 +446,7 @@ function MobileCashCollect() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="গ্রাহকের নাম, ফোন বা ইনভয়েস খুঁজুন..."
+            placeholder={t("m.collect.searchPlaceholder")}
             className="h-11 rounded-2xl border-slate-200 bg-white pl-9 text-sm shadow-xs"
           />
         </div>
@@ -452,21 +454,21 @@ function MobileCashCollect() {
         <div className="phone-grid-keep grid grid-cols-3 rounded-full bg-[#e9eeea] p-1">
           {(
             [
-              { id: "due", label: `বাকি (${stats.dueCount})` },
-              { id: "all", label: "সব" },
-              { id: "paid", label: "পরিশোধিত" },
+              { id: "due", label: `${t("m.collect.filterDue")} (${stats.dueCount})` },
+              { id: "all", label: t("m.collect.filterAll") },
+              { id: "paid", label: t("m.collect.filterPaid") },
             ] as const
-          ).map((t) => (
+          ).map((item) => (
             <button
-              key={t.id}
+              key={item.id}
               type="button"
-              onClick={() => setTab(t.id)}
+              onClick={() => setTab(item.id)}
               className={cn(
                 "rounded-full py-1.5 text-xs font-semibold transition",
-                tab === t.id ? "bg-[#0d5c46] text-white shadow-xs" : "text-slate-600",
+                tab === item.id ? "bg-[#0d5c46] text-white shadow-xs" : "text-slate-600",
               )}
             >
-              {t.label}
+              {item.label}
             </button>
           ))}
         </div>
@@ -477,13 +479,13 @@ function MobileCashCollect() {
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-10 text-slate-400">
             <Loader2 className="h-6 w-6 animate-spin text-[#0d5c46] mb-2" />
-            <span className="text-xs">লোড হচ্ছে...</span>
+            <span className="text-xs">{t("m.common.loading")}</span>
           </div>
         )}
         {!isLoading && filtered.length === 0 && (
           <PhoneEmpty
-            title="কোনো তথ্য নেই"
-            message={tab === "due" ? "কোনো বকেয়া ইনভয়েস পাওয়া যায়নি" : "কোনো ইনভয়েস পাওয়া যায়নি"}
+            title={t("m.common.noData")}
+            message={t("m.sales.empty")}
           />
         )}
         {filtered.map((s) => {

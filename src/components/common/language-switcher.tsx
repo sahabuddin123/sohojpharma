@@ -1,5 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { Languages } from "lucide-react";
+import { Check, Languages } from "lucide-react";
+import { setAppLanguage } from "@/i18n";
+import { useUIStore } from "@/stores/ui-store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +12,13 @@ import { Button } from "@/components/ui/button";
 
 export function LanguageSwitcher() {
   const { i18n } = useTranslation();
-  const current = i18n.resolvedLanguage ?? "en";
+  const current = (i18n.resolvedLanguage ?? i18n.language) === "en" ? "en" : "bn";
+
+  const pick = async (next: "en" | "bn") => {
+    await setAppLanguage(next);
+    useUIStore.setState({ language: next });
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -20,8 +28,14 @@ export function LanguageSwitcher() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onClick={() => i18n.changeLanguage("en")}>English</DropdownMenuItem>
-        <DropdownMenuItem onClick={() => i18n.changeLanguage("bn")}>বাংলা (Bangla)</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void pick("en")} className="justify-between gap-2">
+          <span>English</span>
+          {current === "en" && <Check className="h-3.5 w-3.5 text-primary" />}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void pick("bn")} className="justify-between gap-2">
+          <span>বাংলা (Bangla)</span>
+          {current === "bn" && <Check className="h-3.5 w-3.5 text-primary" />}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

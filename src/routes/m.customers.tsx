@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { ChevronRight, Search, UserRound } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/m/customers")({
 type Row = { id: string; name: string; phone: string | null; due_balance: number | null; pendingSync?: boolean };
 
 function MobileCustomers() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const [filter, setFilter] = useState<"all" | "due" | "advance">("all");
   const [search, setSearch] = useState("");
@@ -114,12 +116,12 @@ function MobileCustomers() {
   }, [data, filter, search]);
 
   return (
-    <PhoneShell title="গ্রাহক তালিকা" back>
+    <PhoneShell title={t("m.customers.title")} back>
       <PhoneKpiGrid>
-        <PhoneKpi tone="rose" accent="danger" value={money(stats.due)} label="মোট বাকি" />
-        <PhoneKpi tone="sky" accent="info" value={money(stats.adv)} label="মোট অগ্রিম" />
-        <PhoneKpi tone="rose" accent="danger" value={stats.dueCount} label="বাকি গ্রাহক" />
-        <PhoneKpi tone="sky" accent="info" value={stats.advCount} label="অগ্রিম গ্রাহক" />
+        <PhoneKpi tone="rose" accent="danger" value={money(stats.due)} label={t("m.customers.totalDue")} />
+        <PhoneKpi tone="sky" accent="info" value={money(stats.adv)} label={t("m.customers.totalAdvance")} />
+        <PhoneKpi tone="rose" accent="danger" value={stats.dueCount} label={t("m.customers.filterDue")} />
+        <PhoneKpi tone="sky" accent="info" value={stats.advCount} label={t("m.customers.filterAdvance")} />
       </PhoneKpiGrid>
 
       <div className="mt-3 space-y-2.5 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
@@ -128,7 +130,7 @@ function MobileCustomers() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="গ্রাহকের নাম বা ফোন দিয়ে খুঁজুন..."
+            placeholder={t("m.customers.searchPlaceholder")}
             className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs"
           />
         </div>
@@ -136,32 +138,32 @@ function MobileCustomers() {
         <div className="phone-grid-keep grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
           {(
             [
-              { id: "all", label: `সব (${data.length})` },
-              { id: "due", label: `বাকি (${stats.dueCount})` },
-              { id: "advance", label: `অগ্রিম (${stats.advCount})` },
+              { id: "all", label: `${t("m.customers.filterAll")} (${data.length})` },
+              { id: "due", label: `${t("m.customers.filterDue")} (${stats.dueCount})` },
+              { id: "advance", label: `${t("m.customers.filterAdvance")} (${stats.advCount})` },
             ] as const
-          ).map((t) => (
+          ).map((tab) => (
             <button
-              key={t.id}
+              key={tab.id}
               type="button"
-              onClick={() => setFilter(t.id)}
+              onClick={() => setFilter(tab.id)}
               className={cn(
                 "rounded-full py-1.5 text-[11px] font-semibold transition",
-                filter === t.id
+                filter === tab.id
                   ? "bg-white text-[#0d5c46] shadow-xs"
                   : "text-slate-600 hover:text-slate-900",
               )}
             >
-              {t.label}
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
 
       <div className="mt-3 space-y-2.5">
-        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">লোড হচ্ছে…</p>}
+        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">{t("m.common.loading")}</p>}
         {!isLoading && rows.length === 0 && (
-          <PhoneEmpty message="কোনো গ্রাহক পাওয়া যায়নি" />
+          <PhoneEmpty message={t("m.customers.empty")} />
         )}
         {rows.map((r) => {
           const b = Number(r.due_balance ?? 0);
@@ -178,7 +180,7 @@ function MobileCustomers() {
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-extrabold text-slate-900">{r.name}</p>
-                  <p className="truncate text-xs text-slate-500">{r.phone ?? "ফোন নেই"}</p>
+                  <p className="truncate text-xs text-slate-500">{r.phone ?? "—"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -197,7 +199,11 @@ function MobileCustomers() {
                       b > 0 ? "text-rose-600" : b < 0 ? "text-[#0d5c46]" : "text-slate-400",
                     )}
                   >
-                    {b > 0 ? "বাকি" : b < 0 ? "অগ্রিম" : "পরিশোধিত"}
+                    {b > 0
+                      ? t("m.sales.badgeDue")
+                      : b < 0
+                        ? t("m.customers.filterAdvance")
+                        : t("m.sales.badgePaid")}
                   </p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-slate-400" />

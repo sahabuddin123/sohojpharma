@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { Calendar } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -14,13 +15,14 @@ import {
 } from "@/components/mobile/phone-ui";
 import { useAuth } from "@/hooks/use-auth";
 import { getStoreDashboard } from "@/lib/api/dashboard.functions";
+import { buildOfflineStoreDashboard, isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/analytics")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
   head: () => ({
     meta: [
-      { title: "অ্যানালিটিক্স — SohojPharma" },
+      { title: "Analytics — SohojPharma" },
       { name: "description", content: "বিক্রির ধারা, সেরা ওষুধ, কোম্পানি ও স্টক বিশ্লেষণ।" },
     ],
   }),
@@ -53,6 +55,7 @@ function Bars({ items }: { items: { label: string; value: number }[] }) {
 }
 
 function MobileAnalytics() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const fetchDashboard = useServerFn(getStoreDashboard);
   const [tab, setTab] = useState<Tab>("trend");
@@ -83,10 +86,21 @@ function MobileAnalytics() {
     queryKey: ["m-analytics", currentTenantId, from, to],
     enabled: !!currentTenantId,
     staleTime: 60_000,
-    queryFn: () =>
-      fetchDashboard({
-        data: { tenant_id: currentTenantId!, from_date: from, to_date: to },
-      }),
+    queryFn: async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await buildOfflineStoreDashboard(currentTenantId!, from, to);
+      }
+      try {
+        return await fetchDashboard({
+          data: { tenant_id: currentTenantId!, from_date: from, to_date: to },
+        });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await buildOfflineStoreDashboard(currentTenantId!, from, to);
+        }
+        throw err;
+      }
+    },
   });
 
   const k = data?.kpi;
@@ -97,18 +111,18 @@ function MobileAnalytics() {
   const cats = data?.categoryInventory ?? [];
 
   return (
-    <PhoneShell title="অ্যানালিটিক্স" back>
+    <PhoneShell title={t("m.analytics.title")} back>
       {/* Date Filter Bar */}
       <div className="mb-3 space-y-2 rounded-2xl border border-slate-200/80 bg-white p-3 shadow-xs">
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
           <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
           {(
             [
-              ["today", "আজ"],
-              ["yesterday", "গতকাল"],
-              ["7d", "৭ দিন"],
-              ["month", "এই মাস"],
-              ["custom", "তারিখ"],
+              ["today", t("m.presets.today")],
+              ["yesterday", t("m.presets.yesterday")],
+              ["7d", t("m.presets.7d")],
+              ["month", t("m.presets.month")],
+              ["custom", t("m.presets.custom")],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -129,7 +143,7 @@ function MobileAnalytics() {
         {preset === "custom" && (
           <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শুরু</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.start")}</span>
               <input
                 type="date"
                 value={customFrom}
@@ -139,7 +153,7 @@ function MobileAnalytics() {
               />
             </label>
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শেষ</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.end")}</span>
               <input
                 type="date"
                 value={customTo}
@@ -155,24 +169,24 @@ function MobileAnalytics() {
 
       <div className={cn("transition-opacity", isFetching && "opacity-60")}>
         <PhoneKpiGrid>
-          <PhoneKpi tone="mint" accent="success" value={money(k?.todaySales)} label="মোট বিক্রি" />
+          <PhoneKpi tone="mint" accent="success" value={money(k?.todaySales)} label={t("m.analytics.salesTotal")} />
           <PhoneKpi
             tone="lilac"
             accent={(k?.todayProfit ?? 0) < 0 ? "danger" : "success"}
             value={money(k?.todayProfit)}
-            label="নিট লাভ"
+            label={t("m.analytics.netProfit")}
           />
-          <PhoneKpi tone="rose" accent="danger" value={money(k?.todayExpense)} label="মোট খরচ" />
-          <PhoneKpi tone="sky" value={money(k?.inventoryValue)} label="ইনভেন্টরি মূল্য" />
+          <PhoneKpi tone="rose" accent="danger" value={money(k?.todayExpense)} label={t("m.analytics.totalExpense")} />
+          <PhoneKpi tone="sky" value={money(k?.inventoryValue)} label={t("m.analytics.inventoryValue")} />
         </PhoneKpiGrid>
       </div>
 
       <div className="phone-grid-keep mt-3 grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
         {(
           [
-            ["trend", "বিক্রির ধারা"],
-            ["top", "সেরা পণ্য"],
-            ["stock", "স্টক বিশ্লেষণ"],
+            ["trend", t("m.analytics.tabTrend")],
+            ["top", t("m.analytics.tabTop")],
+            ["stock", t("m.analytics.tabStock")],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -191,22 +205,22 @@ function MobileAnalytics() {
         ))}
       </div>
 
-      {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">লোড হচ্ছে…</p>}
+      {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">{t("m.common.loading")}</p>}
 
       {!isLoading && tab === "trend" && (
         <div className="mt-3 space-y-3">
           <PhoneCard>
-            <p className="mb-3 text-sm font-bold text-slate-900">দৈনিক বিক্রি</p>
+            <p className="mb-3 text-sm font-bold text-slate-900">{t("m.analytics.dailySales")}</p>
             {daily.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">এখনো কোনো বিক্রির তথ্য নেই</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t("m.analytics.noSalesTrend")}</p>
             ) : (
               <Bars items={daily.slice(-10).map((d) => ({ label: d.day, value: d.sales }))} />
             )}
           </PhoneCard>
           <PhoneCard>
-            <p className="mb-3 text-sm font-bold text-slate-900">মাসিক বিক্রি বনাম ক্রয়</p>
+            <p className="mb-3 text-sm font-bold text-slate-900">{t("m.analytics.monthlyCompare")}</p>
             {monthly.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">মাসিক কোনো তথ্য নেই</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t("m.analytics.noMonthly")}</p>
             ) : (
               monthly.map((m) => (
                 <PhoneRow
@@ -223,17 +237,17 @@ function MobileAnalytics() {
       {!isLoading && tab === "top" && (
         <div className="mt-3 space-y-3">
           <PhoneCard>
-            <p className="mb-3 text-sm font-bold text-slate-900">সর্বাধিক বিক্রিত ওষুধ</p>
+            <p className="mb-3 text-sm font-bold text-slate-900">{t("m.analytics.topMeds")}</p>
             {topMeds.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">কোনো বিক্রির তথ্য নেই</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t("m.analytics.noSales")}</p>
             ) : (
-              <Bars items={topMeds.map((m) => ({ label: `${m.name} (${m.qty} পিস)`, value: m.revenue }))} />
+              <Bars items={topMeds.map((m) => ({ label: `${m.name} (${m.qty} ${t("m.common.pcs")})`, value: m.revenue }))} />
             )}
           </PhoneCard>
           <PhoneCard>
-            <p className="mb-3 text-sm font-bold text-slate-900">শীর্ষ কোম্পানি</p>
+            <p className="mb-3 text-sm font-bold text-slate-900">{t("m.analytics.topCos")}</p>
             {topCos.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">কোনো তথ্য নেই</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t("m.common.noData")}</p>
             ) : (
               <Bars items={topCos.map((c) => ({ label: c.name, value: c.revenue }))} />
             )}
@@ -244,18 +258,18 @@ function MobileAnalytics() {
       {!isLoading && tab === "stock" && (
         <div className="mt-3 space-y-3">
           <PhoneCard>
-            <p className="mb-3 text-sm font-bold text-slate-900">ক্যাটাগরি অনুযায়ী স্টক</p>
+            <p className="mb-3 text-sm font-bold text-slate-900">{t("m.analytics.catStock")}</p>
             {cats.length === 0 ? (
-              <p className="py-6 text-center text-xs text-slate-500">কোনো স্টক তথ্য নেই</p>
+              <p className="py-6 text-center text-xs text-slate-500">{t("m.analytics.noStock")}</p>
             ) : (
               <Bars items={cats.map((c) => ({ label: c.name, value: c.value }))} />
             )}
           </PhoneCard>
           <PhoneCard>
-            <p className="mb-2 text-sm font-bold text-slate-900">স্টক সতর্কতা</p>
-            <PhoneRow label="স্টক কম (Low stock)" value={`${k?.lowStock ?? 0}টি`} />
-            <PhoneRow label="মেয়াদোত্তীর্ণ (Expired)" value={`${k?.expired ?? 0}টি`} />
-            <PhoneRow label="মেয়াদ কাছাকাছি (Near expiry)" value={`${k?.nearExpiry ?? 0}টি`} />
+            <p className="mb-2 text-sm font-bold text-slate-900">{t("m.analytics.stockAlerts")}</p>
+            <PhoneRow label={t("m.analytics.lowStock")} value={`${k?.lowStock ?? 0}${t("m.common.itemsSuffix")}`} />
+            <PhoneRow label={t("m.analytics.expired")} value={`${k?.expired ?? 0}${t("m.common.itemsSuffix")}`} />
+            <PhoneRow label={t("m.analytics.nearExpiry")} value={`${k?.nearExpiry ?? 0}${t("m.common.itemsSuffix")}`} />
           </PhoneCard>
         </div>
       )}

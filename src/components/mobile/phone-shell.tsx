@@ -1,18 +1,31 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Home, PieChart, FileBarChart2, Crown, ChevronLeft, HelpCircle, WifiOff, RefreshCw, Database } from "lucide-react";
+import {
+  Home,
+  PieChart,
+  FileBarChart2,
+  Crown,
+  ChevronLeft,
+  HelpCircle,
+  WifiOff,
+  RefreshCw,
+  Database,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { countPending, subscribe as subscribeOutbox } from "@/lib/offline/db";
 import { subscribeSync, flushNow, type SyncState } from "@/lib/offline/sync";
 import { subscribeWarmStatus, type WarmStatus } from "@/lib/offline/warm-cache";
+import { setAppLanguage } from "@/i18n";
+import { useUIStore } from "@/stores/ui-store";
 import { SupportTicketDialog } from "./support-ticket-dialog";
 
-const tabs: Array<{ to: string; label: string; icon: typeof Home; exact?: boolean }> = [
-  { to: "/m", label: "হোম", icon: Home, exact: true },
-  { to: "/m/analytics", label: "অ্যানালিটিক্স", icon: PieChart },
-  { to: "/m/report", label: "রিপোর্ট", icon: FileBarChart2 },
-  { to: "/m/subscription", label: "প্ল্যান", icon: Crown },
+const tabs: Array<{ to: string; key: string; icon: typeof Home; exact?: boolean }> = [
+  { to: "/m", key: "m.shell.tabHome", icon: Home, exact: true },
+  { to: "/m/analytics", key: "m.shell.tabAnalytics", icon: PieChart },
+  { to: "/m/report", key: "m.shell.tabReports", icon: FileBarChart2 },
+  { to: "/m/subscription", key: "m.shell.tabPlan", icon: Crown },
 ];
 
 export function PhoneHeader({
@@ -24,12 +37,16 @@ export function PhoneHeader({
   back?: boolean;
   help?: ReactNode;
 }) {
+  const { t, i18n } = useTranslation();
   const { memberships, currentTenantId, user } = useAuth();
   const [supportOpen, setSupportOpen] = useState(false);
 
+  const currentLang = (i18n.resolvedLanguage ?? i18n.language) === "en" ? "en" : "bn";
+  const nextLang = currentLang === "bn" ? "en" : "bn";
+
   const meta = (user?.user_metadata ?? {}) as { full_name?: string; avatar_url?: string };
   const avatarUrl = meta.avatar_url;
-  const displayName = meta.full_name || user?.email || "User";
+  const displayName = meta.full_name || user?.email || t("m.common.userFallback");
   const initials =
     displayName
       .split(/\s+/)
@@ -40,11 +57,16 @@ export function PhoneHeader({
   const tenantName =
     memberships.find((m) => m.tenant_id === currentTenantId)?.tenants?.name ?? "SohojPharma";
 
+  const handleToggleLanguage = async () => {
+    await setAppLanguage(nextLang);
+    useUIStore.setState({ language: nextLang });
+  };
+
   return (
     <header className="sticky top-0 z-30 mx-auto max-w-md sm:max-w-3xl">
       <div className="rounded-b-[22px] bg-gradient-to-r from-[#094735] via-[#0d5c46] to-[#0f766e] text-white shadow-[0_6px_20px_rgba(9,71,53,0.18)]">
         <div className="h-[env(safe-area-inset-top)]" />
-        <div className="flex min-h-14 items-center gap-3 px-4 py-3">
+        <div className="flex min-h-14 items-center gap-2.5 px-4 py-3">
           {back ? (
             <Link
               to="/m"
@@ -64,17 +86,26 @@ export function PhoneHeader({
             </p>
             {!title && (
               <p className="mt-0.5 truncate text-[11px] font-medium text-emerald-100/85">
-                ফার্মেসি ওনার পোর্টাল
+                {t("m.shell.portalSubtitle")}
               </p>
             )}
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => void handleToggleLanguage()}
+              aria-label={currentLang === "bn" ? "Switch to English" : "বাংলায় পরিবর্তন করুন"}
+              title={currentLang === "bn" ? "Switch to English" : "বাংলায় পরিবর্তন করুন"}
+              className="grid h-9 min-w-9 shrink-0 place-items-center rounded-xl bg-white/15 px-2 text-[11px] font-extrabold tracking-tight text-white ring-1 ring-white/25 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/25"
+            >
+              {currentLang === "bn" ? "EN" : "বাং"}
+            </button>
             {help ?? (
               <button
                 type="button"
                 onClick={() => setSupportOpen(true)}
-                aria-label="সাপোর্ট টিকেট"
-                title="সাপোর্ট টিকেট"
+                aria-label={t("m.shell.supportTitle")}
+                title={t("m.shell.supportTitle")}
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/15 text-white ring-1 ring-white/20 backdrop-blur-md active:scale-95 transition-transform hover:bg-white/20"
               >
                 <HelpCircle className="h-4.5 w-4.5" />
@@ -82,8 +113,8 @@ export function PhoneHeader({
             )}
             <Link
               to={"/m/settings" as never}
-              aria-label="প্রোফাইল ও সেটিংস"
-              title="প্রোফাইল ও সেটিংস"
+              aria-label={t("m.shell.profileTitle")}
+              title={t("m.shell.profileTitle")}
               className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-white/20 text-xs font-extrabold tracking-wide text-white ring-2 ring-white/45 shadow-sm backdrop-blur-md active:scale-95 transition-transform hover:bg-white/30"
             >
               {avatarUrl ? (
@@ -93,7 +124,7 @@ export function PhoneHeader({
                   className="h-full w-full object-cover"
                 />
               ) : (
-                <span>{initials}</span>
+                initials
               )}
             </Link>
           </div>
@@ -104,30 +135,31 @@ export function PhoneHeader({
   );
 }
 
-
 export function PhoneTabBar() {
+  const { t } = useTranslation();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isActive = (to: string, exact?: boolean) =>
+    exact ? pathname === to : pathname.startsWith(to);
+
   return (
-    <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[calc(0.65rem+env(safe-area-inset-bottom))]">
-      <ul className="phone-grid-keep pointer-events-auto grid grid-cols-4 items-center rounded-2xl border border-slate-200/80 bg-white/92 p-1.5 shadow-[0_8px_30px_rgba(13,92,70,0.14)] backdrop-blur-xl">
-        {tabs.map(({ to, label, icon: Icon, exact }) => {
-          const active = exact ? pathname === to : pathname.startsWith(to);
+    <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:max-w-3xl">
+      <ul className="grid grid-cols-4 items-center gap-1 rounded-[22px] border border-border/80 bg-card/95 p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.08)] backdrop-blur-xl">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const active = isActive(tab.to, tab.exact);
           return (
-            <li key={to} className="flex justify-center">
+            <li key={tab.to}>
               <Link
-                to={to as never}
+                to={tab.to as never}
                 className={cn(
-                  "flex w-full flex-col items-center gap-0.5 rounded-xl py-1.5 transition-all active:scale-95",
+                  "flex flex-col items-center justify-center gap-0.5 rounded-2xl py-2 text-[11px] font-medium transition-colors",
                   active
-                    ? "bg-gradient-to-r from-[#094735] to-[#0d5c46] text-white shadow-[0_4px_12px_rgba(13,92,70,0.28)]"
-                    : "text-slate-500 hover:text-slate-800",
+                    ? "bg-primary text-primary-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
-                aria-current={active ? "page" : undefined}
               >
-                <Icon className={cn("h-4.5 w-4.5", active ? "stroke-[2.3]" : "stroke-[1.9]")} />
-                <span className={cn("text-[10px] font-bold tracking-tight", active ? "text-white" : "text-slate-500")}>
-                  {label}
-                </span>
+                <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.25 : 1.75} />
+                <span>{t(tab.key)}</span>
               </Link>
             </li>
           );
@@ -137,19 +169,30 @@ export function PhoneTabBar() {
   );
 }
 
-
 function PhoneOfflineBanner() {
+  const { t } = useTranslation();
   const [pending, setPending] = useState(0);
   const [sync, setSync] = useState<SyncState>({ online: true, syncing: false, lastRunAt: null, lastError: null });
-  const [warm, setWarm] = useState<WarmStatus>({ syncingCatalog: false, cachedProducts: 0, totalProducts: 0, lastSyncedAt: null });
+  const [warm, setWarm] = useState<WarmStatus>({
+    syncingCatalog: false,
+    cachedProducts: 0,
+    totalProducts: 0,
+    lastSyncedAt: null,
+  });
 
   useEffect(() => {
-    const refresh = () => { void countPending().then(setPending); };
+    const refresh = () => {
+      void countPending().then(setPending);
+    };
     refresh();
     const u1 = subscribeOutbox(refresh);
     const u2 = subscribeSync(setSync);
     const u3 = subscribeWarmStatus(setWarm);
-    return () => { u1(); u2(); u3(); };
+    return () => {
+      u1();
+      u2();
+      u3();
+    };
   }, []);
 
   if (sync.online && pending === 0 && !warm.syncingCatalog) return null;
@@ -177,13 +220,18 @@ function PhoneOfflineBanner() {
           <span className="truncate">
             {!sync.online
               ? pending > 0
-                ? `অফলাইন মোড · ${pending}টি এন্ট্রি পেন্ডিং`
-                : `অফলাইন মোড · ${warm.cachedProducts > 0 ? `${warm.cachedProducts} পণ্য প্রস্তুত` : "লোকাল মোড"}`
+                ? t("m.shell.offlinePending", { count: pending })
+                : warm.cachedProducts > 0
+                  ? t("m.shell.offlineReady", { count: warm.cachedProducts })
+                  : t("m.shell.offlineLocal")
               : pending > 0
                 ? sync.syncing
-                  ? `সার্ভারে সিঙ্ক হচ্ছে (${pending}টি বাকি)...`
-                  : `${pending}টি অফলাইন এন্ট্রি সিঙ্ক অপেক্ষায়`
-                : `অফলাইন ডাটা সিঙ্ক হচ্ছে (${warm.cachedProducts}${warm.totalProducts ? `/${warm.totalProducts}` : ""})...`}
+                  ? t("m.shell.syncingQueue", { count: pending })
+                  : t("m.shell.pendingQueue", { count: pending })
+                : t("m.shell.warmingCatalog", {
+                    cached: warm.cachedProducts,
+                    total: warm.totalProducts ? `/${warm.totalProducts}` : "",
+                  })}
           </span>
         </Link>
         {sync.online && pending > 0 && (
@@ -193,7 +241,7 @@ function PhoneOfflineBanner() {
             disabled={sync.syncing}
             className="shrink-0 rounded-lg bg-white px-2 py-1 text-[11px] font-bold text-[#0d5c46] shadow-xs"
           >
-            সিঙ্ক
+            {t("m.common.sync")}
           </button>
         )}
       </div>

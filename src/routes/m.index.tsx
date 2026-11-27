@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { useAuth } from "@/hooks/use-auth";
@@ -55,7 +56,7 @@ type IconTone = "emerald" | "sky" | "amber" | "rose" | "indigo" | "teal";
 
 type Tile = {
   to: string;
-  label: string;
+  key: string;
   icon: typeof ClipboardList;
   tone: IconTone;
   badge?: "lowStock" | "expired" | "products";
@@ -70,43 +71,43 @@ const TONE_CLASSES: Record<IconTone, string> = {
   teal: "bg-teal-50 text-teal-700 border-teal-100",
 };
 
-const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
+const SECTIONS: Array<{ titleKey: string; tiles: Tile[] }> = [
   {
-    title: "দৈনন্দিন কার্যক্রম",
+    titleKey: "m.home.secDaily",
     tiles: [
-      { to: "/m/product-list", label: "Product List", icon: Package, tone: "sky", badge: "products" },
-      { to: "/m/products", label: "পণ্যের হিসাব", icon: ClipboardList, tone: "emerald" },
-      { to: "/m/sale", label: "বিক্রি (POS)", icon: ShoppingCart, tone: "teal" },
-      { to: "/purchases/new", label: "নতুন ক্রয়", icon: Truck, tone: "sky" },
-      { to: "/m/collect", label: "ক্যাশ কালেক্ট", icon: HandCoins, tone: "amber" },
-      { to: "/m/sales", label: "বিক্রি রেকর্ড", icon: ReceiptText, tone: "indigo" },
-      { to: "/m/sale-returns", label: "বিক্রি রিটার্ন", icon: Undo2, tone: "rose" },
-      { to: "/m/purchases", label: "ক্রয় রেকর্ড", icon: FileSpreadsheet, tone: "sky" },
-      { to: "/m/purchase-returns", label: "ক্রয় রিটার্ন", icon: RotateCcw, tone: "amber" },
+      { to: "/m/product-list", key: "m.home.tiles.productList", icon: Package, tone: "sky", badge: "products" },
+      { to: "/m/products", key: "m.home.tiles.productAccounting", icon: ClipboardList, tone: "emerald" },
+      { to: "/m/sale", key: "m.home.tiles.pos", icon: ShoppingCart, tone: "teal" },
+      { to: "/purchases/new", key: "m.home.tiles.newPurchase", icon: Truck, tone: "sky" },
+      { to: "/m/collect", key: "m.home.tiles.cashCollect", icon: HandCoins, tone: "amber" },
+      { to: "/m/sales", key: "m.home.tiles.salesRecord", icon: ReceiptText, tone: "indigo" },
+      { to: "/m/sale-returns", key: "m.home.tiles.saleReturn", icon: Undo2, tone: "rose" },
+      { to: "/m/purchases", key: "m.home.tiles.purchaseRecord", icon: FileSpreadsheet, tone: "sky" },
+      { to: "/m/purchase-returns", key: "m.home.tiles.purchaseReturn", icon: RotateCcw, tone: "amber" },
     ],
   },
   {
-    title: "স্টক ও সতর্কতা",
+    titleKey: "m.home.secStock",
     tiles: [
-      { to: "/m/inventory", label: "ইনভেন্টরি", icon: Boxes, tone: "emerald" },
-      { to: "/m/short-items", label: "শর্ট আইটেম", icon: PackageSearch, tone: "amber", badge: "lowStock" },
-      { to: "/m/short-list", label: "শর্ট লিস্ট", icon: ListChecks, tone: "teal" },
-      { to: "/m/expired", label: "মেয়াদোত্তীর্ণ", icon: CalendarX, tone: "rose", badge: "expired" },
-      { to: "/m/generics", label: "জেনেরিক", icon: FlaskConical, tone: "indigo" },
+      { to: "/m/inventory", key: "m.home.tiles.inventory", icon: Boxes, tone: "emerald" },
+      { to: "/m/short-items", key: "m.home.tiles.shortItems", icon: PackageSearch, tone: "amber", badge: "lowStock" },
+      { to: "/m/short-list", key: "m.home.tiles.shortList", icon: ListChecks, tone: "teal" },
+      { to: "/m/expired", key: "m.home.tiles.expired", icon: CalendarX, tone: "rose", badge: "expired" },
+      { to: "/m/generics", key: "m.home.tiles.generics", icon: FlaskConical, tone: "indigo" },
     ],
   },
   {
-    title: "ব্যক্তি ও হিসাব",
+    titleKey: "m.home.secPeople",
     tiles: [
-      { to: "/m/customers", label: "গ্রাহক", icon: UserRound, tone: "emerald" },
-      { to: "/m/suppliers", label: "সরবরাহকারী", icon: Users, tone: "sky" },
-      { to: "/m/staff", label: "কর্মচারী", icon: IdCard, tone: "indigo" },
-      { to: "/m/transactions", label: "লেনদেন", icon: ArrowLeftRight, tone: "teal" },
-      { to: "/m/expenses", label: "খরচ", icon: Wallet, tone: "rose" },
-      { to: "/m/income", label: "আয়", icon: PiggyBank, tone: "emerald" },
-      { to: "/m/credit-adjustment", label: "ক্রেডিট অ্যাডজাস্ট", icon: Scale, tone: "amber" },
-      { to: "/m/dena-paona", label: "দেনা-পাওনা", icon: BookOpenCheck, tone: "indigo" },
-      { to: "/m/settings", label: "সেটিংস ও প্রোফাইল", icon: Settings, tone: "teal" },
+      { to: "/m/customers", key: "m.home.tiles.customers", icon: UserRound, tone: "emerald" },
+      { to: "/m/suppliers", key: "m.home.tiles.suppliers", icon: Users, tone: "sky" },
+      { to: "/m/staff", key: "m.home.tiles.staff", icon: IdCard, tone: "indigo" },
+      { to: "/m/transactions", key: "m.home.tiles.transactions", icon: ArrowLeftRight, tone: "teal" },
+      { to: "/m/expenses", key: "m.home.tiles.expenses", icon: Wallet, tone: "rose" },
+      { to: "/m/income", key: "m.home.tiles.income", icon: PiggyBank, tone: "emerald" },
+      { to: "/m/credit-adjustment", key: "m.home.tiles.creditAdjustment", icon: Scale, tone: "amber" },
+      { to: "/m/dena-paona", key: "m.home.tiles.denaPaona", icon: BookOpenCheck, tone: "indigo" },
+      { to: "/m/settings", key: "m.home.tiles.settings", icon: Settings, tone: "teal" },
     ],
   },
 ];
@@ -125,6 +126,7 @@ function toYmd(d: Date): string {
 type DatePreset = "today" | "yesterday" | "7d" | "month" | "custom";
 
 function PhoneHome() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const fetchDashboard = useServerFn(getStoreDashboard);
   const todayStr = toYmd(new Date());
@@ -196,11 +198,11 @@ function PhoneHome() {
             <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
             {(
               [
-                ["today", "আজ"],
-                ["yesterday", "গতকাল"],
-                ["7d", "৭ দিন"],
-                ["month", "এই মাস"],
-                ["custom", "তারিখ"],
+                ["today", t("m.presets.today")],
+                ["yesterday", t("m.presets.yesterday")],
+                ["7d", t("m.presets.7d")],
+                ["month", t("m.presets.month")],
+                ["custom", t("m.presets.custom")],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -221,7 +223,7 @@ function PhoneHome() {
           {preset === "custom" && (
             <div className="grid grid-cols-2 gap-2">
               <label className="block">
-                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শুরু</span>
+                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.start")}</span>
                 <input
                   type="date"
                   value={customFrom}
@@ -231,7 +233,7 @@ function PhoneHome() {
                 />
               </label>
               <label className="block">
-                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শেষ</span>
+                <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.end")}</span>
                 <input
                   type="date"
                   value={customTo}
@@ -246,88 +248,88 @@ function PhoneHome() {
         </div>
 
         <div className={cn("space-y-2.5 transition-opacity", isFetching && "opacity-60")}>
-        {/* Row 1: Total Sale, Cash Sale, Due Sale */}
-        <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-slate-50 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">মোট বিক্রি</p>
-            <p className="mt-0.5 text-sm font-extrabold text-slate-900">
-              ৳{formatMoney(data?.kpi.todaySales)}
-            </p>
+          {/* Row 1: Total Sale, Cash Sale, Due Sale */}
+          <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-slate-50 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">{t("m.home.totalSales")}</p>
+              <p className="mt-0.5 text-sm font-extrabold text-slate-900">
+                ৳{formatMoney(data?.kpi.todaySales)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-emerald-50/70 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">{t("m.home.cashSales")}</p>
+              <p className="mt-0.5 text-sm font-extrabold text-[#0d6e4e]">
+                ৳{formatMoney(data?.kpi.todayCashSale)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-amber-50/70 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">{t("m.home.dueSales")}</p>
+              <p className="mt-0.5 text-sm font-extrabold text-amber-700">
+                ৳{formatMoney(data?.kpi.todayDueSale)}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl bg-emerald-50/70 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">নগদ বিক্রি</p>
-            <p className="mt-0.5 text-sm font-extrabold text-[#0d6e4e]">
-              ৳{formatMoney(data?.kpi.todayCashSale)}
-            </p>
-          </div>
-          <div className="rounded-xl bg-amber-50/70 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">বাকি বিক্রি</p>
-            <p className="mt-0.5 text-sm font-extrabold text-amber-700">
-              ৳{formatMoney(data?.kpi.todayDueSale)}
-            </p>
-          </div>
-        </div>
 
-        {/* Row 2: Due Collection, Expense, Net Profit */}
-        <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
-          <div className="rounded-xl bg-sky-50/70 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">বাকি আদায়</p>
-            <p className="mt-0.5 text-sm font-extrabold text-sky-700">
-              ৳{formatMoney(data?.kpi.dueCollection)}
-            </p>
+          {/* Row 2: Due Collection, Expense, Net Profit */}
+          <div className="phone-grid-keep grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-sky-50/70 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">{t("m.home.dueCollection")}</p>
+              <p className="mt-0.5 text-sm font-extrabold text-sky-700">
+                ৳{formatMoney(data?.kpi.dueCollection)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-rose-50/70 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">
+                {preset === "today" ? t("m.home.todayExpense") : t("m.home.totalExpense")}
+              </p>
+              <p className="mt-0.5 text-sm font-extrabold text-rose-600">
+                ৳{formatMoney(data?.kpi.todayExpense)}
+              </p>
+            </div>
+            <div className="rounded-xl bg-emerald-50/60 px-1.5 py-2">
+              <p className="text-[10px] font-medium text-slate-500">{t("m.home.netProfit")}</p>
+              <p
+                className={cn(
+                  "mt-0.5 text-sm font-extrabold",
+                  Number(data?.kpi.todayProfit ?? 0) < 0 ? "text-rose-600" : "text-[#0d6e4e]",
+                )}
+              >
+                {Number(data?.kpi.todayProfit ?? 0) < 0 ? "-" : ""}৳
+                {formatMoney(Math.abs(Number(data?.kpi.todayProfit ?? 0)))}
+              </p>
+            </div>
           </div>
-          <div className="rounded-xl bg-rose-50/70 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">
-              {preset === "today" ? "আজকের খরচ" : "মোট খরচ"}
-            </p>
-            <p className="mt-0.5 text-sm font-extrabold text-rose-600">
-              ৳{formatMoney(data?.kpi.todayExpense)}
-            </p>
+
+          {/* Row 3: Daily Hand Cash Highlight */}
+          <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
+            <span className="text-xs font-semibold text-slate-700">{t("m.home.handCash")}</span>
+            <span className="text-base font-extrabold text-[#0d5c46]">
+              {Number(data?.kpi.dailyCashInHand ?? 0) < 0 ? "-" : ""}৳
+              {formatMoney(Math.abs(Number(data?.kpi.dailyCashInHand ?? 0)))}
+            </span>
           </div>
-          <div className="rounded-xl bg-emerald-50/60 px-1.5 py-2">
-            <p className="text-[10px] font-medium text-slate-500">নিট লাভ</p>
-            <p
-              className={cn(
-                "mt-0.5 text-sm font-extrabold",
-                Number(data?.kpi.todayProfit ?? 0) < 0 ? "text-rose-600" : "text-[#0d6e4e]",
-              )}
+
+          {/* Row 4: Inventory Value & Product List KPI */}
+          <div className="phone-grid-keep grid grid-cols-2 gap-2">
+            <Link
+              to={"/m/inventory" as never}
+              className="flex items-center justify-between gap-1 rounded-xl border border-sky-200/70 bg-sky-50/50 px-3 py-2.5 transition hover:border-sky-300"
             >
-              {Number(data?.kpi.todayProfit ?? 0) < 0 ? "-" : ""}৳
-              {formatMoney(Math.abs(Number(data?.kpi.todayProfit ?? 0)))}
-            </p>
+              <span className="truncate text-[11px] font-semibold text-slate-700">{t("m.home.stockValue")}</span>
+              <span className="shrink-0 text-sm font-extrabold text-sky-700 tabular-nums">
+                ৳{formatMoney(data?.kpi.inventoryValue)}
+              </span>
+            </Link>
+            <Link
+              to={"/m/product-list" as never}
+              className="flex items-center justify-between gap-1 rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2.5 transition hover:border-emerald-300"
+            >
+              <span className="truncate text-[11px] font-semibold text-slate-700">{t("m.home.productList")}</span>
+              <span className="shrink-0 text-sm font-extrabold text-[#0d5c46] tabular-nums">
+                {formatMoney(data?.kpi.totalProducts)}{t("m.common.itemsSuffix")}
+              </span>
+            </Link>
           </div>
-        </div>
-
-        {/* Row 3: Daily Hand Cash Highlight */}
-        <div className="flex items-center justify-between rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3.5 py-2.5">
-          <span className="text-xs font-semibold text-slate-700">দৈনিক হাতে ক্যাশ (Hand Cash)</span>
-          <span className="text-base font-extrabold text-[#0d5c46]">
-            {Number(data?.kpi.dailyCashInHand ?? 0) < 0 ? "-" : ""}৳
-            {formatMoney(Math.abs(Number(data?.kpi.dailyCashInHand ?? 0)))}
-          </span>
-        </div>
-
-        {/* Row 4: Inventory Value & Product List KPI */}
-        <div className="phone-grid-keep grid grid-cols-2 gap-2">
-          <Link
-            to={"/m/inventory" as never}
-            className="flex items-center justify-between gap-1 rounded-xl border border-sky-200/70 bg-sky-50/50 px-3 py-2.5 transition hover:border-sky-300"
-          >
-            <span className="truncate text-[11px] font-semibold text-slate-700">স্টকে পণ্য</span>
-            <span className="shrink-0 text-sm font-extrabold text-sky-700 tabular-nums">
-              ৳{formatMoney(data?.kpi.inventoryValue)}
-            </span>
-          </Link>
-          <Link
-            to={"/m/product-list" as never}
-            className="flex items-center justify-between gap-1 rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2.5 transition hover:border-emerald-300"
-          >
-            <span className="truncate text-[11px] font-semibold text-slate-700">Product List</span>
-            <span className="shrink-0 text-sm font-extrabold text-[#0d5c46] tabular-nums">
-              {formatMoney(data?.kpi.totalProducts)}টি
-            </span>
-          </Link>
-        </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-2.5">
@@ -336,14 +338,14 @@ function PhoneHome() {
             className="flex items-center justify-center gap-1.5 rounded-xl bg-[#0d5c46] py-2.5 text-xs font-bold text-white shadow-xs active:scale-[0.98] transition"
           >
             <Plus className="h-4 w-4" />
-            নতুন বিক্রি
+            {t("m.home.newSale")}
           </Link>
           <Link
             to={"/purchases/new" as never}
             className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 py-2.5 text-xs font-bold text-slate-800 hover:bg-slate-100 active:scale-[0.98] transition"
           >
             <Truck className="h-4 w-4 text-[#0d5c46]" />
-            নতুন ক্রয়
+            {t("m.home.newPurchase")}
           </Link>
         </div>
       </div>
@@ -351,17 +353,18 @@ function PhoneHome() {
       {/* Categorized Navigation Grid */}
       <div className="space-y-5">
         {SECTIONS.map((section) => (
-          <section key={section.title} className="space-y-2.5">
+          <section key={section.titleKey} className="space-y-2.5">
             <h2 className="px-1 text-xs font-bold uppercase tracking-wide text-slate-500">
-              {section.title}
+              {t(section.titleKey)}
             </h2>
             <div className="phone-grid-keep grid grid-cols-3 gap-2.5">
               {section.tiles.map((tile) => {
                 const Icon = tile.icon;
                 const badge = badgeValue(tile.badge);
+                const label = t(tile.key);
                 return (
                   <Link
-                    key={tile.label}
+                    key={tile.key}
                     to={tile.to as never}
                     className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white px-2 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-slate-300 active:scale-[0.96] transition"
                   >
@@ -384,7 +387,7 @@ function PhoneHome() {
                       <Icon className="h-5 w-5" strokeWidth={1.9} />
                     </div>
                     <p className="text-center text-[12px] font-semibold leading-tight text-slate-800">
-                      {tile.label}
+                      {label}
                     </p>
                   </Link>
                 );

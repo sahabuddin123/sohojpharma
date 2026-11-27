@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Calendar, ChevronRight, Search, UserRound } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -65,6 +66,7 @@ function getStatusBadge(s: SaleRow): { label: string; cls: string } {
 }
 
 function MobileSaleRecord() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const todayStr = toYmd(new Date());
   const [preset, setPreset] = useState<DatePreset>("today");
@@ -189,12 +191,21 @@ function MobileSaleRecord() {
     return { total, due, paid, count };
   }, [filtered]);
 
+  const statusLabel = (s: SaleRow) => {
+    if (s.status === "void") return { label: t("m.sales.badgeVoid"), cls: "bg-slate-100 text-slate-600" };
+    const due = Number(s.due ?? 0);
+    const paid = Number(s.paid ?? 0);
+    if (due <= 0.01) return { label: t("m.sales.badgePaid"), cls: "bg-emerald-50 text-[#0d5c46]" };
+    if (paid > 0) return { label: t("m.sales.badgePartial"), cls: "bg-amber-50 text-amber-700" };
+    return { label: t("m.sales.badgeDue"), cls: "bg-rose-50 text-rose-600" };
+  };
+
   return (
-    <PhoneShell title="বিক্রি রেকর্ড" back>
+    <PhoneShell title={t("m.sales.title")} back>
       <PhoneKpiGrid>
-        <PhoneKpi wide tone="mint" value={money(stats.total)} label={`মোট বিক্রি (${stats.count}টি)`} />
-        <PhoneKpi tone="sky" accent="success" value={money(stats.paid)} label="নগদ আদায়" />
-        <PhoneKpi tone="rose" accent="warning" value={money(stats.due)} label="বাকি আছে" />
+        <PhoneKpi wide tone="mint" value={money(stats.total)} label={`${t("m.sales.totalSales")} (${stats.count}${t("m.common.itemsSuffix")})`} />
+        <PhoneKpi tone="sky" accent="success" value={money(stats.paid)} label={t("m.sales.cashPaid")} />
+        <PhoneKpi tone="rose" accent="warning" value={money(stats.due)} label={t("m.sales.dueAmount")} />
       </PhoneKpiGrid>
 
       {/* Date Filter + Search + Status */}
@@ -203,12 +214,12 @@ function MobileSaleRecord() {
           <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
           {(
             [
-              ["today", "আজ"],
-              ["yesterday", "গতকাল"],
-              ["7d", "৭ দিন"],
-              ["month", "এই মাস"],
-              ["all", "সব"],
-              ["custom", "তারিখ"],
+              ["today", t("m.presets.today")],
+              ["yesterday", t("m.presets.yesterday")],
+              ["7d", t("m.presets.7d")],
+              ["month", t("m.presets.month")],
+              ["all", t("m.presets.all")],
+              ["custom", t("m.presets.custom")],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -230,7 +241,7 @@ function MobileSaleRecord() {
         {preset === "custom" && (
           <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শুরু</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.start")}</span>
               <input
                 type="date"
                 value={customFrom}
@@ -240,7 +251,7 @@ function MobileSaleRecord() {
               />
             </label>
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শেষ</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.end")}</span>
               <input
                 type="date"
                 value={customTo}
@@ -259,7 +270,7 @@ function MobileSaleRecord() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="ইনভয়েস নং, গ্রাহকের নাম বা ফোন খুঁজুন..."
+            placeholder={t("m.sales.searchPlaceholder")}
             className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-[#0d5c46] focus:bg-white"
           />
         </div>
@@ -267,9 +278,9 @@ function MobileSaleRecord() {
         <div className="phone-grid-keep grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
           {(
             [
-              ["all", "সব"],
-              ["paid", "পরিশোধিত"],
-              ["due", "বাকি আছে"],
+              ["all", t("m.sales.statusAll")],
+              ["paid", t("m.sales.statusPaid")],
+              ["due", t("m.sales.statusDue")],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -291,12 +302,12 @@ function MobileSaleRecord() {
 
       {/* Invoice List */}
       <div className={cn("mt-3 space-y-2.5 transition-opacity", isFetching && "opacity-60")}>
-        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">লোড হচ্ছে…</p>}
+        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">{t("m.common.loading")}</p>}
         {!isLoading && filtered.length === 0 && (
-          <PhoneEmpty message="নির্বাচিত তারিখে কোনো বিক্রি পাওয়া যায়নি" />
+          <PhoneEmpty message={t("m.sales.empty")} />
         )}
         {filtered.map((s) => {
-          const badge = getStatusBadge(s);
+          const badge = statusLabel(s);
           const dueAmt = Number(s.due ?? 0);
           return (
             <Link
@@ -316,13 +327,13 @@ function MobileSaleRecord() {
                     </span>
                     {s.pendingSync && (
                       <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                        সিঙ্ক বাকি
+                        {t("m.common.pendingSync")}
                       </span>
                     )}
                   </div>
                   <p className="mt-1 flex items-center gap-1 truncate text-xs font-medium text-slate-600">
                     <UserRound className="h-3 w-3 shrink-0 text-slate-400" />
-                    {s.customer?.name || "সাধারণ গ্রাহক"}
+                    {s.customer?.name || t("m.sale.walkIn")}
                     {s.customer?.phone ? ` · ${s.customer.phone}` : ""}
                   </p>
                 </div>
@@ -336,22 +347,22 @@ function MobileSaleRecord() {
                     })}
                   </p>
                   <span className="mt-1 inline-flex items-center gap-0.5 text-[11px] font-semibold text-[#0d5c46]">
-                    বিস্তারিত <ChevronRight className="h-3.5 w-3.5" />
+                    <ChevronRight className="h-3.5 w-3.5" />
                   </span>
                 </div>
               </div>
 
               <div className="phone-grid-keep mt-2.5 grid grid-cols-3 gap-2 border-t border-slate-100 pt-2 text-center">
                 <div className="rounded-lg bg-slate-50 px-1.5 py-1.5">
-                  <p className="text-[10px] text-slate-500">মোট বিল</p>
+                  <p className="text-[10px] text-slate-500">{t("m.sales.totalSales")}</p>
                   <p className="text-xs font-bold text-slate-900">{money(s.total)}</p>
                 </div>
                 <div className="rounded-lg bg-emerald-50/60 px-1.5 py-1.5">
-                  <p className="text-[10px] text-slate-500">পরিশোধ</p>
+                  <p className="text-[10px] text-slate-500">{t("m.sales.cashPaid")}</p>
                   <p className="text-xs font-bold text-[#0d5c46]">{money(s.paid)}</p>
                 </div>
                 <div className={cn("rounded-lg px-1.5 py-1.5", dueAmt > 0 ? "bg-rose-50/70" : "bg-slate-50")}>
-                  <p className="text-[10px] text-slate-500">বাকি</p>
+                  <p className="text-[10px] text-slate-500">{t("m.sales.dueAmount")}</p>
                   <p className={cn("text-xs font-bold", dueAmt > 0 ? "text-rose-600" : "text-slate-600")}>
                     {money(s.due)}
                   </p>

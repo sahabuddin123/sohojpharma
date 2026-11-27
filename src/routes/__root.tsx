@@ -23,7 +23,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { startSyncEngine, setSyncTenantId } from "@/lib/offline/sync";
 import { warmFullCatalog } from "@/lib/offline/warm-cache";
-import i18n from "@/i18n";
+import i18n, { detectLang } from "@/i18n";
+import { useUIStore } from "@/stores/ui-store";
 import { I18nextProvider } from "react-i18next";
 
 
@@ -180,6 +181,24 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   useEffect(() => {
+    const syncLang = () => {
+      const target = detectLang();
+      if ((i18n.resolvedLanguage ?? i18n.language) !== target) {
+        void i18n.changeLanguage(target);
+      }
+      if (useUIStore.getState().language !== target) {
+        useUIStore.setState({ language: target });
+      }
+    };
+    syncLang();
+    const onLangChanged = (lng: string) => {
+      const clean = lng === "en" ? "en" : "bn";
+      if (useUIStore.getState().language !== clean) {
+        useUIStore.setState({ language: clean });
+      }
+    };
+    i18n.on("languageChanged", onLangChanged);
+
     void import("@/lib/observability/capture").then((m) => m.installGlobalErrorHandlers());
     void import("@/lib/observability/sentry").then((m) => m.initSentry());
 
@@ -193,7 +212,10 @@ function RootComponent() {
       }
     };
     window.addEventListener("vite:preloadError", handlePreloadError);
-    return () => window.removeEventListener("vite:preloadError", handlePreloadError);
+    return () => {
+      i18n.off("languageChanged", onLangChanged);
+      window.removeEventListener("vite:preloadError", handlePreloadError);
+    };
   }, []);
 
   return (

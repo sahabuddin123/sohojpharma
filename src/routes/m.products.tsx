@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Loader2, Search, X } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
@@ -41,15 +42,15 @@ type DatePreset =
 
 type ProductMode = "sales" | "profit" | "qty" | "stuck";
 
-const DATE_PRESETS: Array<{ id: DatePreset; label: string }> = [
-  { id: "all", label: "সব" },
-  { id: "today", label: "আজ" },
-  { id: "yesterday", label: "গতকাল" },
-  { id: "this_week", label: "এই সপ্তাহ" },
-  { id: "last_week", label: "গত সপ্তাহ" },
-  { id: "this_month", label: "এই মাস" },
-  { id: "last_month", label: "গত মাস" },
-  { id: "custom", label: "কাস্টম" },
+const DATE_PRESETS: Array<{ id: DatePreset; key: string }> = [
+  { id: "all", key: "m.presets.all" },
+  { id: "today", key: "m.presets.today" },
+  { id: "yesterday", key: "m.presets.yesterday" },
+  { id: "this_week", key: "m.presets.thisWeek" },
+  { id: "last_week", key: "m.presets.lastWeek" },
+  { id: "this_month", key: "m.presets.month" },
+  { id: "last_month", key: "m.presets.lastMonth" },
+  { id: "custom", key: "m.presets.customLabel" },
 ];
 
 const PAGE_SIZE = 30;
@@ -150,6 +151,7 @@ function formatQtyDisplay(qty: number, qtyPerBox: number, unit?: string | null):
 }
 
 function MobileProducts() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const fetchAccounting = useServerFn(getMobileProductAccounting);
 
@@ -273,12 +275,12 @@ function MobileProducts() {
 
   const dateRangeLabel =
     preset === "all"
-      ? "সব সময়ের হিসাব"
+      ? t("m.presets.all")
       : `${formatDisplayDate(dateRange.from)} → ${formatDisplayDate(dateRange.to)}`;
 
   return (
     <PhoneShell
-      title="পণ্যের হিসাব"
+      title={t("m.productsAccounting.title")}
       back
       help={
         <button
@@ -287,7 +289,7 @@ function MobileProducts() {
             setShowSearch((s) => !s);
             if (showSearch) setTerm("");
           }}
-          aria-label="অনুসন্ধান"
+          aria-label={t("m.common.search")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
         >
           {showSearch ? <X className="h-4.5 w-4.5" /> : <Search className="h-4.5 w-4.5" />}
@@ -299,8 +301,8 @@ function MobileProducts() {
       <div className="flex items-center justify-between px-0.5 text-xs text-slate-500">
         <span>
           {mode === "stuck"
-            ? `${summary.stuckBrandCount}টি ব্র্যান্ড পড়ে আছে`
-            : `${summary.soldBrandCount}টি ব্র্যান্ড বিক্রি হয়েছে`}
+            ? `${summary.stuckBrandCount}${t("m.productsAccounting.stuckSuffix")}`
+            : `${summary.soldBrandCount}${t("m.common.itemsSuffix")}`}
         </span>
         <span className="font-medium">{dateRangeLabel}</span>
       </div>
@@ -312,7 +314,7 @@ function MobileProducts() {
               autoFocus
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              placeholder="ওষুধ, জেনেরিক বা কোম্পানি খুঁজুন..."
+              placeholder={t("m.productsAccounting.searchPlaceholder")}
               className="h-10 border-0 bg-transparent px-0 text-sm shadow-none focus-visible:ring-0"
             />
           </div>
@@ -334,7 +336,7 @@ function MobileProducts() {
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50",
                 )}
               >
-                {p.label}
+                {t(p.key)}
               </button>
             );
           })}
@@ -344,7 +346,7 @@ function MobileProducts() {
         {preset === "custom" && (
           <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 bg-white p-2.5">
             <div className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">শুরু</span>
+              <span className="text-[11px] font-medium text-slate-500">{t("m.presets.start")}</span>
               <Input
                 type="date"
                 value={customFrom}
@@ -353,7 +355,7 @@ function MobileProducts() {
               />
             </div>
             <div className="space-y-1">
-              <span className="text-[11px] font-medium text-slate-500">শেষ</span>
+              <span className="text-[11px] font-medium text-slate-500">{t("m.presets.end")}</span>
               <Input
                 type="date"
                 value={customTo}
@@ -395,19 +397,19 @@ function MobileProducts() {
           ) : (
             <div className="phone-grid-keep grid grid-cols-3 divide-x divide-slate-100 text-center">
               <div className="px-1">
-                <p className="text-[11px] text-slate-500">মোট বিক্রি</p>
+                <p className="text-[11px] text-slate-500">{t("m.home.totalSales")}</p>
                 <p className="mt-1 text-base font-extrabold text-slate-900">
                   ৳{formatNum(summary.totalRevenue)}
                 </p>
               </div>
               <div className="px-1">
-                <p className="text-[11px] text-slate-500">মোট লাভ</p>
+                <p className="text-[11px] text-slate-500">{t("m.productsAccounting.tabProfit")}</p>
                 <p className="mt-1 text-base font-extrabold text-[#0d6e4e]">
                   ৳{formatNum(summary.totalProfit)}
                 </p>
               </div>
               <div className="px-1">
-                <p className="text-[11px] text-slate-500">বিক্রিত পিস</p>
+                <p className="text-[11px] text-slate-500">{t("m.productsAccounting.tabQty")}</p>
                 <p className="mt-1 text-base font-extrabold text-slate-900">
                   {formatNum(summary.totalSoldQty)}
                 </p>
@@ -421,9 +423,9 @@ function MobileProducts() {
           <div className="phone-grid-keep grid grid-cols-3 flex-1 rounded-full bg-[#e9eeea] p-1">
             {(
               [
-                { id: "sales", label: "বিক্রি" },
-                { id: "profit", label: "লাভ" },
-                { id: "qty", label: "পরিমাণ" },
+                { id: "sales", label: t("m.productsAccounting.tabSales") },
+                { id: "profit", label: t("m.productsAccounting.tabProfit") },
+                { id: "qty", label: t("m.productsAccounting.tabQty") },
               ] as const
             ).map((tab) => {
               const active = mode === tab.id;
@@ -455,7 +457,7 @@ function MobileProducts() {
                 : "bg-[#0d5c46] text-white hover:bg-[#094735]",
             )}
           >
-            {summary.stuckBrandCount}টি পড়ে আছে
+            {summary.stuckBrandCount}{t("m.productsAccounting.stuckSuffix")}
           </button>
         </div>
 
@@ -464,14 +466,14 @@ function MobileProducts() {
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <Loader2 className="h-6 w-6 animate-spin text-[#0d5c46] mb-2" />
-              <span className="text-xs">হিসাব লোড হচ্ছে...</span>
+              <span className="text-xs">{t("m.common.loading")}</span>
             </div>
           ) : rows.length === 0 ? (
             <PhoneEmpty
               message={
                 mode === "stuck"
-                  ? "পড়ে থাকা কোনো পণ্য পাওয়া যায়নি"
-                  : "এই সময়ে কোনো পণ্য বিক্রি পাওয়া যায়নি"
+                  ? t("m.productsAccounting.emptyStuck")
+                  : t("m.productsAccounting.emptySales")
               }
             />
           ) : mode === "stuck" ? (

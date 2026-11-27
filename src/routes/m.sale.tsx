@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import {
   Camera,
   Check,
@@ -100,6 +101,7 @@ type Line = {
 };
 
 function MobileSale() {
+  const { t } = useTranslation();
   const { currentTenantId, user } = useAuth();
   const tenantId = currentTenantId ?? "";
   const { branchId } = useActiveBranch();
@@ -320,13 +322,13 @@ function MobileSale() {
 
   return (
     <PhoneShell
-      title="বিক্রি (POS)"
+      title={t("m.sale.title")}
       back
       help={
         <button
           type="button"
           onClick={() => setScannerOpen(true)}
-          aria-label="ক্যামেরা স্ক্যান"
+          aria-label={t("m.common.scan")}
           className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary-foreground/15 text-primary-foreground active:scale-95 transition-transform"
         >
           <Camera className="h-5 w-5" />
@@ -340,7 +342,7 @@ function MobileSale() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="ওষুধ, জেনেরিক বা বারকোড..."
+            placeholder={t("m.sale.searchPlaceholder")}
             className="h-11 rounded-2xl border-slate-200 bg-white pl-9 pr-9 text-sm shadow-xs"
             inputMode="search"
           />
@@ -362,7 +364,7 @@ function MobileSale() {
           className="h-11 shrink-0 rounded-2xl bg-[#0d5c46] hover:bg-[#094735] px-3.5 text-white font-semibold gap-1.5 shadow-xs"
         >
           <ScanBarcode className="h-4.5 w-4.5" />
-          <span className="text-xs">স্ক্যান</span>
+          <span className="text-xs">{t("m.common.scan")}</span>
         </Button>
       </div>
 
@@ -371,16 +373,16 @@ function MobileSale() {
         <PhoneChipRow>
           <PhoneChip active={showCost} onClick={() => setShowCost((v) => !v)}>
             <Eye className="mr-1 inline h-3.5 w-3.5" />
-            {showCost ? "ক্রয়মূল্য লুকান" : "ক্রয়মূল্য দেখুন"}
+            {showCost ? t("m.sale.hideCost") : t("m.sale.showCost")}
           </PhoneChip>
           {cart.length > 0 && (
             <PhoneChip
               onClick={() => {
                 setCart([]);
-                toast.info("বিল তালিকা খালি করা হয়েছে");
+                toast.info(t("m.sale.emptyCart"));
               }}
             >
-              সব মুছুন ({cart.length})
+              {t("m.sale.clearCart")} ({cart.length})
             </PhoneChip>
           )}
         </PhoneChipRow>
@@ -391,27 +393,27 @@ function MobileSale() {
         <div className="mt-3 space-y-2 rounded-2xl border border-emerald-200 bg-emerald-50/30 p-2.5">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold text-[#0d5c46]">
-              সার্চ ফলাফল {isFetching ? "" : `(${results.length})`}
+              {isFetching ? t("m.common.loading") : t("m.sale.resultsTitle", { count: results.length })}
             </span>
             <button
               type="button"
               onClick={clearSearch}
               className="text-[11px] font-semibold text-slate-500 hover:text-slate-800"
             >
-              বন্ধ করুন
+              {t("m.common.close")}
             </button>
           </div>
 
           {isFetching && results.length === 0 && (
             <div className="flex items-center justify-center gap-2 py-6 text-xs text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin text-[#0d5c46]" />
-              খোঁজা হচ্ছে...
+              {t("m.common.loading")}
             </div>
           )}
 
           {!isFetching && results.length === 0 && (
             <p className="py-5 text-center text-xs text-slate-500">
-              "{debounced}" নামে কোনো ওষুধ পাওয়া যায়নি
+              {t("m.sale.noResults", { query: debounced })}
             </p>
           )}
 

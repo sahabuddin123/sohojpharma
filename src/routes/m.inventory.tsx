@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import {
   AlertTriangle,
   ArrowUpDown,
@@ -126,6 +127,7 @@ const DAMAGE_REASONS = [
 ] as const;
 
 function MobileInventoryPage() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const { currentTenantId, activeBranchId } = useAuth();
   const tenantId = currentTenantId ?? "";
@@ -425,26 +427,26 @@ function MobileInventoryPage() {
   }
 
   return (
-    <PhoneShell title="ইনভেন্টরি ম্যানেজমেন্ট" back>
+    <PhoneShell title={t("m.inventory.title")} back>
       {/* Top KPI Cards */}
       <div className={cn("space-y-2.5", loadingOverview && "opacity-70")}>
         <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
           <div className="rounded-2xl border border-emerald-100 bg-white p-3 shadow-xs">
             <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
-              <span>মোট স্টক (পিস)</span>
+              <span>{t("m.inventory.tabStock")}</span>
               <Package className="h-4 w-4 text-[#0d5c46]" />
             </div>
             <p className="mt-1 text-lg font-extrabold text-slate-900">{fmtNum(kpi.totalStock)}</p>
-            <p className="text-[10px] text-slate-500">স্টক আইটেম: {fmtNum(stockItemCount ?? 0)}</p>
+            <p className="text-[10px] text-slate-500">{t("m.productList.totalProducts")}: {fmtNum(stockItemCount ?? 0)}</p>
           </div>
 
           <div className="rounded-2xl border border-emerald-100 bg-white p-3 shadow-xs">
             <div className="flex items-center justify-between text-[11px] font-medium text-slate-500">
-              <span>মোট স্টক মূল্য</span>
+              <span>{t("m.productList.stockValue")}</span>
               <Wallet className="h-4 w-4 text-emerald-600" />
             </div>
             <p className="mt-1 text-lg font-extrabold text-[#0d5c46]">{fmtMoney(Math.round(kpi.totalValue))}</p>
-            <p className="text-[10px] text-slate-500">ক্রয়মূল্য অনুযায়ী</p>
+            <p className="text-[10px] text-slate-500">{t("m.productList.atCost")}</p>
           </div>
         </div>
 
@@ -494,10 +496,10 @@ function MobileInventoryPage() {
       <div className="mt-3 phone-grid-keep grid grid-cols-4 gap-1 rounded-full bg-[#e9eeea] p-1">
         {(
           [
-            { id: "stock", label: "স্টক", icon: Boxes },
-            { id: "batches", label: "ব্যাচ", icon: Layers },
-            { id: "alerts", label: "সতর্কতা", icon: AlertTriangle },
-            { id: "expiry", label: "মেয়াদ", icon: CalendarClock },
+            { id: "stock", label: t("m.inventory.tabStock"), icon: Boxes },
+            { id: "batches", label: t("m.inventory.tabBatches"), icon: Layers },
+            { id: "alerts", label: t("m.productList.alertBadge"), icon: AlertTriangle },
+            { id: "expiry", label: t("m.home.tiles.expired"), icon: CalendarClock },
           ] as const
         ).map((item) => {
           const Icon = item.icon;
@@ -532,7 +534,7 @@ function MobileInventoryPage() {
                   setStockSearch(e.target.value);
                   setStockPage(1);
                 }}
-                placeholder="ওষুধের নাম, জেনেরিক বা SKU খুঁজুন..."
+                placeholder={t("m.inventory.searchPlaceholder")}
                 className="h-10 rounded-xl bg-white pl-9 text-xs"
               />
             </div>

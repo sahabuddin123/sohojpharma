@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePharmacyProfile } from "@/hooks/use-pharmacy-profile";
 import { validateAndResizeAvatar } from "@/lib/image-security";
+import { setAppLanguage } from "@/i18n";
 import { useUIStore, type Language, type Theme } from "@/stores/ui-store";
 import { cn } from "@/lib/utils";
 
@@ -92,10 +93,10 @@ function MobileSettings() {
   const [savingProfile, setSavingProfile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const { i18n } = useTranslation();
-  const { theme, setTheme, language, setLanguage } = useUIStore();
+  const { t, i18n } = useTranslation();
+  const { theme, setTheme, language } = useUIStore();
   const activeLanguage: Language =
-    ((i18n.resolvedLanguage ?? language) === "bn" ? "bn" : "en");
+    ((i18n.resolvedLanguage ?? i18n.language ?? language) === "en" ? "en" : "bn");
 
   useEffect(() => {
     setFullName(meta.full_name ?? "");
@@ -222,13 +223,13 @@ function MobileSettings() {
 
   function handleSelectTheme(next: Theme) {
     setTheme(next);
-    toast.success(next === "dark" ? "ডার্ক থিম চালু হয়েছে" : "লাইট থিম চালু হয়েছে");
+    toast.success(next === "dark" ? t("m.settings.themeDarkToast") : t("m.settings.themeLightToast"));
   }
 
   async function handleSelectLanguage(next: Language) {
-    setLanguage(next);
-    await i18n.changeLanguage(next).catch(() => {});
-    toast.success(next === "bn" ? "ভাষা বাংলা নির্ধারিত হয়েছে" : "Language set to English");
+    await setAppLanguage(next);
+    useUIStore.setState({ language: next });
+    toast.success(next === "bn" ? t("m.settings.langToastBn") : t("m.settings.langToastEn"));
   }
 
   async function handleSaveUserProfile(e: React.FormEvent) {
@@ -288,14 +289,14 @@ function MobileSettings() {
   }
 
   return (
-    <PhoneShell title="সেটিংস ও প্রোফাইল" back>
+    <PhoneShell title={t("m.settings.title")} back>
       {/* Tabs */}
       <div className="phone-grid-keep grid grid-cols-3 gap-1 rounded-full bg-[#e9eeea] p-1">
         {(
           [
-            { id: "store", label: "স্টোর সেটিংস", icon: Store },
-            { id: "profile", label: "প্রোফাইল", icon: UserRound },
-            { id: "password", label: "পাসওয়ার্ড", icon: KeyRound },
+            { id: "store", label: t("m.settings.tabStore"), icon: Store },
+            { id: "profile", label: t("m.settings.tabProfile"), icon: UserRound },
+            { id: "password", label: t("m.settings.tabPassword"), icon: KeyRound },
           ] as const
         ).map((item) => {
           const Icon = item.icon;
@@ -426,7 +427,7 @@ function MobileSettings() {
                 className="w-full h-11 rounded-xl bg-[#0d5c46] hover:bg-[#094735] text-white font-bold gap-1.5"
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {isSaving ? "সেভ হচ্ছে..." : "স্টোর তথ্য সেভ করুন"}
+                {isSaving ? t("m.settings.saving") : t("m.settings.saveStore")}
               </Button>
             </>
           )}
@@ -520,7 +521,7 @@ function MobileSettings() {
             className="w-full h-11 rounded-xl bg-[#0d5c46] hover:bg-[#094735] text-white font-bold gap-1.5"
           >
             {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {savingProfile ? "সেভ হচ্ছে..." : "প্রোফাইল সেভ করুন"}
+            {savingProfile ? t("m.settings.saving") : t("m.settings.saveProfile")}
           </Button>
         </form>
       )}
@@ -554,7 +555,7 @@ function MobileSettings() {
             className="w-full h-11 rounded-xl bg-[#0d5c46] hover:bg-[#094735] text-white font-bold gap-1.5"
           >
             {savingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-            {savingPassword ? "আপডেট হচ্ছে..." : "পাসওয়ার্ড পরিবর্তন করুন"}
+            {savingPassword ? t("m.settings.updating") : t("m.settings.changePassword")}
           </Button>
         </form>
       )}
@@ -563,8 +564,8 @@ function MobileSettings() {
       <div className="mt-3 space-y-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-bold text-slate-900">অ্যাপের থিম (Theme)</p>
-            <p className="text-[11px] text-slate-500">লাইট অথবা ডার্ক মোড বেছে নিন</p>
+            <p className="text-xs font-bold text-slate-900">{t("m.settings.appTheme")}</p>
+            <p className="text-[11px] text-slate-500">{t("m.settings.appThemeDesc")}</p>
           </div>
           <div className="phone-grid-keep grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1">
             <button
@@ -578,7 +579,7 @@ function MobileSettings() {
               )}
             >
               <Sun className="h-3.5 w-3.5" />
-              লাইট
+              {t("m.settings.light")}
             </button>
             <button
               type="button"
@@ -591,7 +592,7 @@ function MobileSettings() {
               )}
             >
               <Moon className="h-3.5 w-3.5" />
-              ডার্ক
+              {t("m.settings.dark")}
             </button>
           </div>
         </div>
@@ -602,14 +603,14 @@ function MobileSettings() {
           <div className="min-w-0">
             <p className="flex items-center gap-1 text-xs font-bold text-slate-900">
               <Languages className="h-3.5 w-3.5 text-[#0d5c46]" />
-              ভাষা (Language)
+              {t("m.settings.languageTitle")}
             </p>
-            <p className="text-[11px] text-slate-500">বাংলা অথবা English নির্বাচন করুন</p>
+            <p className="text-[11px] text-slate-500">{t("m.settings.languageDesc")}</p>
           </div>
           <div className="phone-grid-keep grid grid-cols-2 gap-1 rounded-full bg-slate-100 p-1">
             <button
               type="button"
-              onClick={() => handleSelectLanguage("bn")}
+              onClick={() => void handleSelectLanguage("bn")}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
                 activeLanguage === "bn"
@@ -617,11 +618,11 @@ function MobileSettings() {
                   : "text-slate-600 hover:text-slate-900",
               )}
             >
-              বাংলা
+              {t("m.settings.langBn")}
             </button>
             <button
               type="button"
-              onClick={() => handleSelectLanguage("en")}
+              onClick={() => void handleSelectLanguage("en")}
               className={cn(
                 "rounded-full px-3 py-1.5 text-[11px] font-semibold transition",
                 activeLanguage === "en"
@@ -629,7 +630,7 @@ function MobileSettings() {
                   : "text-slate-600 hover:text-slate-900",
               )}
             >
-              English
+              {t("m.settings.langEn")}
             </button>
           </div>
         </div>
@@ -644,7 +645,7 @@ function MobileSettings() {
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-rose-200 bg-rose-50 py-3 text-sm font-bold text-rose-600 hover:bg-rose-100 active:scale-[0.98] transition"
         >
           {loggingOut ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-          {loggingOut ? "লগআউট হচ্ছে..." : "লগআউট করুন"}
+          {loggingOut ? t("m.settings.loggingOut") : t("m.settings.logout")}
         </button>
       </div>
     </PhoneShell>

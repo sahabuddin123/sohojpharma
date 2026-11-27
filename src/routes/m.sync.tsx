@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Database, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { listSyncLogs } from "@/lib/api/devices.functions";
 import { countPending, listUnfinishedOps, subscribe, type OutboxOp } from "@/lib/offline/db";
@@ -21,16 +22,17 @@ export const Route = createFileRoute("/m/sync")({
   component: SyncPage,
 });
 
-const KIND_LABELS: Record<string, string> = {
-  sale: "বিক্রি (POS)",
-  purchase: "ক্রয় (Purchase)",
-  customer_create: "নতুন গ্রাহক",
-  collection: "বাকি আদায়",
-};
-
 function SyncPage() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
+
+  const KIND_LABELS: Record<string, string> = {
+    sale: t("m.sync.kindSale"),
+    purchase: t("m.sync.kindPurchase"),
+    customer_create: t("m.sync.kindCustomer"),
+    collection: t("m.sync.kindCollection"),
+  };
   const [pending, setPending] = useState(0);
   const [ops, setOps] = useState<OutboxOp[]>([]);
   const [sync, setSync] = useState<SyncState>({ online: true, syncing: false, lastRunAt: null, lastError: null });
@@ -87,7 +89,7 @@ function SyncPage() {
   };
 
   return (
-    <PhoneShell title="অফলাইন ও সিঙ্ক" back>
+    <PhoneShell title={t("m.sync.title")} back>
       <div className="space-y-4">
         <Card className="p-4">
           <div className="flex items-center justify-between gap-2">
@@ -98,7 +100,7 @@ function SyncPage() {
                 <WifiOff className="h-4 w-4 text-amber-600" />
               )}
               <span className="text-sm font-bold">
-                {sync.online ? "অনলাইন (অটো সিঙ্ক চালু)" : "অফলাইন মোড চালু"}
+                {sync.online ? t("m.sync.online") : t("m.sync.offline")}
               </span>
             </div>
             <Button
@@ -108,7 +110,7 @@ function SyncPage() {
               disabled={sync.syncing || !sync.online}
             >
               <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${sync.syncing ? "animate-spin" : ""}`} />
-              এখনই সিঙ্ক
+              {t("m.sync.syncNow")}
             </Button>
           </div>
 
@@ -116,20 +118,20 @@ function SyncPage() {
             <div className="flex items-center justify-between">
               <span className="flex items-center gap-1.5 font-semibold text-slate-700">
                 <Database className="h-3.5 w-3.5 text-[#0d5c46]" />
-                অফলাইন ক্যাটালগ ক্যাশ
+                {t("m.sync.catalogTitle")}
               </span>
               <span className="font-bold text-[#0d5c46]">
                 {warm.cachedProducts.toLocaleString("en-IN")}
-                {warm.totalProducts > 0 ? ` / ${warm.totalProducts.toLocaleString("en-IN")}` : ""} পণ্য
+                {warm.totalProducts > 0 ? ` / ${warm.totalProducts.toLocaleString("en-IN")}` : ""} {t("m.common.itemsSuffix")}
               </span>
             </div>
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
               <span>
                 {warm.syncingCatalog
-                  ? "ডাউনলোড চলছে..."
+                  ? t("m.common.loading")
                   : warm.lastSyncedAt
-                    ? `সর্বশেষ সিঙ্ক: ${new Date(warm.lastSyncedAt).toLocaleTimeString()}`
-                    : "প্রথমবার সিঙ্ক করুন"}
+                    ? new Date(warm.lastSyncedAt).toLocaleTimeString()
+                    : t("m.sync.refreshCatalog")}
               </span>
               <button
                 type="button"
@@ -137,7 +139,7 @@ function SyncPage() {
                 disabled={warm.syncingCatalog || !sync.online}
                 className="font-bold text-[#0d5c46] hover:underline disabled:opacity-50"
               >
-                {warm.syncingCatalog ? "চলছে..." : "ক্যাটালগ রিফ্রেশ করুন"}
+                {warm.syncingCatalog ? t("m.common.loading") : t("m.sync.refreshCatalog")}
               </button>
             </div>
           </div>
@@ -145,13 +147,13 @@ function SyncPage() {
 
         <Card className="p-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">সার্ভারে সিঙ্ক অপেক্ষমান (Queue)</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("m.sync.queuedOps")}</span>
             <span className="text-xl font-extrabold text-slate-900">{pending}</span>
           </div>
           {ops.length === 0 ? (
             <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700">
               <CheckCircle2 className="h-4 w-4" />
-              সব ডাটা ডাটাবেসের সাথে সিঙ্ক অবস্থায় আছে
+              {t("m.sync.noPending")}
             </div>
           ) : (
             <div className="mt-3 space-y-2">
@@ -182,11 +184,11 @@ function SyncPage() {
         </Card>
 
         <div>
-          <h2 className="mb-2 text-sm font-semibold">সাম্প্রতিক সিঙ্ক লগ</h2>
+          <h2 className="mb-2 text-sm font-semibold">{t("m.sync.logsTitle")}</h2>
           {isLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : !logs?.length ? (
-            <Card className="p-4 text-center text-xs text-muted-foreground">এখনো কোনো সিঙ্ক লগ নেই।</Card>
+            <Card className="p-4 text-center text-xs text-muted-foreground">{t("m.common.noData")}</Card>
           ) : (
             <div className="space-y-2">
               {logs.map((l) => (

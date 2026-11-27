@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import {
   Boxes,
   Eye,
@@ -81,12 +82,12 @@ type RawRpcRow = {
 
 const PAGE_SIZE = 30;
 
-const FILTER_TABS: Array<{ id: StockFilter; label: string }> = [
-  { id: "all", label: "সব" },
-  { id: "in", label: "স্টকে আছে" },
-  { id: "low", label: "লো স্টক" },
-  { id: "out", label: "স্টক শূন্য" },
-  { id: "neg", label: "নেগেটিভ" },
+const FILTER_TABS: Array<{ id: StockFilter; key: string }> = [
+  { id: "all", key: "m.productList.filterAll" },
+  { id: "in", key: "m.productList.filterIn" },
+  { id: "low", key: "m.productList.filterLow" },
+  { id: "out", key: "m.productList.filterOut" },
+  { id: "neg", key: "m.productList.filterNeg" },
 ];
 
 function fmtInt(n: number | null | undefined): string {
@@ -107,6 +108,7 @@ function getStockStatus(stock: number, reorderLevel: number | null): Exclude<Sto
 }
 
 function MobileProductListPage() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
   const statsFn = useServerFn(getProductStats);
@@ -136,11 +138,11 @@ function MobileProductListPage() {
   }, []);
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setSearch(term.trim());
       setPage(1);
     }, 220);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [term]);
 
   useEffect(() => {
@@ -271,7 +273,7 @@ function MobileProductListPage() {
   const kpiValue = stats.data?.value ?? 0;
 
   return (
-    <PhoneShell title="Product List" back>
+    <PhoneShell title={t("m.productList.title")} back>
       <div className="space-y-3.5">
         {/* Source / Offline Status Strip */}
         {(isOfflineSource || warm.syncingCatalog) && (
@@ -291,8 +293,11 @@ function MobileProductListPage() {
               )}
               <span className="truncate">
                 {isOfflineSource
-                  ? `অফলাইন ক্যাটালগ · ${fmtInt(kpiTotal || warm.cachedProducts)}টি প্রোডাক্ট লোকাল ডাটায় প্রস্তুত`
-                  : `ব্যাকগ্রাউন্ড ক্যাটালগ সিঙ্ক হচ্ছে (${fmtInt(warm.cachedProducts)}/${fmtInt(warm.totalProducts || kpiTotal)})...`}
+                  ? t("m.productList.offlineBanner", { count: fmtInt(kpiTotal || warm.cachedProducts) })
+                  : t("m.productList.warmingBanner", {
+                      cached: fmtInt(warm.cachedProducts),
+                      total: fmtInt(warm.totalProducts || kpiTotal),
+                    })}
               </span>
             </div>
           </div>
@@ -311,7 +316,7 @@ function MobileProductListPage() {
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500">মোট প্রোডাক্ট</span>
+              <span className="text-[11px] font-semibold text-slate-500">{t("m.productList.totalProducts")}</span>
               <Package className="h-4 w-4 text-[#0d5c46]" />
             </div>
             <p className="mt-1 text-lg font-extrabold text-slate-900 tabular-nums">{fmtInt(kpiTotal)}</p>
@@ -328,7 +333,7 @@ function MobileProductListPage() {
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500">স্টকে আছে</span>
+              <span className="text-[11px] font-semibold text-slate-500">{t("m.productList.inStock")}</span>
               <Boxes className="h-4 w-4 text-emerald-600" />
             </div>
             <p className="mt-1 text-lg font-extrabold text-emerald-700 tabular-nums">{fmtInt(kpiInStock)}</p>
@@ -345,9 +350,9 @@ function MobileProductListPage() {
             )}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500">লো / স্টক শূন্য</span>
+              <span className="text-[11px] font-semibold text-slate-500">{t("m.productList.lowOrOut")}</span>
               <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
-                সতর্কতা
+                {t("m.productList.alertBadge")}
               </span>
             </div>
             <p className="mt-1 text-lg font-extrabold text-amber-700 tabular-nums">{fmtInt(kpiLowOut)}</p>
@@ -355,8 +360,8 @@ function MobileProductListPage() {
 
           <div className="rounded-2xl border border-slate-200/90 bg-white p-3 text-left">
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-semibold text-slate-500">স্টক মূল্য</span>
-              <span className="text-[10px] font-semibold text-sky-700">ক্রয়মূল্যে</span>
+              <span className="text-[11px] font-semibold text-slate-500">{t("m.productList.stockValue")}</span>
+              <span className="text-[10px] font-semibold text-sky-700">{t("m.productList.atCost")}</span>
             </div>
             <p className="mt-1 text-lg font-extrabold text-sky-700 tabular-nums">৳{fmtInt(kpiValue)}</p>
           </div>
@@ -369,7 +374,7 @@ function MobileProductListPage() {
             <Input
               value={term}
               onChange={(e) => setTerm(e.target.value)}
-              placeholder="ওষুধের নাম, জেনেরিক, কোম্পানি বা বারকোড..."
+              placeholder={t("m.productList.searchPlaceholder")}
               className="h-11 rounded-2xl border-slate-200 bg-white pl-9 pr-9 text-sm shadow-2xs"
             />
             {term && (
@@ -389,16 +394,16 @@ function MobileProductListPage() {
             className="h-11 shrink-0 rounded-2xl bg-[#0d5c46] hover:bg-[#094735] px-3.5 text-white font-semibold gap-1.5 shadow-xs"
           >
             <ScanBarcode className="h-4.5 w-4.5" />
-            <span className="text-xs">স্ক্যান</span>
+            <span className="text-xs">{t("m.common.scan")}</span>
           </Button>
         </div>
 
         {/* Filter & Action Chips */}
         <div>
           <PhoneChipRow>
-            {FILTER_TABS.map((t) => (
-              <PhoneChip key={t.id} active={filter === t.id} onClick={() => setFilter(t.id)}>
-                {t.label}
+            {FILTER_TABS.map((tab) => (
+              <PhoneChip key={tab.id} active={filter === tab.id} onClick={() => setFilter(tab.id)}>
+                {t(tab.key)}
               </PhoneChip>
             ))}
             <PhoneChip active={showCost} onClick={() => setShowCost((v) => !v)}>
@@ -407,14 +412,14 @@ function MobileProductListPage() {
               ) : (
                 <Eye className="mr-1 inline h-3.5 w-3.5" />
               )}
-              {showCost ? "ক্রয়মূল্য লুকান" : "ক্রয়মূল্য দেখুন"}
+              {showCost ? t("m.productList.hideCost") : t("m.productList.showCost")}
             </PhoneChip>
             <Link
               to={"/products/new" as never}
               className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#0d5c46]/30 bg-[#0d5c46]/5 px-3 py-1.5 text-xs font-semibold text-[#0d5c46]"
             >
               <Plus className="h-3.5 w-3.5" />
-              নতুন পণ্য
+              {t("m.productList.newProduct")}
             </Link>
           </PhoneChipRow>
         </div>
@@ -422,12 +427,12 @@ function MobileProductListPage() {
         {/* Result Header */}
         <div className="flex items-center justify-between px-0.5 text-xs text-slate-500">
           <span>
-            মোট পাওয়া গেছে: <strong className="text-slate-800">{fmtInt(totalCount)}টি</strong>
+            {t("m.common.foundCount")} <strong className="text-slate-800">{fmtInt(totalCount)}{t("m.common.itemsSuffix")}</strong>
           </span>
           {list.isFetching && !list.isLoading && (
             <span className="inline-flex items-center gap-1 text-[#0d5c46]">
               <Loader2 className="h-3 w-3 animate-spin" />
-              লোড হচ্ছে...
+              {t("m.common.loading")}
             </span>
           )}
         </div>
@@ -436,14 +441,14 @@ function MobileProductListPage() {
         {list.isLoading ? (
           <div className="flex flex-col items-center justify-center py-14 text-slate-400">
             <Loader2 className="mb-2 h-6 w-6 animate-spin text-[#0d5c46]" />
-            <span className="text-xs">প্রোডাক্ট তালিকা লোড হচ্ছে...</span>
+            <span className="text-xs">{t("m.productList.loadingList")}</span>
           </div>
         ) : rows.length === 0 ? (
           <PhoneEmpty
             message={
               search
-                ? `"${search}" নামে কোনো প্রোডাক্ট পাওয়া যায়নি`
-                : "এই ফিল্টারে কোনো প্রোডাক্ট নেই"
+                ? t("m.productList.emptySearch", { query: search })
+                : t("m.productList.emptyFilter")
             }
           />
         ) : (
@@ -459,11 +464,9 @@ function MobileProductListPage() {
                       ? "bg-amber-100 text-amber-800"
                       : "bg-emerald-100 text-emerald-800";
               const badgeLabel =
-                st === "neg"
-                  ? `${fmtInt(p.stock)} পিস`
-                  : st === "out"
-                    ? "স্টক শূন্য"
-                    : `${fmtInt(p.stock)} পিস`;
+                st === "out"
+                  ? t("m.productList.outOfStock")
+                  : `${fmtInt(p.stock)} ${t("m.common.pcs")}`;
 
               const boxes = p.qtyPerBox > 1 && p.stock > 0 ? Math.floor(p.stock / p.qtyPerBox) : 0;
 
@@ -484,7 +487,7 @@ function MobileProductListPage() {
                       )}
                       {(p.sku || p.barcode) && (
                         <p className="mt-0.5 truncate text-[11px] text-slate-400">
-                          {[p.sku ? `SKU: ${p.sku}` : "", p.barcode ? `বারকোড: ${p.barcode}` : ""]
+                          {[p.sku ? `SKU: ${p.sku}` : "", p.barcode ? `${p.barcode}` : ""]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
@@ -497,7 +500,7 @@ function MobileProductListPage() {
                       </p>
                       {showCost && (
                         <p className="text-[11px] font-semibold text-slate-500 tabular-nums">
-                          ক্রয়: ৳{fmtMoney(p.cost)}
+                          {t("m.productList.costPrefix")} ৳{fmtMoney(p.cost)}
                         </p>
                       )}
                     </div>
@@ -510,7 +513,7 @@ function MobileProductListPage() {
                       </span>
                       {boxes > 0 && (
                         <span className="text-[11px] text-slate-500">
-                          ({boxes} বক্স)
+                          ({boxes} {t("m.common.box")})
                         </span>
                       )}
                     </div>
@@ -521,14 +524,14 @@ function MobileProductListPage() {
                         className="inline-flex items-center gap-1 rounded-lg bg-[#0d5c46]/10 px-2.5 py-1 text-[11px] font-bold text-[#0d5c46]"
                       >
                         <ShoppingCart className="h-3 w-3" />
-                        POS
+                        {t("m.common.pos")}
                       </Link>
                       <Link
                         to={"/m/purchase" as never}
                         className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700"
                       >
                         <Truck className="h-3 w-3" />
-                        ক্রয়
+                        {t("m.common.purchase")}
                       </Link>
                     </div>
                   </div>
@@ -548,10 +551,10 @@ function MobileProductListPage() {
               disabled={page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
             >
-              আগের
+              {t("m.common.prev")}
             </Button>
             <span className="text-xs font-semibold text-slate-600 tabular-nums">
-              পৃষ্ঠা {page} / {totalPages}
+              {t("m.common.pageOf", { page, total: totalPages })}
             </span>
             <Button
               type="button"
@@ -560,7 +563,7 @@ function MobileProductListPage() {
               disabled={page >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             >
-              পরের
+              {t("m.common.next")}
             </Button>
           </div>
         )}

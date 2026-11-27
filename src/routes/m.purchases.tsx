@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { useTranslation } from "react-i18next";
 import { Calendar, Eye, Loader2, Pencil, RotateCcw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
@@ -85,6 +86,7 @@ function statusBadge(status: string | null): { label: string; cls: string } {
 }
 
 function MobilePurchaseRecord() {
+  const { t } = useTranslation();
   const { currentTenantId } = useAuth();
   const tenantId = currentTenantId ?? "";
   const qc = useQueryClient();
@@ -280,12 +282,12 @@ function MobilePurchaseRecord() {
   }>;
 
   return (
-    <PhoneShell title="ক্রয় রেকর্ড" back>
+    <PhoneShell title={t("m.purchases.title")} back>
       <PhoneKpiGrid>
-        <PhoneKpi tone="rose" value={money(stats.total)} label="মোট ক্রয়" />
-        <PhoneKpi tone="sky" accent="danger" value={money(stats.pending)} label="পেন্ডিং" />
-        <PhoneKpi tone="lilac" value={money(stats.received)} label="রিসিভড" />
-        <PhoneKpi tone="mint" value={filtered.length} label="মোট অর্ডার" />
+        <PhoneKpi tone="rose" value={money(stats.total)} label={t("m.home.newPurchase")} />
+        <PhoneKpi tone="sky" accent="danger" value={money(stats.pending)} label={t("m.purchases.badgePending")} />
+        <PhoneKpi tone="lilac" value={money(stats.received)} label={t("m.purchases.badgeReceived")} />
+        <PhoneKpi tone="mint" value={filtered.length} label={t("m.purchases.title")} />
       </PhoneKpiGrid>
 
       {/* Date Filter + Search */}
@@ -294,12 +296,12 @@ function MobilePurchaseRecord() {
           <Calendar className="mr-0.5 h-3.5 w-3.5 shrink-0 text-[#0d5c46]" />
           {(
             [
-              ["today", "আজ"],
-              ["yesterday", "গতকাল"],
-              ["7d", "৭ দিন"],
-              ["30d", "৩০ দিন"],
-              ["all", "সব"],
-              ["custom", "তারিখ"],
+              ["today", t("m.presets.today")],
+              ["yesterday", t("m.presets.yesterday")],
+              ["7d", t("m.presets.7d")],
+              ["30d", t("m.presets.30d")],
+              ["all", t("m.presets.all")],
+              ["custom", t("m.presets.custom")],
             ] as const
           ).map(([key, label]) => (
             <button
@@ -321,7 +323,7 @@ function MobilePurchaseRecord() {
         {preset === "custom" && (
           <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-2">
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শুরু</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.start")}</span>
               <input
                 type="date"
                 value={customFrom}
@@ -331,7 +333,7 @@ function MobilePurchaseRecord() {
               />
             </label>
             <label className="block">
-              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">শেষ</span>
+              <span className="mb-0.5 block text-[10px] font-medium text-slate-500">{t("m.presets.end")}</span>
               <input
                 type="date"
                 value={customTo}
@@ -349,14 +351,14 @@ function MobilePurchaseRecord() {
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="PO নম্বর বা সরবরাহকারী খুঁজুন..."
+            placeholder={t("m.purchases.searchPlaceholder")}
             className="h-10 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs"
           />
         </div>
       </div>
 
       <div className={cn("mt-3 space-y-3 transition-opacity", isFetching && "opacity-60")}>
-        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">লোড হচ্ছে…</p>}
+        {isLoading && <p className="py-10 text-center text-sm text-muted-foreground">{t("m.common.loading")}</p>}
         {!isLoading && filtered.length === 0 && (
           <PhoneEmpty message="নির্বাচিত তারিখে কোনো ক্রয় পাওয়া যায়নি" />
         )}
