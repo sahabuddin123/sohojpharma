@@ -148,13 +148,21 @@ function Navbar() {
             )}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2 md:hidden shrink-0">
-            {isLoggedIn && (
+            {isLoggedIn ? (
               <Link
                 to="/dashboard"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 text-white bg-gradient-to-r from-[#094735] to-[#0d5c46] hover:brightness-105 transition shadow-sm shadow-emerald-900/20 active:scale-95"
               >
                 <LayoutDashboard className="w-3.5 h-3.5 shrink-0" />
                 {dashLabel}
+              </Link>
+            ) : (
+              <Link
+                to="/auth"
+                search={{ redirect: undefined, blocked: undefined }}
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap shrink-0 text-[#0d5c46] bg-emerald-50 border border-[#0d5c46]/25 hover:bg-emerald-100 transition active:scale-95"
+              >
+                {t("landing.nav.login")}
               </Link>
             )}
             <button onClick={() => setOpen(!open)} className="p-2" aria-label="Menu">
