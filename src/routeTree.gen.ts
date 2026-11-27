@@ -251,6 +251,7 @@ import { Route as AdminStoresRejectedRouteImport } from './routes/admin.stores.r
 import { Route as AdminStoresSuspendedRouteImport } from './routes/admin.stores.suspended'
 import { Route as ApiAiAssistantChatRouteImport } from './routes/api/ai-assistant/chat'
 import { Route as ApiPublicHealthRouteImport } from './routes/api/public/health'
+import { Route as ApiPublicOfflinePrecacheRouteImport } from './routes/api/public/offline-precache'
 import { Route as ApiPublicQzCertificateRouteImport } from './routes/api/public/qz-certificate'
 import { Route as ApiPublicStatusRouteImport } from './routes/api/public/status'
 import { Route as BillingCheckoutPlanIdRouteImport } from './routes/billing.checkout.$planId'
@@ -1521,6 +1522,12 @@ const ApiPublicHealthRoute = ApiPublicHealthRouteImport.update({
   path: '/api/public/health',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicOfflinePrecacheRoute =
+  ApiPublicOfflinePrecacheRouteImport.update({
+    id: '/api/public/offline-precache',
+    path: '/api/public/offline-precache',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicQzCertificateRoute = ApiPublicQzCertificateRouteImport.update({
   id: '/api/public/qz-certificate',
   path: '/api/public/qz-certificate',
@@ -2043,6 +2050,7 @@ export interface FileRoutesByFullPath {
   '/admin/stores/suspended': typeof AdminStoresSuspendedRoute
   '/api/ai-assistant/chat': typeof ApiAiAssistantChatRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/offline-precache': typeof ApiPublicOfflinePrecacheRoute
   '/api/public/qz-certificate': typeof ApiPublicQzCertificateRoute
   '/api/public/status': typeof ApiPublicStatusRoute
   '/billing/checkout/$planId': typeof BillingCheckoutPlanIdRoute
@@ -2317,6 +2325,7 @@ export interface FileRoutesByTo {
   '/admin/stores/suspended': typeof AdminStoresSuspendedRoute
   '/api/ai-assistant/chat': typeof ApiAiAssistantChatRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/offline-precache': typeof ApiPublicOfflinePrecacheRoute
   '/api/public/qz-certificate': typeof ApiPublicQzCertificateRoute
   '/api/public/status': typeof ApiPublicStatusRoute
   '/billing/checkout/$planId': typeof BillingCheckoutPlanIdRoute
@@ -2614,6 +2623,7 @@ export interface FileRoutesById {
   '/admin/stores/suspended': typeof AdminStoresSuspendedRoute
   '/api/ai-assistant/chat': typeof ApiAiAssistantChatRoute
   '/api/public/health': typeof ApiPublicHealthRoute
+  '/api/public/offline-precache': typeof ApiPublicOfflinePrecacheRoute
   '/api/public/qz-certificate': typeof ApiPublicQzCertificateRoute
   '/api/public/status': typeof ApiPublicStatusRoute
   '/billing/checkout/$planId': typeof BillingCheckoutPlanIdRoute
@@ -2911,6 +2921,7 @@ export interface FileRouteTypes {
     | '/admin/stores/suspended'
     | '/api/ai-assistant/chat'
     | '/api/public/health'
+    | '/api/public/offline-precache'
     | '/api/public/qz-certificate'
     | '/api/public/status'
     | '/billing/checkout/$planId'
@@ -3185,6 +3196,7 @@ export interface FileRouteTypes {
     | '/admin/stores/suspended'
     | '/api/ai-assistant/chat'
     | '/api/public/health'
+    | '/api/public/offline-precache'
     | '/api/public/qz-certificate'
     | '/api/public/status'
     | '/billing/checkout/$planId'
@@ -3481,6 +3493,7 @@ export interface FileRouteTypes {
     | '/admin/stores/suspended'
     | '/api/ai-assistant/chat'
     | '/api/public/health'
+    | '/api/public/offline-precache'
     | '/api/public/qz-certificate'
     | '/api/public/status'
     | '/billing/checkout/$planId'
@@ -3587,6 +3600,7 @@ export interface RootRouteChildren {
   MastersIndexRoute: typeof MastersIndexRoute
   ApiAiAssistantChatRoute: typeof ApiAiAssistantChatRoute
   ApiPublicHealthRoute: typeof ApiPublicHealthRoute
+  ApiPublicOfflinePrecacheRoute: typeof ApiPublicOfflinePrecacheRoute
   ApiPublicQzCertificateRoute: typeof ApiPublicQzCertificateRoute
   ApiPublicStatusRoute: typeof ApiPublicStatusRoute
   ApiMobileV1SyncRoute: typeof ApiMobileV1SyncRoute
@@ -5318,6 +5332,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHealthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/offline-precache': {
+      id: '/api/public/offline-precache'
+      path: '/api/public/offline-precache'
+      fullPath: '/api/public/offline-precache'
+      preLoaderRoute: typeof ApiPublicOfflinePrecacheRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/qz-certificate': {
       id: '/api/public/qz-certificate'
       path: '/api/public/qz-certificate'
@@ -6480,6 +6501,7 @@ const rootRouteChildren: RootRouteChildren = {
   MastersIndexRoute: MastersIndexRoute,
   ApiAiAssistantChatRoute: ApiAiAssistantChatRoute,
   ApiPublicHealthRoute: ApiPublicHealthRoute,
+  ApiPublicOfflinePrecacheRoute: ApiPublicOfflinePrecacheRoute,
   ApiPublicQzCertificateRoute: ApiPublicQzCertificateRoute,
   ApiPublicStatusRoute: ApiPublicStatusRoute,
   ApiMobileV1SyncRoute: ApiMobileV1SyncRoute,

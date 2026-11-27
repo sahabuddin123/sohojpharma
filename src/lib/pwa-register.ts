@@ -63,6 +63,10 @@ export async function registerPWA(
     });
 
     await wb.register();
+    if (navigator.onLine) {
+      const reg = await navigator.serviceWorker.ready;
+      reg.active?.postMessage({ type: "REFRESH_PRECACHE" });
+    }
   } catch (err) {
     console.warn("[pwa] registration failed", err);
   }

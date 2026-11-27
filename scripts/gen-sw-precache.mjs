@@ -1,15 +1,15 @@
 // Post-build script: builds the exact dependency closure of core offline PWA assets
 // (mobile + desktop POS, sales, customers, purchases, products, invoice chunks, styles, fonts)
-// while skipping ~1,300 unused Shiki/Mermaid language chunks, writes `.output/public/sw-precache.json`,
-// and stamps a build hash version into `.output/public/sw.js`.
+// while skipping ~1,300 unused Shiki/Mermaid language chunks, and writes `.output/sw-precache.json`
+// for `/api/public/offline-precache`. Leaves `.output/public/sw.js` untouched so Nitro Content-Length stays exact.
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
-const PUBLIC_DIR = path.resolve(process.cwd(), ".output/public");
+const OUTPUT_DIR = path.resolve(process.cwd(), ".output");
+const PUBLIC_DIR = path.join(OUTPUT_DIR, "public");
 const ASSETS_DIR = path.join(PUBLIC_DIR, "assets");
-const SW_PATH = path.join(PUBLIC_DIR, "sw.js");
-const MANIFEST_PATH = path.join(PUBLIC_DIR, "sw-precache.json");
+const MANIFEST_PATH = path.join(OUTPUT_DIR, "sw-precache.json");
 
 if (!fs.existsSync(PUBLIC_DIR) || !fs.existsSync(ASSETS_DIR)) {
   console.warn("[gen-sw-precache] .output/public/assets not found — skipping.");
@@ -113,11 +113,6 @@ fs.writeFileSync(
   ),
 );
 
-if (fs.existsSync(SW_PATH)) {
-  const swSrc = fs.readFileSync(SW_PATH, "utf8");
-  fs.writeFileSync(SW_PATH, swSrc.replace(/__SW_CACHE_VERSION__/g, version));
-}
-
 console.log(
-  `[gen-sw-precache] v=${version} | ${assetUrls.length} core assets + ${appRoutes.length} routes ready for offline PWA.`,
+  `[gen-sw-precache] v=${version} | ${assetUrls.length} core assets + ${appRoutes.length} routes written to .output/sw-precache.json.`,
 );

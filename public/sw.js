@@ -1,8 +1,10 @@
 // SohojPharma Offline-First PWA Service Worker
-const SW_VERSION = "__SW_CACHE_VERSION__";
+const SW_VERSION = "v5";
 const STATIC_CACHE = `sohojpharma-assets-${SW_VERSION}`;
 const PAGE_CACHE = `sohojpharma-pages-${SW_VERSION}`;
 const KNOWN_CACHES = new Set([STATIC_CACHE, PAGE_CACHE]);
+const MANIFEST_URL = "/api/public/offline-precache";
+const MANIFEST_VER_KEY = "/__sw_manifest_version__";
 
 const FALLBACK_ROUTES = [
   "/m",
@@ -32,13 +34,15 @@ const FALLBACK_ASSETS = [
   "/favicon.ico",
 ];
 
-async function cacheBatch(cache, urls, concurrency = 10) {
+async function cacheBatch(cache, urls, concurrency = 10, force = false) {
   for (let i = 0; i < urls.length; i += concurrency) {
     const slice = urls.slice(i, i + concurrency);
     await Promise.allSettled(
       slice.map(async (url) => {
-        const hit = await cache.match(url);
-        if (hit) return;
+        if (!force) {
+          const hit = await cache.match(url);
+          if (hit) return;
+        }
         const res = await fetch(url, { cache: "no-cache" });
         if (res && res.ok && !res.redirected) {
           await cache.put(url, res);
@@ -48,32 +52,44 @@ async function cacheBatch(cache, urls, concurrency = 10) {
   }
 }
 
+async function syncPrecache(forceRoutes = false) {
+  let version = "fallback";
+  let assets = FALLBACK_ASSETS;
+  let routes = FALLBACK_ROUTES;
+  try {
+    const manifestRes = await fetch(MANIFEST_URL, { cache: "no-store" });
+    if (manifestRes && manifestRes.ok) {
+      const parsed = await manifestRes.json();
+      if (parsed.version) version = String(parsed.version);
+      if (Array.isArray(parsed.assets) && parsed.assets.length > 0) assets = parsed.assets;
+      if (Array.isArray(parsed.routes) && parsed.routes.length > 0) routes = parsed.routes;
+    }
+  } catch {
+    // use built-in fallback lists
+  }
+
+  const [staticCache, pageCache] = await Promise.all([
+    caches.open(STATIC_CACHE),
+    caches.open(PAGE_CACHE),
+  ]);
+
+  const prevVerRes = await pageCache.match(MANIFEST_VER_KEY);
+  const prevVersion = prevVerRes ? await prevVerRes.text() : null;
+  const versionChanged = prevVersion !== version;
+
+  await Promise.allSettled([
+    cacheBatch(staticCache, assets, 12, false),
+    cacheBatch(pageCache, routes, 6, forceRoutes || versionChanged),
+  ]);
+
+  if (versionChanged) {
+    await pageCache.put(MANIFEST_VER_KEY, new Response(version));
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    (async () => {
-      let assets = FALLBACK_ASSETS;
-      let routes = FALLBACK_ROUTES;
-      try {
-        const manifestRes = await fetch("/sw-precache.json", { cache: "no-store" });
-        if (manifestRes && manifestRes.ok) {
-          const parsed = await manifestRes.json();
-          if (Array.isArray(parsed.assets) && parsed.assets.length > 0) assets = parsed.assets;
-          if (Array.isArray(parsed.routes) && parsed.routes.length > 0) routes = parsed.routes;
-        }
-      } catch {
-        // use built-in fallback lists
-      }
-
-      const [staticCache, pageCache] = await Promise.all([
-        caches.open(STATIC_CACHE),
-        caches.open(PAGE_CACHE),
-      ]);
-      await Promise.allSettled([
-        cacheBatch(staticCache, assets, 12),
-        cacheBatch(pageCache, routes, 6),
-      ]);
-      await self.skipWaiting();
-    })(),
+    syncPrecache(true).then(() => self.skipWaiting()),
   );
 });
 
@@ -91,6 +107,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "SKIP_WAITING") {
     self.skipWaiting();
+  }
+  if (event.data && event.data.type === "REFRESH_PRECACHE") {
+    event.waitUntil(syncPrecache(false));
   }
 });
 
@@ -119,7 +138,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   // Never intercept server function RPCs or API routes in SW (handled by IndexedDB + app sync engine)
-  if (url.pathname.startsWith("/_serverFn") || url.pathname.startsWith("/api/") || url.pathname === "/sw-precache.json") {
+  if (url.pathname.startsWith("/_serverFn") || url.pathname.startsWith("/api/")) {
     return;
   }
 
@@ -127,7 +146,7 @@ self.addEventListener("fetch", (event) => {
   if (isStaticAsset(url.pathname)) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
-        const cached = await cache.match(event.request) || await cache.match(url.pathname);
+        const cached = (await cache.match(event.request)) || (await cache.match(url.pathname));
         if (cached) return cached;
         try {
           const res = await fetch(event.request);
@@ -157,7 +176,6 @@ self.addEventListener("fetch", (event) => {
         } catch {
           const exact = (await cache.match(event.request)) || (await cache.match(url.pathname));
           if (exact) return exact;
-          // Any mobile or desktop app shell cached route mounts TanStack Router at the current URL offline
           if (url.pathname.startsWith("/m")) {
             const mShell = await cache.match("/m");
             if (mShell) return mShell;
