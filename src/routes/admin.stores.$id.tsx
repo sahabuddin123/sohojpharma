@@ -298,7 +298,7 @@ function StoreDetailsPage() {
                     {(stats?.subscriptionHistory ?? []).map((s) => (
                       <tr key={s.id} className="border-b last:border-b-0">
                         <td className="py-1.5"><Badge variant="outline">{s.status ?? "—"}</Badge></td>
-                        <td>{s.plan_id ?? "—"}</td>
+                        <td className="font-medium">{(s as { plan_name?: string | null }).plan_name ?? s.plan_id ?? "—"}</td>
                         <td className="text-xs text-muted-foreground">{s.trial_ends_at ? new Date(s.trial_ends_at).toLocaleDateString() : "—"}</td>
                         <td className="text-xs text-muted-foreground">{s.current_period_end ? new Date(s.current_period_end).toLocaleDateString() : "—"}</td>
                         <td className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleDateString()}</td>
@@ -502,6 +502,9 @@ function ChangePlanDialog({ open, onOpenChange, tenantId, current, onSaved }: {
   open: boolean; onOpenChange: (o: boolean) => void; tenantId: string; current: string; onSaved: () => void;
 }) {
   const [plan, setPlan] = useState(current);
+  useEffect(() => {
+    if (open) setPlan(current);
+  }, [open, current]);
   const mu = useMutation({
     mutationFn: useServerFn(changeStorePlan),
     onSuccess: () => { toast.success("Plan changed"); onOpenChange(false); onSaved(); },
@@ -511,7 +514,7 @@ function ChangePlanDialog({ open, onOpenChange, tenantId, current, onSaved }: {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>Change Plan</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); mu.mutate({ data: { tenantId, plan: plan as "free" | "starter" | "pro" | "enterprise" } }); }} className="space-y-3">
+        <form onSubmit={(e) => { e.preventDefault(); mu.mutate({ data: { tenantId, plan: plan as "basic" | "starter" | "business" | "pro" | "professional" | "enterprise" | "free" } }); }} className="space-y-3">
           <div>
             <Label className="mb-1.5 block text-xs font-medium">Plan</Label>
             <Select value={plan} onValueChange={setPlan}>
@@ -520,6 +523,7 @@ function ChangePlanDialog({ open, onOpenChange, tenantId, current, onSaved }: {
                 <SelectItem value="basic">Basic (৳999/mo)</SelectItem>
                 <SelectItem value="starter">Starter (৳1,499/mo)</SelectItem>
                 <SelectItem value="business">Business (৳2,499/mo)</SelectItem>
+                <SelectItem value="professional">Professional (৳2,990/mo)</SelectItem>
                 <SelectItem value="enterprise">Enterprise (Custom)</SelectItem>
                 <SelectItem value="free">Free Trial (7 Days)</SelectItem>
               </SelectContent>

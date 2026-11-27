@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-const PLANS = ["basic", "starter", "business", "pro", "enterprise", "free"] as const;
+const PLANS = ["basic", "starter", "business", "pro", "professional", "enterprise", "free"] as const;
 const INITIAL_STATUS = ["pending", "active"] as const;
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
@@ -129,18 +129,37 @@ export const changeStorePlan = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context);
-    const { error } = await context.supabase
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const nowIso = new Date().toISOString();
+
+    const { error } = await supabaseAdmin
       .from("tenants")
-      .update({ plan: data.plan as any, updated_at: new Date().toISOString() })
+      .update({ plan: data.plan as any, updated_at: nowIso })
       .eq("id", data.tenantId);
     if (error) throw new Error(error.message);
-    await context.supabase.from("audit_log").insert({
+
+    // Sync subscriptions.plan_id so plan limits & billing match the selected plan
+    const lookupCode = data.plan === "pro" ? "business" : data.plan;
+    const { data: planRow } = await supabaseAdmin
+      .from("plans")
+      .select("id,code,name")
+      .eq("code", lookupCode)
+      .maybeSingle();
+
+    if (planRow?.id) {
+      await supabaseAdmin
+        .from("subscriptions")
+        .update({ plan_id: planRow.id, updated_at: nowIso })
+        .eq("tenant_id", data.tenantId);
+    }
+
+    await supabaseAdmin.from("audit_log").insert({
       tenant_id: data.tenantId,
       user_id: context.userId,
       action: "store_plan_changed",
       entity_table: "tenants",
       entity_id: data.tenantId,
-      after_data: { plan: data.plan },
+      after_data: { plan: data.plan, plan_id: planRow?.id ?? null },
     });
     return { ok: true };
   });
@@ -314,7 +333,7 @@ export const getStoreStats = createServerFn({ method: "POST" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const t = data.tenantId;
 
-    const [branches, members, payments, audit, subHistory] = await Promise.all([
+    const [branches, members, payments, audit, subHistory, plansList] = await Promise.all([
       supabaseAdmin.from("branches")
         .select("id,name,code,is_main,is_active,created_at")
         .eq("tenant_id", t).is("deleted_at", null)
@@ -334,7 +353,15 @@ export const getStoreStats = createServerFn({ method: "POST" })
         .select("id,status,plan_id,trial_ends_at,current_period_start,current_period_end,created_at")
         .eq("tenant_id", t)
         .order("created_at", { ascending: false }).limit(10),
+      supabaseAdmin.from("plans").select("id,name,code"),
     ]);
+
+    const planMap = new Map((plansList.data ?? []).map((p) => [p.id, p]));
+    const enrichedHistory = (subHistory.data ?? []).map((s) => ({
+      ...s,
+      plan_name: s.plan_id ? (planMap.get(s.plan_id)?.name ?? null) : null,
+      plan_code: s.plan_id ? (planMap.get(s.plan_id)?.code ?? null) : null,
+    }));
 
     return {
       branches: branches.data ?? [],
@@ -343,6 +370,6 @@ export const getStoreStats = createServerFn({ method: "POST" })
       members: members.data ?? [],
       payments: payments.data ?? [],
       audit: audit.data ?? [],
-      subscriptionHistory: subHistory.data ?? [],
+      subscriptionHistory: enrichedHistory,
     };
   });
