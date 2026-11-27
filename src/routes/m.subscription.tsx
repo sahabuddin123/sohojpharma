@@ -325,7 +325,13 @@ function MobileSubscription() {
 
                 <Button
                   type="button"
-                  onClick={() => navigate({ to: "/billing/checkout/$planId" as never, params: { planId: p.id } as never })}
+                  onClick={() =>
+                    navigate({
+                      to: "/billing/checkout/$planId" as never,
+                      params: { planId: p.id } as never,
+                      search: { cycle, from: "mobile" } as never,
+                    })
+                  }
                   className="w-full h-10 rounded-xl bg-[#0d5c46] hover:bg-[#094735] text-white text-xs font-bold"
                 >
                   {isCurrent ? "রিনিউ করুন" : "এই প্ল্যান নিন"}

@@ -57,6 +57,8 @@ interface TopbarProps {
   title?: string;
 }
 
+const UUID_SEGMENT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function humanize(segment: string) {
   return segment
     .replace(/-/g, " ")
@@ -72,12 +74,18 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  const crumbs = useMemo(() => {
-    const parts = pathname.split("/").filter(Boolean);
-    return parts.map((seg, i) => ({
-      label: humanize(seg),
-      href: "/" + parts.slice(0, i + 1).join("/"),
-    }));
+  const { crumbs, hasTrailingUuid } = useMemo(() => {
+    const rawParts = pathname.split("/").filter(Boolean);
+    const trailingUuid = rawParts.length > 0 && UUID_SEGMENT_RE.test(rawParts[rawParts.length - 1]!);
+    const items: { label: string; href: string }[] = [];
+    rawParts.forEach((seg, i) => {
+      if (UUID_SEGMENT_RE.test(seg)) return;
+      items.push({
+        label: humanize(seg),
+        href: "/" + rawParts.slice(0, i + 1).join("/"),
+      });
+    });
+    return { crumbs: items, hasTrailingUuid: trailingUuid };
   }, [pathname]);
 
   const currentTenant = availableTenants.find((m) => m.tenant_id === currentTenantId)?.tenants;
@@ -189,7 +197,7 @@ export function Topbar({ onMenuClick, onCollapseToggle, collapsed, title }: Topb
 
         {/* Mobile page title */}
         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground md:hidden">
-          {crumbs.length ? crumbs[crumbs.length - 1]!.label : (title ?? t("nav.dashboard"))}
+          {hasTrailingUuid && title ? title : (crumbs.length ? crumbs[crumbs.length - 1]!.label : (title ?? t("nav.dashboard")))}
         </span>
 
         {/* Breadcrumbs */}
