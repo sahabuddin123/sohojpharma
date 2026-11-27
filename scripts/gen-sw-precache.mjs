@@ -77,6 +77,7 @@ const appRoutes = [
   "/m",
   "/m/sale",
   "/m/sales",
+  "/m/product-list",
   "/m/products",
   "/m/customers",
   "/m/purchase",

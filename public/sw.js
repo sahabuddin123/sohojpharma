@@ -1,5 +1,5 @@
 // SohojPharma Offline-First PWA Service Worker
-const SW_VERSION = "v5";
+const SW_VERSION = "v6";
 const STATIC_CACHE = `sohojpharma-assets-${SW_VERSION}`;
 const PAGE_CACHE = `sohojpharma-pages-${SW_VERSION}`;
 const KNOWN_CACHES = new Set([STATIC_CACHE, PAGE_CACHE]);
@@ -10,6 +10,7 @@ const FALLBACK_ROUTES = [
   "/m",
   "/m/sale",
   "/m/sales",
+  "/m/product-list",
   "/m/products",
   "/m/customers",
   "/m/purchase",

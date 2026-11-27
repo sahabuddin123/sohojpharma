@@ -147,6 +147,7 @@ import { Route as MExpiredRouteImport } from './routes/m.expired'
 import { Route as MGenericsRouteImport } from './routes/m.generics'
 import { Route as MIncomeRouteImport } from './routes/m.income'
 import { Route as MInventoryRouteImport } from './routes/m.inventory'
+import { Route as MProductListRouteImport } from './routes/m.product-list'
 import { Route as MProductsRouteImport } from './routes/m.products'
 import { Route as MPurchaseRouteImport } from './routes/m.purchase'
 import { Route as MPurchaseReturnsRouteImport } from './routes/m.purchase-returns'
@@ -996,6 +997,11 @@ const MIncomeRoute = MIncomeRouteImport.update({
 const MInventoryRoute = MInventoryRouteImport.update({
   id: '/inventory',
   path: '/inventory',
+  getParentRoute: () => MRoute,
+} as any)
+const MProductListRoute = MProductListRouteImport.update({
+  id: '/product-list',
+  path: '/product-list',
   getParentRoute: () => MRoute,
 } as any)
 const MProductsRoute = MProductsRouteImport.update({
@@ -1936,6 +1942,7 @@ export interface FileRoutesByFullPath {
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
   '/m/inventory': typeof MInventoryRoute
+  '/m/product-list': typeof MProductListRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
   '/m/purchase-returns': typeof MPurchaseReturnsRoute
@@ -2211,6 +2218,7 @@ export interface FileRoutesByTo {
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
   '/m/inventory': typeof MInventoryRoute
+  '/m/product-list': typeof MProductListRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
   '/m/purchase-returns': typeof MPurchaseReturnsRoute
@@ -2509,6 +2517,7 @@ export interface FileRoutesById {
   '/m/generics': typeof MGenericsRoute
   '/m/income': typeof MIncomeRoute
   '/m/inventory': typeof MInventoryRoute
+  '/m/product-list': typeof MProductListRoute
   '/m/products': typeof MProductsRoute
   '/m/purchase': typeof MPurchaseRouteWithChildren
   '/m/purchase-returns': typeof MPurchaseReturnsRoute
@@ -2807,6 +2816,7 @@ export interface FileRouteTypes {
     | '/m/generics'
     | '/m/income'
     | '/m/inventory'
+    | '/m/product-list'
     | '/m/products'
     | '/m/purchase'
     | '/m/purchase-returns'
@@ -3082,6 +3092,7 @@ export interface FileRouteTypes {
     | '/m/generics'
     | '/m/income'
     | '/m/inventory'
+    | '/m/product-list'
     | '/m/products'
     | '/m/purchase'
     | '/m/purchase-returns'
@@ -3379,6 +3390,7 @@ export interface FileRouteTypes {
     | '/m/generics'
     | '/m/income'
     | '/m/inventory'
+    | '/m/product-list'
     | '/m/products'
     | '/m/purchase'
     | '/m/purchase-returns'
@@ -4602,6 +4614,13 @@ declare module '@tanstack/react-router' {
       path: '/inventory'
       fullPath: '/m/inventory'
       preLoaderRoute: typeof MInventoryRouteImport
+      parentRoute: typeof MRoute
+    }
+    '/m/product-list': {
+      id: '/m/product-list'
+      path: '/product-list'
+      fullPath: '/m/product-list'
+      preLoaderRoute: typeof MProductListRouteImport
       parentRoute: typeof MRoute
     }
     '/m/products': {
@@ -6066,6 +6085,7 @@ interface MRouteChildren {
   MGenericsRoute: typeof MGenericsRoute
   MIncomeRoute: typeof MIncomeRoute
   MInventoryRoute: typeof MInventoryRoute
+  MProductListRoute: typeof MProductListRoute
   MProductsRoute: typeof MProductsRoute
   MPurchaseRoute: typeof MPurchaseRouteWithChildren
   MPurchaseReturnsRoute: typeof MPurchaseReturnsRoute
@@ -6099,6 +6119,7 @@ const MRouteChildren: MRouteChildren = {
   MGenericsRoute: MGenericsRoute,
   MIncomeRoute: MIncomeRoute,
   MInventoryRoute: MInventoryRoute,
+  MProductListRoute: MProductListRoute,
   MProductsRoute: MProductsRoute,
   MPurchaseRoute: MPurchaseRouteWithChildren,
   MPurchaseReturnsRoute: MPurchaseReturnsRoute,

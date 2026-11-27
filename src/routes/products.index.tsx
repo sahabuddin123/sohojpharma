@@ -139,7 +139,23 @@ function ProductsPage() {
   const capacity = useQuery({
     queryKey: ["products-capacity", tenantId],
     enabled: !!tenantId,
-    queryFn: () => capFn({ data: { tenantId } }),
+    queryFn: async () => {
+      const offlineCap = async () => {
+        const res = await listCachedProducts(tenantId, { page: 1, pageSize: 1 });
+        return { used: res.stats.totalProducts, maxProducts: null, planCode: null };
+      };
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await offlineCap();
+      }
+      try {
+        return await capFn({ data: { tenantId } });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await offlineCap();
+        }
+        throw err;
+      }
+    },
     staleTime: 60_000,
   });
 

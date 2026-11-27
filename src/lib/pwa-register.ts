@@ -2,7 +2,7 @@
 // inside an iframe, or when the URL has ?sw=off. In any refused context, any
 // existing /sw.js registration is unregistered to clean up stale workers.
 
-const SW_URL = "/sw.js?v=6";
+const SW_URL = "/sw.js?v=7";
 
 function isRefusedContext(): boolean {
   if (typeof window === "undefined") return true;

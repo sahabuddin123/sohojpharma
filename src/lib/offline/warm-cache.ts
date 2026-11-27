@@ -9,8 +9,14 @@ import {
   cacheSuppliers,
   countCachedProducts,
   getOfflineMeta,
+  listCachedCustomers,
+  listCachedProducts,
+  listCachedPurchases,
+  listCachedSales,
+  listCachedSuppliers,
   setOfflineMeta,
 } from "./db";
+import type { StoreDashboardData } from "@/lib/api/dashboard.functions";
 import {
   fetchOfflineCatalogChunk,
   fetchOfflineOperationalSnapshot,
@@ -223,4 +229,160 @@ export async function warmFullCatalog(tenantId: string, force = false): Promise<
 
   activeRuns.set(tenantId, run);
   return run;
+}
+
+/** Compute an offline dashboard KPI snapshot from local IndexedDB caches across [fromDate, toDate]. */
+export async function buildOfflineStoreDashboard(
+  tenantId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<StoreDashboardData> {
+  const [prodRes, rangeSales, allSales, rangePurchases, customers, suppliers, shopInfo] =
+    await Promise.all([
+      listCachedProducts(tenantId, { page: 1, pageSize: 1 }),
+      listCachedSales(tenantId, { from: fromDate, to: toDate }),
+      listCachedSales(tenantId),
+      listCachedPurchases(tenantId, { from: fromDate, to: toDate }),
+      listCachedCustomers(tenantId),
+      listCachedSuppliers(tenantId),
+      getOfflineMeta<{ name?: string | null }>(`shopInfo:${tenantId}`),
+    ]);
+
+  let todaySales = 0;
+  let todayCashSale = 0;
+  let todayDueSale = 0;
+  let todayReturn = 0;
+
+  for (const s of rangeSales) {
+    if (s.status === "cancelled") continue;
+    const total = Number(s.total ?? 0);
+    const paid = Number(s.paid ?? 0);
+    const due = Number(s.due ?? Math.max(0, total - paid));
+    if (s.is_return) {
+      todayReturn += Math.abs(total);
+      continue;
+    }
+    todaySales += total;
+    todayCashSale += paid;
+    todayDueSale += due;
+  }
+
+  const todayPurchase = rangePurchases.reduce((sum, p) => sum + Number(p.total ?? 0), 0);
+  const customerDueTotal = customers.reduce((sum, c) => sum + Number(c.due_balance ?? 0), 0);
+  const supplierDueTotal = suppliers.reduce((sum, s) => sum + Number(s.due_balance ?? 0), 0);
+
+  const summarizeDay = (ymd: string) => {
+    const daySales = allSales.filter(
+      (s) => !s.is_return && s.status !== "cancelled" && (s.sale_date || s.created_at || "").slice(0, 10) === ymd,
+    );
+    const customerSet = new Set(daySales.map((s) => s.customer_id).filter(Boolean));
+    return {
+      amount: daySales.reduce((acc, s) => acc + Number(s.total ?? 0), 0),
+      invoices: daySales.length,
+      customers: customerSet.size,
+    };
+  };
+
+  const now = new Date();
+  const ymdOffset = (days: number) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - days);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const todayYmd = ymdOffset(0);
+  const yesterdayYmd = ymdOffset(1);
+  const last7From = ymdOffset(6);
+  const monthFrom = `${todayYmd.slice(0, 7)}-01`;
+
+  const summarizeRange = (startYmd: string, endYmd: string) => {
+    const matched = allSales.filter((s) => {
+      if (s.is_return || s.status === "cancelled") return false;
+      const ymd = (s.sale_date || s.created_at || "").slice(0, 10);
+      return (!startYmd || ymd >= startYmd) && (!endYmd || ymd <= endYmd);
+    });
+    const custs = new Set(matched.map((s) => s.customer_id).filter(Boolean));
+    return {
+      amount: matched.reduce((acc, s) => acc + Number(s.total ?? 0), 0),
+      invoices: matched.length,
+      customers: custs.size,
+    };
+  };
+
+  const lowStockRows = (
+    await listCachedProducts(tenantId, { filter: "low", page: 1, pageSize: 10 })
+  ).rows;
+
+  return {
+    kpi: {
+      todaySales: Math.round(todaySales),
+      todayPurchase: Math.round(todayPurchase),
+      todayProfit: 0,
+      todayExpense: 0,
+      todayCashSale: Math.round(todayCashSale),
+      todayDueSale: Math.round(todayDueSale),
+      todayReturn: Math.round(todayReturn),
+      dailyCashInHand: Math.round(todayCashSale),
+      cashInHand: Math.round(todayCashSale),
+      bankBalance: 0,
+      dueCollection: 0,
+      totalCustomers: customers.length,
+      totalSuppliers: suppliers.length,
+      totalProducts: prodRes.stats.totalProducts,
+      lowStock: prodRes.stats.lowStock,
+      expired: 0,
+      nearExpiry: 0,
+      cancelledCount: 0,
+      cancelledAmount: 0,
+      customerDueTotal: Math.round(customerDueTotal),
+      supplierDueTotal: Math.round(supplierDueTotal),
+      inventoryValue: Math.round(prodRes.stats.stockValue),
+      recalledCount: 0,
+      pendingPOs: 0,
+      pendingGRNs: 0,
+      pendingTransfers: 0,
+    },
+    sales: {
+      today: summarizeDay(todayYmd),
+      yesterday: summarizeDay(yesterdayYmd),
+      last7: summarizeRange(last7From, todayYmd),
+      mtd: summarizeRange(monthFrom, todayYmd),
+    },
+    dailySales: [],
+    monthly: [],
+    lowStockTop: lowStockRows.map((p) => ({
+      name: p.name,
+      sku: p.sku ?? "",
+      stock: p.stock,
+      reorder: p.reorder_level ?? 20,
+    })),
+    expiringTop: [],
+    recentSales: allSales.slice(0, 10).map((s) => ({
+      id: s.id,
+      invoice: s.invoice_no,
+      customer: s.customer_name || "Walk-in",
+      total: Number(s.total ?? 0),
+      paid: Number(s.paid ?? 0),
+      at: s.created_at,
+    })),
+    recentPurchases: rangePurchases.slice(0, 10).map((p) => ({
+      id: p.id,
+      invoice: p.po_number,
+      supplier: p.supplier_name || "সাপ্লায়ার",
+      total: Number(p.total ?? 0),
+      at: p.created_at,
+    })),
+    topMedicines: [],
+    topCompanies: [],
+    categoryInventory: [],
+    customerDueTop: customers
+      .filter((c) => Number(c.due_balance ?? 0) > 0)
+      .slice(0, 8)
+      .map((c) => ({ id: c.id, name: c.name, due: Number(c.due_balance ?? 0) })),
+    supplierDueTop: suppliers
+      .filter((s) => Number(s.due_balance ?? 0) > 0)
+      .slice(0, 8)
+      .map((s) => ({ id: s.id, name: s.name, due: Number(s.due_balance ?? 0) })),
+    notifications: { unread: 0, items: [] },
+    tenantName: shopInfo?.name ?? null,
+  };
 }

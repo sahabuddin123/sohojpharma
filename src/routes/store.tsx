@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { getStoreDashboard, type StoreDashboardData } from "@/lib/api/dashboard.functions";
+import { buildOfflineStoreDashboard, isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { useTranslation } from "react-i18next";
 import { useState, useEffect } from "react";
 import { useUIStore } from "@/stores/ui-store";
@@ -286,15 +287,26 @@ function StoreDashboard() {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["store-dashboard", currentTenantId, warehouseId ?? "all", effFrom, effTo],
     enabled: !!currentTenantId,
-    queryFn: () =>
-      fetchDashboard({
-        data: {
-          tenant_id: currentTenantId!,
-          warehouse_id: warehouseId,
-          from_date: effFrom,
-          to_date: effTo,
-        },
-      }),
+    queryFn: async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await buildOfflineStoreDashboard(currentTenantId!, effFrom, effTo);
+      }
+      try {
+        return await fetchDashboard({
+          data: {
+            tenant_id: currentTenantId!,
+            warehouse_id: warehouseId,
+            from_date: effFrom,
+            to_date: effTo,
+          },
+        });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await buildOfflineStoreDashboard(currentTenantId!, effFrom, effTo);
+        }
+        throw err;
+      }
+    },
     placeholderData: (prev) => prev,
     staleTime: 60_000,
   });
@@ -526,7 +538,18 @@ function StoreDashboard() {
             <KpiTile label={t("dashboard.kpiBankBalance")} value={bdt(k.bankBalance)} icon={Building2} tone="primary" to="/accounts/banks" />
             <KpiTile label={t("dashboard.kpiReceivable")} value={bdt(k.customerDueTotal)} icon={ArrowUpRight} tone="warning" />
             <KpiTile label={t("dashboard.kpiPayable")} value={bdt(k.supplierDueTotal)} icon={ArrowUpRight} tone="warning" />
-            <KpiTile label={t("dashboard.kpiInventoryValue")} value={bdt(k.inventoryValue)} sub={t("dashboard.subAtCost")} icon={Boxes} tone="primary" to="/inventory" />
+            <KpiTile
+              label={t("dashboard.kpiInventoryValue")}
+              value={bdt(k.inventoryValue)}
+              sub={
+                <span className="inline-flex items-center gap-1">
+                  Product List: {num(k.totalProducts)}টি · {t("dashboard.subAtCost")}
+                </span>
+              }
+              icon={Boxes}
+              tone="primary"
+              to="/products"
+            />
             <KpiTile label={t("dashboard.kpiNetProfitMtd")} value={bdt(data.monthly[data.monthly.length - 1]?.profit ?? 0)} icon={TrendingUp} tone="success" />
           </div>
         </section>

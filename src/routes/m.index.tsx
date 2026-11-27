@@ -6,6 +6,7 @@ import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { getStoreDashboard } from "@/lib/api/dashboard.functions";
+import { buildOfflineStoreDashboard, isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 import {
   ClipboardList,
@@ -14,6 +15,7 @@ import {
   HandCoins,
   ReceiptText,
   FileSpreadsheet,
+  Package,
   PackageSearch,
   ListChecks,
   CalendarX,
@@ -56,7 +58,7 @@ type Tile = {
   label: string;
   icon: typeof ClipboardList;
   tone: IconTone;
-  badge?: "lowStock" | "expired";
+  badge?: "lowStock" | "expired" | "products";
 };
 
 const TONE_CLASSES: Record<IconTone, string> = {
@@ -72,6 +74,7 @@ const SECTIONS: Array<{ title: string; tiles: Tile[] }> = [
   {
     title: "দৈনন্দিন কার্যক্রম",
     tiles: [
+      { to: "/m/product-list", label: "Product List", icon: Package, tone: "sky", badge: "products" },
       { to: "/m/products", label: "পণ্যের হিসাব", icon: ClipboardList, tone: "emerald" },
       { to: "/m/sale", label: "বিক্রি (POS)", icon: ShoppingCart, tone: "teal" },
       { to: "/purchases/new", label: "নতুন ক্রয়", icon: Truck, tone: "sky" },
@@ -155,12 +158,29 @@ function PhoneHome() {
     queryKey: ["m-home-kpi", currentTenantId, from, to],
     enabled: !!currentTenantId,
     staleTime: 60_000,
-    queryFn: () => fetchDashboard({ data: { tenant_id: currentTenantId!, from_date: from, to_date: to } }),
+    queryFn: async () => {
+      if (typeof navigator !== "undefined" && !navigator.onLine) {
+        return await buildOfflineStoreDashboard(currentTenantId!, from, to);
+      }
+      try {
+        return await fetchDashboard({ data: { tenant_id: currentTenantId!, from_date: from, to_date: to } });
+      } catch (err) {
+        if (isOfflineNetworkError(err)) {
+          return await buildOfflineStoreDashboard(currentTenantId!, from, to);
+        }
+        throw err;
+      }
+    },
   });
 
   const badgeValue = (key?: Tile["badge"]) => {
     if (!key || !data) return null;
-    const v = key === "lowStock" ? data.kpi.lowStock : data.kpi.expired;
+    const v =
+      key === "lowStock"
+        ? data.kpi.lowStock
+        : key === "expired"
+          ? data.kpi.expired
+          : data.kpi.totalProducts;
     return v > 0 ? v : null;
   };
 
@@ -287,16 +307,27 @@ function PhoneHome() {
           </span>
         </div>
 
-        {/* Row 4: Inventory Value */}
-        <Link
-          to={"/m/inventory" as never}
-          className="flex items-center justify-between rounded-xl border border-sky-200/70 bg-sky-50/50 px-3.5 py-2.5 transition hover:border-sky-300"
-        >
-          <span className="text-xs font-semibold text-slate-700">স্টকে পণ্য আছে</span>
-          <span className="text-base font-extrabold text-sky-700">
-            ৳{formatMoney(data?.kpi.inventoryValue)} টাকা
-          </span>
-        </Link>
+        {/* Row 4: Inventory Value & Product List KPI */}
+        <div className="phone-grid-keep grid grid-cols-2 gap-2">
+          <Link
+            to={"/m/inventory" as never}
+            className="flex items-center justify-between gap-1 rounded-xl border border-sky-200/70 bg-sky-50/50 px-3 py-2.5 transition hover:border-sky-300"
+          >
+            <span className="truncate text-[11px] font-semibold text-slate-700">স্টকে পণ্য</span>
+            <span className="shrink-0 text-sm font-extrabold text-sky-700 tabular-nums">
+              ৳{formatMoney(data?.kpi.inventoryValue)}
+            </span>
+          </Link>
+          <Link
+            to={"/m/product-list" as never}
+            className="flex items-center justify-between gap-1 rounded-xl border border-emerald-200/70 bg-emerald-50/50 px-3 py-2.5 transition hover:border-emerald-300"
+          >
+            <span className="truncate text-[11px] font-semibold text-slate-700">Product List</span>
+            <span className="shrink-0 text-sm font-extrabold text-[#0d5c46] tabular-nums">
+              {formatMoney(data?.kpi.totalProducts)}টি
+            </span>
+          </Link>
+        </div>
         </div>
 
         <div className="grid grid-cols-2 gap-2.5 border-t border-slate-100 pt-2.5">
@@ -335,8 +366,13 @@ function PhoneHome() {
                     className="relative flex flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200/80 bg-white px-2 py-3.5 shadow-[0_1px_3px_rgba(0,0,0,0.03)] hover:border-slate-300 active:scale-[0.96] transition"
                   >
                     {badge !== null && (
-                      <span className="absolute right-2 top-2 rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                        {badge}
+                      <span
+                        className={cn(
+                          "absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none text-white tabular-nums",
+                          tile.badge === "products" ? "bg-[#0d5c46]" : "bg-rose-600",
+                        )}
+                      >
+                        {formatMoney(badge)}
                       </span>
                     )}
                     <div
