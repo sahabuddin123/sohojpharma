@@ -9,14 +9,12 @@ import {
   HelpCircle,
   WifiOff,
   RefreshCw,
-  Database,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { countPending, subscribe as subscribeOutbox } from "@/lib/offline/db";
 import { subscribeSync, flushNow, type SyncState } from "@/lib/offline/sync";
-import { subscribeWarmStatus, type WarmStatus } from "@/lib/offline/warm-cache";
 import { setAppLanguage } from "@/i18n";
 import { useUIStore } from "@/stores/ui-store";
 import { SupportTicketDialog } from "./support-ticket-dialog";
@@ -143,7 +141,7 @@ export function PhoneTabBar() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] sm:max-w-3xl">
-      <ul className="grid grid-cols-4 items-center gap-1 rounded-[22px] border border-border/80 bg-card/95 p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.08)] backdrop-blur-xl">
+      <ul className="phone-grid-keep grid grid-cols-4 items-center gap-1 rounded-[22px] border border-border/80 bg-card/95 p-1.5 shadow-[0_8px_28px_rgba(0,0,0,0.08)] backdrop-blur-xl">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           const active = isActive(tab.to, tab.exact);
@@ -173,12 +171,6 @@ function PhoneOfflineBanner() {
   const { t } = useTranslation();
   const [pending, setPending] = useState(0);
   const [sync, setSync] = useState<SyncState>({ online: true, syncing: false, lastRunAt: null, lastError: null });
-  const [warm, setWarm] = useState<WarmStatus>({
-    syncingCatalog: false,
-    cachedProducts: 0,
-    totalProducts: 0,
-    lastSyncedAt: null,
-  });
 
   useEffect(() => {
     const refresh = () => {
@@ -187,15 +179,13 @@ function PhoneOfflineBanner() {
     refresh();
     const u1 = subscribeOutbox(refresh);
     const u2 = subscribeSync(setSync);
-    const u3 = subscribeWarmStatus(setWarm);
     return () => {
       u1();
       u2();
-      u3();
     };
   }, []);
 
-  if (sync.online && pending === 0 && !warm.syncingCatalog) return null;
+  if (sync.online && pending === 0) return null;
 
   return (
     <div className="mx-auto max-w-md px-4 pt-2.5">
@@ -204,34 +194,23 @@ function PhoneOfflineBanner() {
           "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold",
           !sync.online
             ? "border-amber-200 bg-amber-50 text-amber-900"
-            : pending > 0
-              ? "border-sky-200 bg-sky-50 text-sky-900"
-              : "border-emerald-200 bg-emerald-50/80 text-[#0d5c46]",
+            : "border-sky-200 bg-sky-50 text-sky-900",
         )}
       >
         <Link to={"/m/sync" as never} className="flex min-w-0 flex-1 items-center gap-2">
           {!sync.online ? (
             <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-          ) : pending > 0 ? (
-            <RefreshCw className={cn("h-3.5 w-3.5 shrink-0 text-sky-600", sync.syncing && "animate-spin")} />
           ) : (
-            <Database className="h-3.5 w-3.5 shrink-0 animate-pulse text-[#0d5c46]" />
+            <RefreshCw className={cn("h-3.5 w-3.5 shrink-0 text-sky-600", sync.syncing && "animate-spin")} />
           )}
           <span className="truncate">
             {!sync.online
               ? pending > 0
                 ? t("m.shell.offlinePending", { count: pending })
-                : warm.cachedProducts > 0
-                  ? t("m.shell.offlineReady", { count: warm.cachedProducts })
-                  : t("m.shell.offlineLocal")
-              : pending > 0
-                ? sync.syncing
-                  ? t("m.shell.syncingQueue", { count: pending })
-                  : t("m.shell.pendingQueue", { count: pending })
-                : t("m.shell.warmingCatalog", {
-                    cached: warm.cachedProducts,
-                    total: warm.totalProducts ? `/${warm.totalProducts}` : "",
-                  })}
+                : t("m.shell.offlineLocal")
+              : sync.syncing
+                ? t("m.shell.syncingQueue", { count: pending })
+                : t("m.shell.pendingQueue", { count: pending })}
           </span>
         </Link>
         {sync.online && pending > 0 && (

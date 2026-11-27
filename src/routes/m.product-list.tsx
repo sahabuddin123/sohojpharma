@@ -10,12 +10,10 @@ import {
   Loader2,
   Package,
   Plus,
-  RefreshCw,
   ScanBarcode,
   Search,
   ShoppingCart,
   Truck,
-  WifiOff,
   X,
 } from "lucide-react";
 import { RouteErrorPanel } from "@/components/route-error";
@@ -28,8 +26,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getProductStats, listProductsForManagement } from "@/lib/api/product-management.functions";
 import { buildProductDisplayName } from "@/lib/product-display";
 import { listCachedProducts } from "@/lib/offline/db";
-import { isOfflineNetworkError, subscribeWarmStatus, type WarmStatus } from "@/lib/offline/warm-cache";
-import { subscribeSync, type SyncState } from "@/lib/offline/sync";
+import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/m/product-list")({
@@ -120,22 +117,6 @@ function MobileProductListPage() {
   const [page, setPage] = useState(1);
   const [showCost, setShowCost] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
-  const [sync, setSync] = useState<SyncState>({ online: true, syncing: false, lastRunAt: null, lastError: null });
-  const [warm, setWarm] = useState<WarmStatus>({
-    syncingCatalog: false,
-    cachedProducts: 0,
-    totalProducts: 0,
-    lastSyncedAt: null,
-  });
-
-  useEffect(() => {
-    const u1 = subscribeSync(setSync);
-    const u2 = subscribeWarmStatus(setWarm);
-    return () => {
-      u1();
-      u2();
-    };
-  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -265,7 +246,6 @@ function MobileProductListPage() {
   const rows = list.data?.rows ?? [];
   const totalCount = list.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-  const isOfflineSource = Boolean(list.data?.fromOffline || stats.data?.fromOffline || !sync.online);
 
   const kpiTotal = stats.data?.total ?? 0;
   const kpiInStock = stats.data?.inStock ?? 0;
@@ -275,34 +255,6 @@ function MobileProductListPage() {
   return (
     <PhoneShell title={t("m.productList.title")} back>
       <div className="space-y-3.5">
-        {/* Source / Offline Status Strip */}
-        {(isOfflineSource || warm.syncingCatalog) && (
-          <div
-            className={cn(
-              "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-xs font-semibold",
-              isOfflineSource
-                ? "border-amber-200 bg-amber-50 text-amber-900"
-                : "border-emerald-200 bg-emerald-50 text-[#0d5c46]",
-            )}
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              {isOfflineSource ? (
-                <WifiOff className="h-3.5 w-3.5 shrink-0 text-amber-600" />
-              ) : (
-                <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin text-[#0d5c46]" />
-              )}
-              <span className="truncate">
-                {isOfflineSource
-                  ? t("m.productList.offlineBanner", { count: fmtInt(kpiTotal || warm.cachedProducts) })
-                  : t("m.productList.warmingBanner", {
-                      cached: fmtInt(warm.cachedProducts),
-                      total: fmtInt(warm.totalProducts || kpiTotal),
-                    })}
-              </span>
-            </div>
-          </div>
-        )}
-
         {/* 4 KPI Summary Tiles */}
         <div className="phone-grid-keep grid grid-cols-2 gap-2.5">
           <button
