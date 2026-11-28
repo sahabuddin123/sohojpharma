@@ -12,7 +12,7 @@ import { exportCatalogData } from "@/lib/api/catalog-export.functions";
 import {
   Plus, Search, Download, Upload, Eye, Pencil, QrCode, Trash2, Zap, Copy, History, LineChart,
   Package, PackageCheck, PackageX, AlertTriangle, TrendingDown, Wallet, RefreshCw,
-  ChevronLeft, ChevronRight, ChevronDown,
+  ChevronLeft, ChevronRight, ChevronDown, Building2, FlaskConical, Tags, X,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -22,16 +22,23 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/use-auth";
 import { downloadSampleTemplate } from "@/components/products/import-dialog";
 import { QuickEditProductDialog, type QuickEditProduct } from "@/components/products/quick-edit-dialog";
+import {
+  ProductFilterCombobox,
+  useProductFilterOptions,
+  asUuidOrUndefined,
+} from "@/components/products/product-filter-combobox";
 import { cn } from "@/lib/utils";
 import {
   getProductStats,
   getTenantProductCapacity,
   listProductsForManagement,
+  type ProductSearchScope,
 } from "@/lib/api/product-management.functions";
 import { buildProductDisplayName } from "@/lib/product-display";
 import { listCachedProducts } from "@/lib/offline/db";
@@ -63,6 +70,7 @@ type ProductRow = {
   unit: string | null;
   generic: string;
   company: string;
+  category: string;
   stock: number;
 };
 
@@ -72,7 +80,7 @@ function statusOf(p: ProductRow): StockStatus {
   if (p.stock < 0) return "neg";
   if (p.stock === 0) return "out";
   if (p.reorder_level != null && p.stock > 0 && p.stock <= p.reorder_level) return "low";
-  if (p.stock <= 20) return "low";
+  if (p.reorder_level == null && p.stock <= 20) return "low";
   return "in";
 }
 
@@ -93,18 +101,28 @@ function ProductsPage() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchBy, setSearchBy] = useState<ProductSearchScope>("all");
+  const [manufacturerId, setManufacturerId] = useState<string | undefined>(undefined);
+  const [genericId, setGenericId] = useState<string | undefined>(undefined);
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [filter, setFilter] = useState<"all" | StockStatus>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<50 | 100 | 200>(50);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [quickEdit, setQuickEdit] = useState<QuickEditProduct | null>(null);
 
+  const filterOptsQ = useProductFilterOptions(tenantId);
+  const filterOptions = filterOptsQ.data ?? { manufacturers: [], generics: [], categories: [] };
+
   useEffect(() => {
     const id = setTimeout(() => { setDebouncedSearch(search.trim()); setPage(1); }, 300);
     return () => clearTimeout(id);
   }, [search]);
 
-  useEffect(() => { setPage(1); setExpanded(new Set()); }, [filter, pageSize, debouncedSearch]);
+  useEffect(() => {
+    setPage(1);
+    setExpanded(new Set());
+  }, [filter, pageSize, debouncedSearch, searchBy, manufacturerId, genericId, categoryId]);
 
   const stats = useQuery({
     queryKey: ["products-stats", tenantId],
@@ -161,14 +179,31 @@ function ProductsPage() {
 
   const lastCountRef = useRef<{ key: string; count: number } | null>(null);
   const statusFilter = filter === "in" || filter === "low" || filter === "out" || filter === "neg" ? filter : undefined;
-  const filterKey = `${debouncedSearch}|${statusFilter ?? ""}|${pageSize}`;
+  const filterKey = `${debouncedSearch}|${searchBy}|${manufacturerId ?? ""}|${genericId ?? ""}|${categoryId ?? ""}|${statusFilter ?? ""}|${pageSize}`;
   const needCount = lastCountRef.current?.key !== filterKey;
+
+  const selectedCompanyName = useMemo(
+    () => (manufacturerId ? filterOptions.manufacturers.find((m) => m.id === manufacturerId)?.name : undefined),
+    [filterOptions.manufacturers, manufacturerId],
+  );
+  const selectedGenericName = useMemo(
+    () => (genericId ? filterOptions.generics.find((g) => g.id === genericId)?.name : undefined),
+    [filterOptions.generics, genericId],
+  );
+  const selectedCategoryName = useMemo(
+    () => (categoryId ? filterOptions.categories.find((c) => c.id === categoryId)?.name : undefined),
+    [filterOptions.categories, categoryId],
+  );
 
   const fetchPage = (p: number, withCount: boolean) =>
     listFn({
       data: {
         tenantId,
         search: debouncedSearch || undefined,
+        searchBy,
+        manufacturerId: asUuidOrUndefined(manufacturerId),
+        genericId: asUuidOrUndefined(genericId),
+        categoryId: asUuidOrUndefined(categoryId),
         page: p,
         pageSize,
         statusFilter,
@@ -184,6 +219,7 @@ function ProductsPage() {
     pack_size: number | null; qty_per_box: number | null;
     generics: { name: string } | null;
     manufacturers: { name: string } | null;
+    categories: { name: string } | null;
     batches: { qty_on_hand: number | null }[] | null;
   };
 
@@ -191,6 +227,13 @@ function ProductsPage() {
     const offlineLoad = async () => {
       const res = await listCachedProducts(tenantId, {
         search: debouncedSearch || undefined,
+        searchBy,
+        manufacturerId: asUuidOrUndefined(manufacturerId),
+        genericId: asUuidOrUndefined(genericId),
+        categoryId: asUuidOrUndefined(categoryId),
+        manufacturerName: selectedCompanyName,
+        genericName: selectedGenericName,
+        categoryName: selectedCategoryName,
         filter,
         page: p,
         pageSize,
@@ -210,6 +253,7 @@ function ProductsPage() {
         unit: r.pcsPerBox > 1 ? "Box" : "Pcs",
         generic: r.generic_name ?? "",
         company: r.company_name ?? "",
+        category: r.category_name ?? "",
         stock: r.stock,
       }));
       return { rows, count: res.total };
@@ -231,6 +275,7 @@ function ProductsPage() {
         unit: r.qty_per_box && r.qty_per_box > 1 ? "Box" : "Pcs",
         generic: r.generics?.name ?? "",
         company: r.manufacturers?.name ?? "",
+        category: r.categories?.name ?? "",
         stock: (r.batches ?? []).reduce((s, b) => s + Number(b.qty_on_hand ?? 0), 0),
       }));
       if (res.count != null) lastCountRef.current = { key: filterKey, count: res.count };
@@ -306,6 +351,7 @@ function ProductsPage() {
         "Product Name": p.name,
         "Generic Name": p.generic,
         "Company Name": p.company,
+        "Category": p.category,
         "Quantity": p.stock,
         "Average Purchase Price": p.purchase_price ?? 0,
         "Sale Price": p.retail_price ?? 0,
@@ -380,21 +426,94 @@ function ProductsPage() {
 
         {/* Sticky search/filter */}
         <div className="sticky top-0 z-20 -mx-1 mt-4 rounded-2xl border border-border bg-card/95 px-1 py-3 shadow-card backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <div className="flex flex-wrap items-center gap-3 px-3">
-            <div className="relative min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2.5 px-3">
+            <Select value={searchBy} onValueChange={(v) => setSearchBy(v as ProductSearchScope)}>
+              <SelectTrigger className="h-10 w-[142px] shrink-0 rounded-xl bg-background text-xs font-medium">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("pages.products.searchByAll")}</SelectItem>
+                <SelectItem value="name">{t("pages.products.searchByName")}</SelectItem>
+                <SelectItem value="company">{t("pages.products.searchByCompany")}</SelectItem>
+                <SelectItem value="generic">{t("pages.products.searchByGeneric")}</SelectItem>
+                <SelectItem value="category">{t("pages.products.searchByCategory")}</SelectItem>
+                <SelectItem value="barcode">{t("pages.products.searchByBarcode")}</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative min-w-[200px] flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder={t("pages.products.searchPh")}
-                className="h-10 rounded-xl pl-9"
+                className="h-10 rounded-xl pl-9 pr-9"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
+              {search && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
-            <Button variant="outline" className="rounded-xl" onClick={() => { setSearch(""); setFilter("all"); setPage(1); }}>
+            <Button
+              variant="outline"
+              className="h-10 rounded-xl"
+              onClick={() => {
+                setSearch("");
+                setSearchBy("all");
+                setManufacturerId(undefined);
+                setGenericId(undefined);
+                setCategoryId(undefined);
+                setFilter("all");
+                setPage(1);
+              }}
+            >
               {t("pages.products.reset")}
             </Button>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2 px-3">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2 px-3">
+            <ProductFilterCombobox
+              label={t("pages.products.company")}
+              allLabel={t("pages.products.allCompanies")}
+              searchPlaceholder={t("pages.products.searchCompanyPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
+              options={filterOptions.manufacturers}
+              value={manufacturerId}
+              onChange={setManufacturerId}
+              icon={<Building2 className="h-3.5 w-3.5 shrink-0" />}
+              className="min-w-[165px] max-w-[240px]"
+            />
+            <ProductFilterCombobox
+              label={t("pages.products.generic")}
+              allLabel={t("pages.products.allGenerics")}
+              searchPlaceholder={t("pages.products.searchGenericPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
+              options={filterOptions.generics}
+              value={genericId}
+              onChange={setGenericId}
+              icon={<FlaskConical className="h-3.5 w-3.5 shrink-0" />}
+              className="min-w-[165px] max-w-[240px]"
+            />
+            <ProductFilterCombobox
+              label={t("pages.products.category")}
+              allLabel={t("pages.products.allCategories")}
+              searchPlaceholder={t("pages.products.searchCategoryPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
+              options={filterOptions.categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              icon={<Tags className="h-3.5 w-3.5 shrink-0" />}
+              className="min-w-[155px] max-w-[220px]"
+            />
+          </div>
+          <div className="mt-2.5 flex flex-wrap gap-2 px-3">
             {filterChips.map(([k, label]) => (
               <button
                 key={k}
@@ -424,8 +543,30 @@ function ProductsPage() {
               ))}
             </div>
           ) : products.length === 0 ? (
-            <div className="grid place-items-center rounded-2xl border border-dashed border-border bg-card py-16 text-center text-sm text-muted-foreground">
-              {t("pages.products.empty", { action: t("pages.products.add") })}
+            <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card py-16 text-center text-sm text-muted-foreground">
+              <span>
+                {debouncedSearch || manufacturerId || genericId || categoryId || filter !== "all"
+                  ? t("pages.products.noOptions")
+                  : t("pages.products.empty", { action: t("pages.products.add") })}
+              </span>
+              {(debouncedSearch || manufacturerId || genericId || categoryId || filter !== "all") && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-xl"
+                  onClick={() => {
+                    setSearch("");
+                    setSearchBy("all");
+                    setManufacturerId(undefined);
+                    setGenericId(undefined);
+                    setCategoryId(undefined);
+                    setFilter("all");
+                    setPage(1);
+                  }}
+                >
+                  {t("pages.products.reset")}
+                </Button>
+              )}
             </div>
           ) : (
             <div
@@ -568,6 +709,9 @@ function ProductRowCard({
               <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug text-foreground sm:truncate sm:text-[15px]">{p.name}</h3>
               {p.strength && <span className="text-xs font-medium text-primary">{p.strength}</span>}
               {p.medicineType && <span className="hidden rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sm:inline">{p.medicineType}</span>}
+              {p.category && p.category.toLowerCase() !== (p.medicineType ?? "").toLowerCase() && (
+                <span className="hidden rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary sm:inline">{p.category}</span>
+              )}
             </div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground sm:mt-1 sm:text-xs">
               {p.generic && <span className="truncate"><span className="text-foreground/60">Generic:</span> <span className="font-medium text-foreground/80">{p.generic}</span></span>}

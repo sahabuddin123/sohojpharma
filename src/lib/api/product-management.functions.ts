@@ -408,16 +408,30 @@ type ProductListRow = {
   status: string | null;
   qty_per_box: number | null;
   branch_id: string | null;
+  generic_id: string | null;
+  manufacturer_id: string | null;
+  category_id: string | null;
   generics: { name: string } | null;
   manufacturers: { name: string } | null;
+  categories: { name: string } | null;
   batches: { qty_on_hand: number }[];
 };
 
-type ProductManagementRpcRow = Omit<ProductListRow, "generics" | "manufacturers" | "batches"> & {
+type ProductManagementRpcRow = Omit<ProductListRow, "generics" | "manufacturers" | "categories" | "batches"> & {
   generic_name: string | null;
   manufacturer_name: string | null;
+  category_name: string | null;
   stock: number | string | null;
   total_count: number | string | null;
+};
+
+export type ProductSearchScope = "all" | "name" | "company" | "generic" | "category" | "barcode";
+
+export type ProductFilterOption = { id: string; name: string };
+export type ProductFilterOptionsResult = {
+  manufacturers: ProductFilterOption[];
+  generics: ProductFilterOption[];
+  categories: ProductFilterOption[];
 };
 
 export const listProductsForManagement = createServerFn({ method: "POST" })
@@ -428,10 +442,14 @@ export const listProductsForManagement = createServerFn({ method: "POST" })
       statusFilter: z.enum(["in", "low", "out", "neg"]).optional(),
       withCount: z.boolean().default(true),
       pageSize: z.number().int().min(10).max(200).default(50),
+      manufacturerId: z.string().uuid().optional(),
+      genericId: z.string().uuid().optional(),
+      categoryId: z.string().uuid().optional(),
+      searchBy: z.enum(["all", "name", "company", "generic", "category", "barcode"]).default("all"),
     }),
   )
   .handler(async ({ data, context }): Promise<{ rows: ProductListRow[]; count: number | null }> => {
-    const { data: rows, error } = await context.supabase.rpc("list_products_for_management", {
+    const { data: rows, error } = await context.supabase.rpc("list_products_for_management" as any, {
       p_tenant_id: data.tenantId,
       p_search: data.search || undefined,
       p_barcode: data.barcode || undefined,
@@ -439,6 +457,10 @@ export const listProductsForManagement = createServerFn({ method: "POST" })
       p_page_size: data.pageSize,
       p_status_filter: data.statusFilter ?? undefined,
       p_with_count: data.withCount,
+      p_manufacturer_id: data.manufacturerId ?? undefined,
+      p_generic_id: data.genericId ?? undefined,
+      p_category_id: data.categoryId ?? undefined,
+      p_search_by: data.searchBy ?? "all",
     });
     if (error) throw new Error(error.message);
     const list = (rows ?? []) as ProductManagementRpcRow[];
@@ -449,13 +471,33 @@ export const listProductsForManagement = createServerFn({ method: "POST" })
       medicine_type: r.medicine_type, strength: r.strength, volume: r.volume,
       country_of_origin: r.country_of_origin, status: r.status,
       qty_per_box: r.qty_per_box, branch_id: r.branch_id,
+      generic_id: r.generic_id ?? null,
+      manufacturer_id: r.manufacturer_id ?? null,
+      category_id: r.category_id ?? null,
       generics: r.generic_name ? { name: r.generic_name } : null,
       manufacturers: r.manufacturer_name ? { name: r.manufacturer_name } : null,
+      categories: r.category_name ? { name: r.category_name } : null,
       batches: [{ qty_on_hand: Number(r.stock ?? 0) }],
     }));
     const raw = list[0]?.total_count;
     const count = raw == null ? null : Number(raw);
     return { rows: enriched, count };
+  });
+
+export const getProductFilterOptions = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator(TenantInput)
+  .handler(async ({ data, context }): Promise<ProductFilterOptionsResult> => {
+    const { data: res, error } = await context.supabase.rpc("get_product_filter_options" as any, {
+      p_tenant_id: data.tenantId,
+    });
+    if (error) throw new Error(error.message);
+    const obj = (res ?? {}) as Partial<ProductFilterOptionsResult>;
+    return {
+      manufacturers: Array.isArray(obj.manufacturers) ? obj.manufacturers : [],
+      generics: Array.isArray(obj.generics) ? obj.generics : [],
+      categories: Array.isArray(obj.categories) ? obj.categories : [],
+    };
   });
 
 

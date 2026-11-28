@@ -1,18 +1,22 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useTranslation } from "react-i18next";
 import {
   Boxes,
+  Building2,
   Eye,
   EyeOff,
+  FlaskConical,
   Loader2,
   Package,
   Plus,
+  RotateCcw,
   ScanBarcode,
   Search,
   ShoppingCart,
+  Tags,
   Truck,
   X,
 } from "lucide-react";
@@ -20,10 +24,19 @@ import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneChip, PhoneChipRow, PhoneEmpty } from "@/components/mobile/phone-ui";
 import { MobileCameraScanner } from "@/components/mobile/mobile-camera-scanner";
+import {
+  ProductFilterCombobox,
+  useProductFilterOptions,
+  asUuidOrUndefined,
+} from "@/components/products/product-filter-combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
-import { getProductStats, listProductsForManagement } from "@/lib/api/product-management.functions";
+import {
+  getProductStats,
+  listProductsForManagement,
+  type ProductSearchScope,
+} from "@/lib/api/product-management.functions";
 import { buildProductDisplayName } from "@/lib/product-display";
 import { listCachedProducts } from "@/lib/offline/db";
 import { isOfflineNetworkError } from "@/lib/offline/warm-cache";
@@ -50,6 +63,7 @@ type MobileProductItem = {
   form: string | null;
   generic: string;
   company: string;
+  category: string;
   sku: string | null;
   barcode: string | null;
   price: number;
@@ -74,6 +88,7 @@ type RawRpcRow = {
   qty_per_box: number | null;
   generics: { name: string } | null;
   manufacturers: { name: string } | null;
+  categories?: { name: string } | null;
   batches: { qty_on_hand: number | null }[] | null;
 };
 
@@ -98,7 +113,7 @@ function fmtMoney(n: number | null | undefined): string {
 function getStockStatus(stock: number, reorderLevel: number | null): Exclude<StockFilter, "all"> {
   if (stock < 0) return "neg";
   if (stock === 0) return "out";
-  if ((reorderLevel != null && stock <= reorderLevel) || (reorderLevel == null && stock <= 20)) {
+  if (reorderLevel != null && stock <= reorderLevel) {
     return "low";
   }
   return "in";
@@ -113,10 +128,30 @@ function MobileProductListPage() {
 
   const [term, setTerm] = useState("");
   const [search, setSearch] = useState("");
+  const [searchBy, setSearchBy] = useState<ProductSearchScope>("all");
+  const [manufacturerId, setManufacturerId] = useState<string | undefined>(undefined);
+  const [genericId, setGenericId] = useState<string | undefined>(undefined);
+  const [categoryId, setCategoryId] = useState<string | undefined>(undefined);
   const [filter, setFilter] = useState<StockFilter>("all");
   const [page, setPage] = useState(1);
   const [showCost, setShowCost] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
+
+  const filterOptsQ = useProductFilterOptions(tenantId);
+  const filterOptions = filterOptsQ.data ?? { manufacturers: [], generics: [], categories: [] };
+
+  const selectedCompanyName = useMemo(
+    () => (manufacturerId ? filterOptions.manufacturers.find((m) => m.id === manufacturerId)?.name : undefined),
+    [filterOptions.manufacturers, manufacturerId],
+  );
+  const selectedGenericName = useMemo(
+    () => (genericId ? filterOptions.generics.find((g) => g.id === genericId)?.name : undefined),
+    [filterOptions.generics, genericId],
+  );
+  const selectedCategoryName = useMemo(
+    () => (categoryId ? filterOptions.categories.find((c) => c.id === categoryId)?.name : undefined),
+    [filterOptions.categories, categoryId],
+  );
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -128,7 +163,7 @@ function MobileProductListPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filter]);
+  }, [filter, searchBy, manufacturerId, genericId, categoryId]);
 
   const stats = useQuery({
     queryKey: ["m-product-list-stats", tenantId],
@@ -165,7 +200,17 @@ function MobileProductListPage() {
   const statusFilter = filter === "all" ? undefined : filter;
 
   const list = useQuery({
-    queryKey: ["m-product-list-rows", tenantId, search, filter, page],
+    queryKey: [
+      "m-product-list-rows",
+      tenantId,
+      search,
+      searchBy,
+      manufacturerId ?? "",
+      genericId ?? "",
+      categoryId ?? "",
+      filter,
+      page,
+    ],
     enabled: !!tenantId,
     placeholderData: keepPreviousData,
     staleTime: 25_000,
@@ -173,6 +218,13 @@ function MobileProductListPage() {
       const offlineList = async () => {
         const res = await listCachedProducts(tenantId, {
           search: search || undefined,
+          searchBy,
+          manufacturerId: asUuidOrUndefined(manufacturerId),
+          genericId: asUuidOrUndefined(genericId),
+          categoryId: asUuidOrUndefined(categoryId),
+          manufacturerName: selectedCompanyName,
+          genericName: selectedGenericName,
+          categoryName: selectedCategoryName,
           filter,
           page,
           pageSize: PAGE_SIZE,
@@ -185,6 +237,7 @@ function MobileProductListPage() {
           form: r.form ?? null,
           generic: r.generic_name ?? "",
           company: r.company_name ?? "",
+          category: r.category_name ?? "",
           sku: r.sku ?? null,
           barcode: r.barcode ?? null,
           price: Number(r.price ?? 0),
@@ -204,6 +257,10 @@ function MobileProductListPage() {
           data: {
             tenantId,
             search: search || undefined,
+            searchBy,
+            manufacturerId: asUuidOrUndefined(manufacturerId),
+            genericId: asUuidOrUndefined(genericId),
+            categoryId: asUuidOrUndefined(categoryId),
             page,
             pageSize: PAGE_SIZE,
             statusFilter,
@@ -225,6 +282,7 @@ function MobileProductListPage() {
           form: r.medicine_type ?? null,
           generic: r.generics?.name ?? "",
           company: r.manufacturers?.name ?? "",
+          category: r.categories?.name ?? "",
           sku: r.sku ?? null,
           barcode: r.barcode ?? null,
           price: Number(r.retail_price ?? 0),
@@ -350,6 +408,87 @@ function MobileProductListPage() {
           </Button>
         </div>
 
+        {/* Specific Filters: Search Scope, Company, Generic, Category */}
+        <PhoneChipRow>
+          <select
+            aria-label={t("pages.products.searchByAll")}
+            value={searchBy}
+            onChange={(e) => setSearchBy(e.target.value as ProductSearchScope)}
+            className={cn(
+              "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold outline-none",
+              searchBy !== "all"
+                ? "border-[#0d5c46] bg-[#0d5c46] text-white"
+                : "border-slate-200 bg-white text-slate-700",
+            )}
+          >
+            <option value="all">{t("pages.products.searchByAll")}</option>
+            <option value="name">{t("pages.products.searchByName")}</option>
+            <option value="company">{t("pages.products.searchByCompany")}</option>
+            <option value="generic">{t("pages.products.searchByGeneric")}</option>
+            <option value="category">{t("pages.products.searchByCategory")}</option>
+            <option value="barcode">{t("pages.products.searchByBarcode")}</option>
+          </select>
+
+          <ProductFilterCombobox
+            variant="mobile"
+            label={t("pages.products.company")}
+            allLabel={t("pages.products.allCompanies")}
+            searchPlaceholder={t("pages.products.searchCompanyPh")}
+            emptyLabel={t("pages.products.noOptions")}
+            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
+            options={filterOptions.manufacturers}
+            value={manufacturerId}
+            onChange={setManufacturerId}
+            icon={<Building2 className="h-3.5 w-3.5 shrink-0" />}
+          />
+
+          <ProductFilterCombobox
+            variant="mobile"
+            label={t("pages.products.generic")}
+            allLabel={t("pages.products.allGenerics")}
+            searchPlaceholder={t("pages.products.searchGenericPh")}
+            emptyLabel={t("pages.products.noOptions")}
+            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
+            options={filterOptions.generics}
+            value={genericId}
+            onChange={setGenericId}
+            icon={<FlaskConical className="h-3.5 w-3.5 shrink-0" />}
+          />
+
+          <ProductFilterCombobox
+            variant="mobile"
+            label={t("pages.products.category")}
+            allLabel={t("pages.products.allCategories")}
+            searchPlaceholder={t("pages.products.searchCategoryPh")}
+            emptyLabel={t("pages.products.noOptions")}
+            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
+            options={filterOptions.categories}
+            value={categoryId}
+            onChange={setCategoryId}
+            icon={<Tags className="h-3.5 w-3.5 shrink-0" />}
+          />
+
+          {(term || searchBy !== "all" || manufacturerId || genericId || categoryId || filter !== "all") && (
+            <button
+              type="button"
+              onClick={() => {
+                setTerm("");
+                setSearch("");
+                setSearchBy("all");
+                setManufacturerId(undefined);
+                setGenericId(undefined);
+                setCategoryId(undefined);
+                setFilter("all");
+                setPage(1);
+              }}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 whitespace-nowrap"
+            >
+              <RotateCcw className="h-3 w-3" />
+              {t("m.productList.reset")}
+            </button>
+          )}
+        </PhoneChipRow>
+
         {/* Filter & Action Chips */}
         <div>
           <PhoneChipRow>
@@ -396,13 +535,37 @@ function MobileProductListPage() {
             <span className="text-xs">{t("m.productList.loadingList")}</span>
           </div>
         ) : rows.length === 0 ? (
-          <PhoneEmpty
-            message={
-              search
-                ? t("m.productList.emptySearch", { query: search })
-                : t("m.productList.emptyFilter")
-            }
-          />
+          <div className="space-y-2">
+            <PhoneEmpty
+              message={
+                search
+                  ? t("m.productList.emptySearch", { query: search })
+                  : t("m.productList.emptyFilter")
+              }
+            />
+            {(term || searchBy !== "all" || manufacturerId || genericId || categoryId || filter !== "all") && (
+              <div className="flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTerm("");
+                    setSearch("");
+                    setSearchBy("all");
+                    setManufacturerId(undefined);
+                    setGenericId(undefined);
+                    setCategoryId(undefined);
+                    setFilter("all");
+                    setPage(1);
+                  }}
+                >
+                  <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
+                  {t("m.productList.reset")}
+                </Button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="space-y-2.5">
             {rows.map((p) => {
@@ -432,9 +595,9 @@ function MobileProductListPage() {
                       <p className="text-[15px] font-bold leading-snug text-slate-900">
                         {p.displayName}
                       </p>
-                      {(p.generic || p.company) && (
+                      {(p.generic || p.company || p.category) && (
                         <p className="mt-0.5 truncate text-xs text-slate-500">
-                          {[p.generic, p.company].filter(Boolean).join(" · ")}
+                          {[p.generic, p.company, p.category].filter(Boolean).join(" · ")}
                         </p>
                       )}
                       {(p.sku || p.barcode) && (

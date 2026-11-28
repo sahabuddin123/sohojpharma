@@ -36,8 +36,12 @@ export interface CachedProduct {
   displayName?: string | null;
   form?: string | null;
   strength?: string | null;
+  generic_id?: string | null;
+  manufacturer_id?: string | null;
+  category_id?: string | null;
   generic_name?: string | null;
   company_name?: string | null;
+  category_name?: string | null;
   sku?: string | null;
   barcode?: string | null;
   unit?: string | null;
@@ -365,6 +369,7 @@ export async function searchCachedProducts(
     const gen = (p.generic_name ?? "").toLowerCase();
     const comp = (p.company_name ?? "").toLowerCase();
     const strength = (p.strength ?? "").toLowerCase();
+    const cat = (p.category_name ?? "").toLowerCase();
     if (name.startsWith(q) || disp.startsWith(q)) {
       prefixMatches.push(p);
     } else if (
@@ -372,6 +377,7 @@ export async function searchCachedProducts(
       disp.includes(q) ||
       gen.includes(q) ||
       comp.includes(q) ||
+      cat.includes(q) ||
       strength.includes(q) ||
       barcode.includes(q) ||
       sku.includes(q)
@@ -402,10 +408,69 @@ export async function findCachedProductByBarcode(
   );
 }
 
+export type OfflineProductSearchScope = "all" | "name" | "company" | "generic" | "category" | "barcode";
+
+export function matchesCachedProductQuery(
+  p: Pick<CachedProduct, "name" | "displayName" | "generic_name" | "company_name" | "category_name" | "form" | "sku" | "barcode">,
+  query: string,
+  searchBy: OfflineProductSearchScope = "all",
+): boolean {
+  const qLower = query.trim().toLowerCase();
+  if (!qLower) return true;
+  const nameHit =
+    p.name.toLowerCase().includes(qLower) ||
+    (p.displayName ?? "").toLowerCase().includes(qLower);
+  const compHit = (p.company_name ?? "").toLowerCase().includes(qLower);
+  const genHit = (p.generic_name ?? "").toLowerCase().includes(qLower);
+  const catHit =
+    (p.category_name ?? "").toLowerCase().includes(qLower) ||
+    (p.form ?? "").toLowerCase().includes(qLower);
+  const codeHit =
+    (p.sku ?? "").toLowerCase().includes(qLower) ||
+    (p.barcode ?? "").toLowerCase().includes(qLower);
+
+  switch (searchBy) {
+    case "name":
+      return nameHit;
+    case "company":
+      return compHit;
+    case "generic":
+      return genHit;
+    case "category":
+      return catHit;
+    case "barcode":
+      return codeHit;
+    case "all":
+    default:
+      return nameHit || genHit || compHit || catHit || codeHit;
+  }
+}
+
+function matchesSelectedMaster(
+  rowId: string | null | undefined,
+  rowName: string | null | undefined,
+  selectedId?: string,
+  selectedName?: string,
+): boolean {
+  if (!selectedId && !selectedName) return true;
+  if (selectedId && rowId) return rowId === selectedId;
+  if (selectedName) {
+    return (rowName ?? "").trim().toLowerCase() === selectedName.trim().toLowerCase();
+  }
+  return false;
+}
+
 export async function listCachedProducts(
   tenantId: string,
   opts: {
     search?: string;
+    searchBy?: OfflineProductSearchScope;
+    manufacturerId?: string;
+    genericId?: string;
+    categoryId?: string;
+    manufacturerName?: string;
+    genericName?: string;
+    categoryName?: string;
     filter?: "all" | "in" | "low" | "out" | "neg";
     inStockOnly?: boolean;
     sortBy?: "name" | "stock";
@@ -420,6 +485,7 @@ export async function listCachedProducts(
 }> {
   const all = await getTenantProducts(tenantId);
   const q = (opts.search ?? "").trim().toLowerCase();
+  const searchBy = opts.searchBy ?? "all";
   const filter = opts.filter ?? "all";
 
   let totalStock = 0;
@@ -436,7 +502,7 @@ export async function listCachedProducts(
     const rl = p.reorder_level ?? null;
     if (stk < 0) negStock++;
     else if (stk === 0) outOfStock++;
-    else if ((rl != null && stk <= rl) || (rl == null && stk <= 20)) lowStock++;
+    else if (rl != null && stk <= rl) lowStock++;
     else inStock++;
 
     if (stk > 0) {
@@ -449,20 +515,21 @@ export async function listCachedProducts(
     if (filter !== "all") {
       if (filter === "neg" && stk >= 0) continue;
       if (filter === "out" && stk !== 0) continue;
-      if (filter === "low" && !(stk > 0 && ((rl != null && stk <= rl) || (rl == null && stk <= 20)))) continue;
-      if (filter === "in" && !(stk > (rl ?? 20))) continue;
+      if (filter === "low" && !(stk > 0 && rl != null && stk <= rl)) continue;
+      if (filter === "in" && !(stk > 0 && (rl == null || stk > rl))) continue;
     }
 
-    if (q) {
-      const hay =
-        p.name.toLowerCase().includes(q) ||
-        (p.displayName ?? "").toLowerCase().includes(q) ||
-        (p.generic_name ?? "").toLowerCase().includes(q) ||
-        (p.company_name ?? "").toLowerCase().includes(q) ||
-        (p.sku ?? "").toLowerCase().includes(q) ||
-        (p.barcode ?? "").toLowerCase().includes(q);
-      if (!hay) continue;
+    if (!matchesSelectedMaster(p.manufacturer_id, p.company_name, opts.manufacturerId, opts.manufacturerName)) {
+      continue;
     }
+    if (!matchesSelectedMaster(p.generic_id, p.generic_name, opts.genericId, opts.genericName)) {
+      continue;
+    }
+    if (!matchesSelectedMaster(p.category_id, p.category_name, opts.categoryId, opts.categoryName)) {
+      continue;
+    }
+
+    if (q && !matchesCachedProductQuery(p, q, searchBy)) continue;
 
     matched.push(p);
   }
@@ -470,6 +537,11 @@ export async function listCachedProducts(
   const dir = opts.sortDir === "desc" ? -1 : 1;
   matched.sort((a, b) => {
     if (opts.sortBy === "stock") return (Number(a.stock ?? 0) - Number(b.stock ?? 0)) * dir;
+    if (q && searchBy === "name") {
+      const aExact = a.name.toLowerCase() === q ? 0 : a.name.toLowerCase().startsWith(q) ? 1 : 2;
+      const bExact = b.name.toLowerCase() === q ? 0 : b.name.toLowerCase().startsWith(q) ? 1 : 2;
+      if (aExact !== bExact) return aExact - bExact;
+    }
     return a.name.localeCompare(b.name) * dir;
   });
 
@@ -489,6 +561,43 @@ export async function listCachedProducts(
       outOfStock,
       negStock,
     },
+  };
+}
+
+export async function getCachedProductFilterOptions(tenantId: string): Promise<{
+  manufacturers: Array<{ id: string; name: string }>;
+  generics: Array<{ id: string; name: string }>;
+  categories: Array<{ id: string; name: string }>;
+}> {
+  const all = await getTenantProducts(tenantId);
+  const mMap = new Map<string, string>();
+  const gMap = new Map<string, string>();
+  const cMap = new Map<string, string>();
+
+  for (const p of all) {
+    if (p.company_name) {
+      const id = p.manufacturer_id || `name:${p.company_name.toLowerCase()}`;
+      if (!mMap.has(id)) mMap.set(id, p.company_name);
+    }
+    if (p.generic_name) {
+      const id = p.generic_id || `name:${p.generic_name.toLowerCase()}`;
+      if (!gMap.has(id)) gMap.set(id, p.generic_name);
+    }
+    if (p.category_name) {
+      const id = p.category_id || `name:${p.category_name.toLowerCase()}`;
+      if (!cMap.has(id)) cMap.set(id, p.category_name);
+    }
+  }
+
+  const toSorted = (m: Map<string, string>) =>
+    Array.from(m.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    manufacturers: toSorted(mMap),
+    generics: toSorted(gMap),
+    categories: toSorted(cMap),
   };
 }
 

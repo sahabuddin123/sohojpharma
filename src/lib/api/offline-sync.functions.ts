@@ -769,7 +769,7 @@ export const fetchOfflineCatalogChunk = createServerFn({ method: "POST" })
     const { data: rows, error, count } = await supabase
       .from("products")
       .select(
-        "id, name, sku, barcode, retail_price, purchase_price, vat_rate, strength, medicine_type, volume, pack_size, qty_per_box, reorder_level, unit, is_active, generics(name), manufacturers(name), batches(qty_on_hand)",
+        "id, name, sku, barcode, retail_price, purchase_price, vat_rate, strength, medicine_type, volume, pack_size, qty_per_box, reorder_level, unit, is_active, generic_id, manufacturer_id, category_id, generics(name), manufacturers(name), categories(name), batches(qty_on_hand)",
         { count: "exact" },
       )
       .eq("tenant_id", data.tenantId)
@@ -796,8 +796,12 @@ export const fetchOfflineCatalogChunk = createServerFn({ method: "POST" })
         displayName: buildProductDisplayName(p),
         form: (p.medicine_type as string | null) ?? null,
         strength: (p.strength as string | null) ?? null,
+        generic_id: (p.generic_id as string | null) ?? null,
+        manufacturer_id: (p.manufacturer_id as string | null) ?? null,
+        category_id: (p.category_id as string | null) ?? null,
         generic_name: (p.generics?.name as string | null) ?? null,
         company_name: (p.manufacturers?.name as string | null) ?? null,
+        category_name: (p.categories?.name as string | null) ?? null,
         sku: (p.sku as string | null) ?? null,
         barcode: (p.barcode as string | null) ?? null,
         unit: (p.unit as string | null) ?? null,
