@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 // Reconciliation job — scheduled via pg_cron.
 // Finds payments stuck in `processing` (no processed_at) and queries bKash
@@ -8,14 +9,8 @@ const MAX_AGE_MIN = 10; // only look at payments at least 10 minutes old
 const MAX_BATCH = 25;
 
 async function handle(request: Request): Promise<Response> {
-  const expected = process.env.CRON_SECRET;
-  const provided = request.headers.get("x-cron-secret");
-  if (!expected || provided !== expected) {
-    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
-      status: 401,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
+  const denied = verifyCronRequest(request);
+  if (denied) return denied;
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { bkashQueryPayment } = await import("@/lib/api/bkash.server");
@@ -30,7 +25,8 @@ async function handle(request: Request): Promise<Response> {
     .lt("created_at", cutoff)
     .limit(MAX_BATCH);
   if (error) {
-    return new Response(JSON.stringify({ ok: false, error: error.message }), {
+    console.error("[reconcile-payments] query failed:", error.message);
+    return new Response(JSON.stringify({ ok: false, error: "database_error" }), {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });

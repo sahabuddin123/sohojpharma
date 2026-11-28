@@ -1,14 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/hooks/daily-customer-greetings")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cronSecret = process.env.CRON_SECRET;
-        const provided = request.headers.get("x-cron-secret");
-        if (!cronSecret || provided !== cronSecret) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = verifyCronRequest(request);
+        if (denied) return denied;
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
         const today = new Date();
@@ -22,7 +20,8 @@ export const Route = createFileRoute("/api/public/hooks/daily-customer-greetings
           .or(`date_of_birth.like.%${md},anniversary.like.%${md}`)
           .limit(5000);
         if (error) {
-          return new Response(JSON.stringify({ ok: false, error: error.message }), {
+          console.error("[daily-customer-greetings] query failed:", error.message);
+          return new Response(JSON.stringify({ ok: false, error: "database_error" }), {
             status: 500, headers: { "Content-Type": "application/json" },
           });
         }

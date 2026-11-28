@@ -20,6 +20,7 @@ import { listBarcodes, generateProductBarcode, listProductsForManagement } from 
 import { RouteErrorPanel } from "@/components/route-error";
 import { useTranslation } from "react-i18next";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { escapeHtml } from "@/lib/security/html-escape";
 
 export const Route = createFileRoute("/products/barcodes")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -58,7 +59,7 @@ function BarcodesPage() {
   function printSelected() {
     const items = rows.filter((r) => selected.has(r.id));
     if (!items.length) return toast.error(t("toast.selectRows"));
-    const html = `<html><head><title>Barcodes</title><style>body{font-family:sans-serif;padding:12px}.lbl{display:inline-block;width:200px;border:1px solid #ddd;padding:8px;margin:4px;text-align:center;page-break-inside:avoid}.code{font-family:monospace;font-size:14px;font-weight:700;margin-top:6px}</style></head><body>${items.map((i) => `<div class="lbl"><div>${i.products ? buildProductDisplayName(i.products) : ""}</div><div class="code">${i.barcode}</div><div>৳ ${i.products?.retail_price ?? ""}</div></div>`).join("")}<script>window.print()</script></body></html>`;
+    const html = `<html><head><title>Barcodes</title><style>body{font-family:sans-serif;padding:12px}.lbl{display:inline-block;width:200px;border:1px solid #ddd;padding:8px;margin:4px;text-align:center;page-break-inside:avoid}.code{font-family:monospace;font-size:14px;font-weight:700;margin-top:6px}</style></head><body>${items.map((i) => `<div class="lbl"><div>${escapeHtml(i.products ? buildProductDisplayName(i.products) : "")}</div><div class="code">${escapeHtml(i.barcode)}</div><div>৳ ${escapeHtml(i.products?.retail_price ?? "")}</div></div>`).join("")}<script>window.print()</script></body></html>`;
     const w = window.open("", "_blank");
     if (w) { w.document.write(html); w.document.close(); }
   }

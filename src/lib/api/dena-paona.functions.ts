@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 const TenantInput = z.object({ tenantId: z.string().uuid() });
 
@@ -19,8 +20,9 @@ export const getDenaPaonaList = createServerFn({ method: "GET" })
       .eq("tenant_id", data.tenantId)
       .order("created_at", { ascending: false });
 
-    if (data.search && data.search.trim()) {
-      const q = `%${data.search.trim()}%`;
+    const safeSearch = sanitizePostgrestSearch(data.search);
+    if (safeSearch) {
+      const q = `%${safeSearch}%`;
       query = query.or(`person_name.ilike.${q},phone.ilike.${q},address.ilike.${q}`);
     }
 

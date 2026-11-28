@@ -22,6 +22,7 @@ import { toast } from "sonner";
 import { RouteErrorPanel } from "@/components/route-error";
 import { PhoneShell } from "@/components/mobile/phone-shell";
 import { PhoneChip, PhoneChipRow, PhoneEmpty, money } from "@/components/mobile/phone-ui";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 import {
   MobileCameraScanner,
   type ScannedProductMatch,
@@ -827,8 +828,9 @@ function BillingSheet({
           .eq("is_active", true)
           .order("name")
           .limit(20);
-        if (term) {
-          q = q.or(`name.ilike.%${term}%,phone.ilike.%${term}%`);
+        const safeTerm = sanitizePostgrestSearch(term);
+        if (safeTerm) {
+          q = q.or(`name.ilike.%${safeTerm}%,phone.ilike.%${safeTerm}%`);
         }
         const { data, error } = await q;
         if (error) throw error;

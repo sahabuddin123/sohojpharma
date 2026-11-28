@@ -1,5 +1,6 @@
 // Thermal printer receipt + A4 invoice HTML templates.
 // Pure string builders — no DOM, no React. Safe to import anywhere.
+import { escapeHtml, safeMediaUrl } from "@/lib/security/html-escape";
 
 export type PaperSize = "58mm" | "80mm" | "A4";
 
@@ -49,12 +50,8 @@ export interface ReceiptData {
 }
 
 const money = (n: number) => (n ?? 0).toFixed(2);
-const esc = (s: unknown): string =>
-  String(s ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+const esc = escapeHtml;
+const safeImg = (src: unknown) => safeMediaUrl(src);
 
 function thermalStyles(size: "58mm" | "80mm"): string {
   const width = size === "58mm" ? "58mm" : "80mm";
@@ -124,9 +121,11 @@ function a4Styles(): string {
 
 function thermalBody(d: ReceiptData, size: "58mm" | "80mm"): string {
   const colName = size === "58mm" ? 40 : 44;
+  const safeLogo = safeImg(d.logo_url);
+  const safeSig = safeImg(d.signature_url);
   return `
   <div class="center">
-    ${d.logo_url ? `<img class="logo" src="${esc(d.logo_url)}" alt="" />` : ""}
+    ${safeLogo ? `<img class="logo" src="${esc(safeLogo)}" alt="" />` : ""}
     <h1>${esc(d.pharmacy_name)}</h1>
     ${d.pharmacy_address ? `<div class="small">${esc(d.pharmacy_address)}</div>` : ""}
     ${d.pharmacy_phone ? `<div class="small">Tel: ${esc(d.pharmacy_phone)}</div>` : ""}
@@ -180,17 +179,19 @@ function thermalBody(d: ReceiptData, size: "58mm" | "80mm"): string {
   <div class="center small">${esc(d.footer_note ?? "Thank you for your purchase")}</div>
   ${
     d.show_signature !== false
-      ? `<div class="signature"><div class="signature-line">${d.signature_url ? `<img src="${esc(d.signature_url)}" alt="Authorized signature" />` : ""}</div><div class="small">Authorized Signature</div></div>`
+      ? `<div class="signature"><div class="signature-line">${safeSig ? `<img src="${esc(safeSig)}" alt="Authorized signature" />` : ""}</div><div class="small">Authorized Signature</div></div>`
       : ""
   }
   `;
 }
 
 function a4Body(d: ReceiptData): string {
+  const safeLogo = safeImg(d.logo_url);
+  const safeSig = safeImg(d.signature_url);
   return `
   <div class="header">
     <div>
-      ${d.logo_url ? `<img class="logo" src="${esc(d.logo_url)}" alt="" />` : ""}
+      ${safeLogo ? `<img class="logo" src="${esc(safeLogo)}" alt="" />` : ""}
       <h1>${esc(d.pharmacy_name)}</h1>
       <div>${esc(d.pharmacy_address ?? "")}</div>
       <div>${d.pharmacy_phone ? `Tel: ${esc(d.pharmacy_phone)}` : ""}${
@@ -263,7 +264,7 @@ function a4Body(d: ReceiptData): string {
   }
   ${
     d.show_signature !== false
-      ? `<div class="signatures"><div class="box"><div class="signature-line"></div><div>Customer Signature</div></div><div class="box"><div class="signature-line">${d.signature_url ? `<img src="${esc(d.signature_url)}" alt="Authorized signature" />` : ""}</div><div>Authorized Signature</div></div></div>`
+      ? `<div class="signatures"><div class="box"><div class="signature-line"></div><div>Customer Signature</div></div><div class="box"><div class="signature-line">${safeSig ? `<img src="${esc(safeSig)}" alt="Authorized signature" />` : ""}</div><div>Authorized Signature</div></div></div>`
       : ""
   }
   <div class="footer">${esc(d.footer_note ?? "Thank you for your business.")}</div>

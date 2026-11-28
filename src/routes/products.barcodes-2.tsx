@@ -21,6 +21,7 @@ import { getBarcodeBatchBulk, type BarcodeBatchInfo } from "@/lib/api/barcode-ba
 import { RouteErrorPanel } from "@/components/route-error";
 import { useTranslation } from "react-i18next";
 import { buildProductDisplayName } from "@/lib/product-display";
+import { escapeHtml, safeMediaUrl } from "@/lib/security/html-escape";
 
 export const Route = createFileRoute("/products/barcodes-2")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -158,13 +159,13 @@ function BarcodesAdvancedPage() {
     const expTxt = fmtExpiry(batch?.expiry_date ?? null);
     const imgMax = `max-width:${cfg.w - 4}mm;max-height:${cfg.h - 16}mm;object-fit:contain`;
     return `<div class="lbl">
-      ${showName && name ? `<div class="name">${name.slice(0, 40)}</div>` : ""}
-      ${showSku && sku ? `<div class="sku">SKU: ${sku}</div>` : ""}
-      <img class="bc" src="${barcodeImgSrc(r.barcode, r.barcode_type)}" alt="${r.barcode}" style="${imgMax}" />
-      ${showBarcodeNum ? `<div class="code">${r.barcode}</div>` : ""}
-      ${showMrp && mrp != null ? `<div class="mrp">MRP ৳ ${mrp}</div>` : ""}
-      ${showBatchNo ? `<div class="meta">Batch: ${batchNo}</div>` : ""}
-      ${showExpiry ? `<div class="meta">Exp: ${expTxt}</div>` : ""}
+      ${showName && name ? `<div class="name">${escapeHtml(name.slice(0, 40))}</div>` : ""}
+      ${showSku && sku ? `<div class="sku">SKU: ${escapeHtml(sku)}</div>` : ""}
+      <img class="bc" src="${escapeHtml(safeMediaUrl(barcodeImgSrc(r.barcode, r.barcode_type)))}" alt="${escapeHtml(r.barcode)}" style="${imgMax}" />
+      ${showBarcodeNum ? `<div class="code">${escapeHtml(r.barcode)}</div>` : ""}
+      ${showMrp && mrp != null ? `<div class="mrp">MRP ৳ ${escapeHtml(mrp)}</div>` : ""}
+      ${showBatchNo ? `<div class="meta">Batch: ${escapeHtml(batchNo)}</div>` : ""}
+      ${showExpiry ? `<div class="meta">Exp: ${escapeHtml(expTxt)}</div>` : ""}
     </div>`;
   }
 

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, BookOpen, Search, Wallet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 import {
   CollectPaymentDialog, CustomerLedgerDrawer, type DueCustomer,
 } from "@/components/pos/customer-due-dialogs";
@@ -65,7 +66,8 @@ function DueCollectionsPage() {
         .order("net_due", { ascending: false })
         .limit(500);
       if (show === "due") qy = qy.gt("net_due", 0);
-      if (dbq) qy = qy.or(`name.ilike.%${dbq}%,phone.ilike.%${dbq}%`);
+      const safeDbq = sanitizePostgrestSearch(dbq);
+      if (safeDbq) qy = qy.or(`name.ilike.%${safeDbq}%,phone.ilike.%${safeDbq}%`);
       const { data, error } = await qy;
       if (error) throw error;
       return (data ?? []) as unknown as Row[];

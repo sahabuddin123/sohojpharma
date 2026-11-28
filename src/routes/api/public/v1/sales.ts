@@ -53,10 +53,56 @@ export const Route = createFileRoute("/api/public/v1/sales")({
         const body = parsed.data;
         const subtotal = body.items.reduce((s, i) => s + i.qty * i.unit_price - i.discount, 0);
         const vat = body.items.reduce((s, i) => s + i.vat, 0);
+        if (subtotal < 0) return jsonError("invalid_request", "Line discount exceeds item total", 400);
+        if (body.discount > subtotal + vat) {
+          return jsonError("invalid_request", "Invoice discount exceeds subtotal + vat", 400);
+        }
         const total = subtotal + vat - body.discount;
         const due = Math.max(total - body.paid, 0);
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+
+        const { data: branch } = await supabaseAdmin
+          .from("branches")
+          .select("id")
+          .eq("id", body.branch_id)
+          .eq("tenant_id", g.key.tenantId)
+          .maybeSingle();
+        if (!branch) return jsonError("invalid_branch", "branch_id does not belong to this tenant", 400);
+
+        if (body.customer_id) {
+          const { data: customer } = await supabaseAdmin
+            .from("customers")
+            .select("id")
+            .eq("id", body.customer_id)
+            .eq("tenant_id", g.key.tenantId)
+            .maybeSingle();
+          if (!customer) return jsonError("invalid_customer", "customer_id does not belong to this tenant", 400);
+        }
+
+        const productIds = Array.from(new Set(body.items.map((i) => i.product_id)));
+        const { data: validProducts } = await supabaseAdmin
+          .from("products")
+          .select("id")
+          .eq("tenant_id", g.key.tenantId)
+          .in("id", productIds);
+        if ((validProducts ?? []).length !== productIds.length) {
+          return jsonError("invalid_product", "One or more product_id values do not belong to this tenant", 400);
+        }
+
+        const batchIds = Array.from(
+          new Set(body.items.map((i) => i.batch_id).filter((id): id is string => Boolean(id))),
+        );
+        if (batchIds.length > 0) {
+          const { data: validBatches } = await supabaseAdmin
+            .from("batches")
+            .select("id")
+            .eq("tenant_id", g.key.tenantId)
+            .in("id", batchIds);
+          if ((validBatches ?? []).length !== batchIds.length) {
+            return jsonError("invalid_batch", "One or more batch_id values do not belong to this tenant", 400);
+          }
+        }
         const { data: sale, error } = await supabaseAdmin
           .from("sales")
           .insert({

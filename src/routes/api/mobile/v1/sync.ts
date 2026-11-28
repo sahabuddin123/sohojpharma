@@ -2,8 +2,28 @@
 // captured while offline; server replays each through existing RPCs and
 // returns a per-op result so the client can ack/retry.
 import { createFileRoute } from "@tanstack/react-router";
+import { z } from "zod";
 import { CORS_HEADERS, guard } from "@/lib/public-api/auth";
 import { mobileError, mobileOk } from "@/lib/public-api/mobile";
+
+const UuidZ = z.string().uuid();
+const CustomerPayloadZ = z.object({
+  name: z.string().trim().min(1).max(150),
+  phone: z.string().trim().min(3).max(40).optional(),
+  email: z.string().trim().email().max(150).nullable().optional(),
+  address: z.string().trim().max(500).nullable().optional(),
+  gender: z.string().trim().max(24).nullable().optional(),
+  date_of_birth: z.string().trim().max(32).nullable().optional(),
+  notes: z.string().trim().max(1000).nullable().optional(),
+});
+const InventoryAdjustZ = z.object({
+  product_id: z.string().uuid(),
+  batch_id: z.string().uuid(),
+  qty_change: z.number().finite().refine((n) => n !== 0 && Math.abs(n) <= 100_000, "invalid qty_change"),
+  movement_type: z.enum(["adjustment", "damage", "expired", "return", "restock"]).default("adjustment"),
+  reason: z.string().trim().max(240).optional(),
+  reference_no: z.string().trim().max(80).nullable().optional(),
+});
 
 type SyncOp =
   | { type: "sale.create"; client_op_id: string; payload: Record<string, unknown> }
@@ -51,16 +71,20 @@ export const Route = createFileRoute("/api/mobile/v1/sync")({
           try {
             if (op.type === "sale.create") {
               const p = op.payload as Record<string, unknown>;
+              const customerId = p.customer_id ? UuidZ.parse(p.customer_id) : null;
+              const cashierId = p.cashier_id ? UuidZ.parse(p.cashier_id) : null;
+              const discount = Number(p.discount ?? 0);
+              if (!Number.isFinite(discount) || discount < 0) throw new Error("invalid discount");
               const rpcArgs: Record<string, unknown> = {
                 _tenant_id: tenantId,
-                _customer_id: p.customer_id ?? null,
-                _cashier_id: p.cashier_id ?? null,
-                _invoice_no: String(p.invoice_no ?? `MOB-${op.client_op_id.slice(0, 8)}`),
-                _discount: Number(p.discount ?? 0),
-                _notes: p.notes ?? null,
-                _client_op_id: op.client_op_id,
-                _items: p.items ?? [],
-                _payments: p.payments ?? [],
+                _customer_id: customerId,
+                _cashier_id: cashierId,
+                _invoice_no: String(p.invoice_no ?? `MOB-${op.client_op_id.slice(0, 8)}`).slice(0, 80),
+                _discount: discount,
+                _notes: p.notes ? String(p.notes).slice(0, 1000) : null,
+                _client_op_id: String(op.client_op_id).slice(0, 80),
+                _items: Array.isArray(p.items) ? p.items : [],
+                _payments: Array.isArray(p.payments) ? p.payments : [],
               };
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { data, error } = await (supabaseAdmin.rpc as any)("pos_checkout", rpcArgs);
@@ -72,13 +96,12 @@ export const Route = createFileRoute("/api/mobile/v1/sync")({
                 id: (data as { id?: string } | null)?.id,
               });
             } else if (op.type === "customer.upsert") {
-              const p = op.payload as Record<string, unknown>;
-              const name = String(p.name ?? "").trim();
-              if (!name) throw new Error("customer name required");
+              // Whitelist fields strictly to prevent mass-assignment & cross-tenant id collisions
+              const safeCust = CustomerPayloadZ.parse(op.payload);
               const { data, error } = await supabaseAdmin
                 .from("customers")
                 .upsert(
-                  { ...(p as Record<string, unknown>), name, tenant_id: tenantId } as never,
+                  { ...safeCust, tenant_id: tenantId } as never,
                   { onConflict: "tenant_id,phone", ignoreDuplicates: false },
                 )
                 .select("id")
@@ -86,15 +109,15 @@ export const Route = createFileRoute("/api/mobile/v1/sync")({
               if (error) throw error;
               results.push({ client_op_id: op.client_op_id, type: op.type, status: "applied", id: data?.id });
             } else if (op.type === "inventory.adjust") {
-              const p = op.payload as Record<string, unknown>;
+              const adj = InventoryAdjustZ.parse(op.payload);
               const adjArgs: Record<string, unknown> = {
                 _tenant_id: tenantId,
-                _product_id: String(p.product_id),
-                _batch_id: String(p.batch_id),
-                _qty_change: Number(p.qty_change),
-                _movement_type: String(p.movement_type ?? "adjustment"),
-                _reason: p.reason ?? "mobile sync",
-                _reference_no: p.reference_no ?? null,
+                _product_id: adj.product_id,
+                _batch_id: adj.batch_id,
+                _qty_change: adj.qty_change,
+                _movement_type: adj.movement_type,
+                _reason: adj.reason ?? "mobile sync",
+                _reference_no: adj.reference_no ?? null,
               };
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { data, error } = await (supabaseAdmin.rpc as any)("inventory_adjust", adjArgs);

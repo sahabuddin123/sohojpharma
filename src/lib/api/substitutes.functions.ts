@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireActiveSubscription } from "@/lib/api/middleware/require-active-subscription";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 // Find substitutes (same generic) for a given product. Returns brand,
 // generic, manufacturer, retail price, and in-stock qty across active batches.
@@ -63,11 +64,13 @@ export const searchByGeneric = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription])
   .inputValidator(z.object({ tenantId: z.string().uuid(), query: z.string().min(1) }))
   .handler(async ({ data, context }) => {
+    const safeQuery = sanitizePostgrestSearch(data.query);
+    if (!safeQuery) return [];
     const { data: rows } = await context.supabase
       .from("products")
       .select("id,name,sku,retail_price, generics(name), manufacturers(name)")
       .eq("tenant_id", data.tenantId)
-      .or(`name.ilike.%${data.query}%,sku.ilike.%${data.query}%`)
+      .or(`name.ilike.%${safeQuery}%,sku.ilike.%${safeQuery}%`)
       .limit(50);
     return rows ?? [];
   });

@@ -64,7 +64,7 @@ export const checkPrescriptionInteractions = createServerFn({ method: "POST" })
       ors.push(`generic_b_id.in.(${ids.join(",")})`);
     }
     if (names.length) {
-      const quoted = names.map((n) => `"${n.replace(/"/g, "")}"`).join(",");
+      const quoted = names.map((n) => `"${n.replace(/[\\,"()]/g, " ").trim()}"`).join(",");
       ors.push(`generic_a.in.(${quoted})`);
       ors.push(`generic_b.in.(${quoted})`);
     }
@@ -188,7 +188,7 @@ export const validatePrescriptionDosage = createServerFn({ method: "POST" })
     const ors: string[] = [];
     if (gids.length) ors.push(`generic_id.in.(${gids.join(",")})`);
     if (gnames.length) {
-      const quoted = gnames.map((n) => `"${n.replace(/"/g, "")}"`).join(",");
+      const quoted = gnames.map((n) => `"${n.replace(/[\\,"()]/g, " ").trim()}"`).join(",");
       ors.push(`generic_name.in.(${quoted})`);
     }
     const { data: rules } = await context.supabase

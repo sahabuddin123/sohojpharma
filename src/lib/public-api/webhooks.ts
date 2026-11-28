@@ -1,5 +1,7 @@
 // B6.10 — Webhook dispatcher. Best-effort, fire-and-forget; logs delivery.
+// Enforces SSRF protection (blocks internal/loopback/cloud-metadata IPs and redirects).
 import { createHmac } from "node:crypto";
+import { assertSafeOutboundUrl } from "@/lib/security/ssrf-guard.server";
 
 export async function dispatchWebhook(tenantId: string, event: string, payload: Record<string, unknown>) {
   try {
@@ -19,9 +21,11 @@ export async function dispatchWebhook(tenantId: string, event: string, payload: 
           const t0 = Date.now();
           let status = 0;
           try {
+            const safeUrl = await assertSafeOutboundUrl(h.url);
             const sig = h.secret ? createHmac("sha256", h.secret).update(body).digest("hex") : "";
-            const r = await fetch(h.url, {
+            const r = await fetch(safeUrl.toString(), {
               method: "POST",
+              redirect: "error",
               headers: {
                 "Content-Type": "application/json",
                 "X-SohojPharma-Event": event,

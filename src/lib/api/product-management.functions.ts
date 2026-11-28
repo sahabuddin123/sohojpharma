@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireActiveSubscription } from "@/lib/api/middleware/require-active-subscription";
 import type { Database, Json } from "@/integrations/supabase/types";
 import { getResolvedMasterId, resolveMasterIds } from "@/lib/api/master-resolver";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 const TenantInput = z.object({ tenantId: z.string().uuid(), branchId: z.string().uuid().nullable().optional() });
 const PageInput = TenantInput.extend({ search: z.string().trim().max(120).optional(), page: z.number().int().min(1).default(1), pageSize: z.number().int().min(10).max(100).default(25) });
@@ -332,7 +333,8 @@ export const importProductsFromExcel = createServerFn({ method: "POST" })
 
 export const listProductCompanies = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(PageInput).handler(async ({ data, context }) => {
   let q = context.supabase.from("manufacturers").select("id,name,code,country,address,phone,email,status,created_at", { count: "exact" }).eq("tenant_id", data.tenantId).is("deleted_at", null).order("name", { ascending: true });
-  if (data.search) q = q.or(`name.ilike.%${data.search}%,code.ilike.%${data.search}%,country.ilike.%${data.search}%`);
+  const safeSearch = sanitizePostgrestSearch(data.search);
+  if (safeSearch) q = q.or(`name.ilike.%${safeSearch}%,code.ilike.%${safeSearch}%,country.ilike.%${safeSearch}%`);
   const from = (data.page - 1) * data.pageSize;
   const { data: rows, error, count } = await q.range(from, from + data.pageSize - 1);
   if (error) throw new Error(error.message);
@@ -361,7 +363,8 @@ export const deleteProductCompany = createServerFn({ method: "POST" }).middlewar
 
 export const listProductGenerics = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth]).inputValidator(PageInput).handler(async ({ data, context }) => {
   let q = context.supabase.from("generics").select("id,name,description,status,created_at", { count: "exact" }).eq("tenant_id", data.tenantId).is("deleted_at", null).order("name", { ascending: true });
-  if (data.search) q = q.or(`name.ilike.%${data.search}%,description.ilike.%${data.search}%`);
+  const safeSearch = sanitizePostgrestSearch(data.search);
+  if (safeSearch) q = q.or(`name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`);
   const from = (data.page - 1) * data.pageSize;
   const { data: rows, error, count } = await q.range(from, from + data.pageSize - 1);
   if (error) throw new Error(error.message);

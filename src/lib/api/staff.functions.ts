@@ -128,6 +128,30 @@ export const upsertStaff = createServerFn({ method: "POST" })
       }
       let staffUserId: string | null = staffPayload.user_id ?? null;
 
+      const checkForeignOrAdmin = async (uid: string) => {
+        const [{ data: adminRow }, { data: otherTenant }, { data: sameTenant }] = await Promise.all([
+          supabaseAdmin.from("app_admins").select("user_id").eq("user_id", uid).maybeSingle(),
+          supabaseAdmin
+            .from("tenant_members")
+            .select("tenant_id")
+            .eq("user_id", uid)
+            .neq("tenant_id", staffPayload.tenant_id)
+            .limit(1)
+            .maybeSingle(),
+          supabaseAdmin
+            .from("tenant_members")
+            .select("user_id")
+            .eq("user_id", uid)
+            .eq("tenant_id", staffPayload.tenant_id)
+            .maybeSingle(),
+        ]);
+        return {
+          isPlatformAdmin: Boolean(adminRow),
+          belongsToOtherTenant: Boolean(otherTenant),
+          belongsToThisTenant: Boolean(sameTenant),
+        };
+      };
+
       if (!staffUserId) {
         const { data: created, error: cErr } = await supabaseAdmin.auth.admin.createUser({
           email,
@@ -140,15 +164,38 @@ export const upsertStaff = createServerFn({ method: "POST" })
         });
         if (cErr) {
           if (/already|registered|exists|duplicate/i.test(cErr.message)) {
-            const { data: list, error: lErr } = await supabaseAdmin.auth.admin.listUsers({
-              page: 1,
-              perPage: 200,
-            });
-            if (lErr) throw new Error(lErr.message);
-            const found = list.users.find((u) => (u.email ?? "").toLowerCase() === email);
-            if (!found) throw new Error(cErr.message);
-            staffUserId = found.id;
-            await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+            // Look up existing user via profiles first, then paginated auth list
+            let existingId: string | null = null;
+            const { data: prof } = await supabaseAdmin
+              .from("profiles")
+              .select("id")
+              .ilike("email", email)
+              .limit(1)
+              .maybeSingle();
+            if (prof?.id) {
+              existingId = prof.id;
+            } else {
+              for (let page = 1; page <= 10 && !existingId; page++) {
+                const { data: list, error: lErr } = await supabaseAdmin.auth.admin.listUsers({
+                  page,
+                  perPage: 200,
+                });
+                if (lErr) throw new Error(lErr.message);
+                const found = list.users.find((u) => (u.email ?? "").toLowerCase() === email);
+                if (found) existingId = found.id;
+                if (!list.users.length || list.users.length < 200) break;
+              }
+            }
+            if (!existingId) throw new Error("এই ইমেইলটি ইতিমধ্যে ব্যবহৃত হয়েছে");
+
+            const status = await checkForeignOrAdmin(existingId);
+            // SECURITY: Never allow one store to hijack/reset password of SuperAdmin or another store's user
+            if (status.isPlatformAdmin || status.belongsToOtherTenant || (!status.belongsToThisTenant && !isAdminRpc)) {
+              throw new Error("এই ইমেইলটি ইতিমধ্যে অন্য অ্যাকাউন্টে নিবন্ধিত রয়েছে। অনুগ্রহ করে ভিন্ন ইমেইল ব্যবহার করুন।");
+            }
+            staffUserId = existingId;
+            const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+            if (pwErr) throw new Error(pwErr.message);
           } else {
             throw new Error(cErr.message);
           }
@@ -156,7 +203,12 @@ export const upsertStaff = createServerFn({ method: "POST" })
           staffUserId = created.user?.id ?? null;
         }
       } else {
-        await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+        const status = await checkForeignOrAdmin(staffUserId);
+        if (!isAdminRpc && (status.isPlatformAdmin || status.belongsToOtherTenant || !status.belongsToThisTenant)) {
+          throw new Error("Forbidden: target user does not belong exclusively to this store");
+        }
+        const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(staffUserId, { password });
+        if (pwErr) throw new Error(pwErr.message);
       }
 
       if (staffUserId) {

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireFeature } from "@/lib/api/middleware/require-feature";
 import { requireActiveSubscription } from "@/lib/api/middleware/require-active-subscription";
+import { assertSafeOutboundUrl } from "@/lib/security/ssrf-guard.server";
 import { loadBusinessRules } from "./business-rules.functions";
 
 type ExtractedItem = {
@@ -70,9 +71,18 @@ const RX_USER_PROMPT =
 export const extractPrescription = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth, requireActiveSubscription, requireFeature("prescription")])
   .inputValidator(z.object({
-    imageUrl: z.string().min(10),
+    imageUrl: z.string().min(10).max(12_000_000),
   }))
   .handler(async ({ data }): Promise<ExtractResult> => {
+    const trimmedUrl = data.imageUrl.trim();
+    const dataUrlMatch = trimmedUrl.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!dataUrlMatch) {
+      const parsed = await assertSafeOutboundUrl(trimmedUrl, { allowHttp: false });
+      if (parsed.protocol !== "https:") {
+        throw new Error("Only https image URLs or JPEG/PNG/WebP data URLs are allowed");
+      }
+    }
+
     const openaiKey = process.env.OPENAI_API_KEY?.trim();
     const geminiKey = (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)?.trim();
 
@@ -93,7 +103,7 @@ export const extractPrescription = createServerFn({ method: "POST" })
               role: "user",
               content: [
                 { type: "text", text: RX_USER_PROMPT },
-                { type: "image_url", image_url: { url: data.imageUrl } },
+                { type: "image_url", image_url: { url: trimmedUrl } },
               ],
             },
           ],
@@ -104,9 +114,11 @@ export const extractPrescription = createServerFn({ method: "POST" })
       const json = await res.json();
       text = json?.choices?.[0]?.message?.content ?? "{}";
     } else if (geminiKey) {
-      const match = data.imageUrl.match(/^data:([^;]+);base64,(.+)$/);
-      const mimeType = match?.[1] ?? "image/jpeg";
-      const base64Data = match?.[2] ?? data.imageUrl;
+      if (!dataUrlMatch) {
+        throw new Error("Gemini vision extraction requires a base64 JPEG/PNG/WebP image");
+      }
+      const mimeType = dataUrlMatch[1];
+      const base64Data = dataUrlMatch[2];
       const res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${encodeURIComponent(geminiKey)}`,
         {

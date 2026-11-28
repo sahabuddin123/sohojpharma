@@ -6,6 +6,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 // ---------- Shared schema fragments ----------
 const tenantInput = z.object({
@@ -230,7 +231,8 @@ export const listPrintJobs = createServerFn({ method: "POST" })
     if (data.branch_id) q = q.eq("branch_id", data.branch_id);
     if (data.status) q = q.eq("status", data.status);
     if (data.document_type) q = q.eq("document_type", data.document_type);
-    if (data.search) q = q.or(`printer_name.ilike.%${data.search}%,document_id.ilike.%${data.search}%`);
+    const safeSearch = sanitizePostgrestSearch(data.search);
+    if (safeSearch) q = q.or(`printer_name.ilike.%${safeSearch}%,document_id.ilike.%${safeSearch}%`);
     const { data: rows, error } = await q;
     if (error) throw new Error(error.message);
     return rows ?? [];

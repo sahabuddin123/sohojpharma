@@ -90,11 +90,12 @@ function WebhooksPage() {
   const addHook = useMutation({
     mutationFn: async () => {
       if (!currentTenantId) throw new Error("No store selected");
-      if (!/^https?:\/\//.test(url.trim())) throw new Error("URL must start with http(s)://");
+      const { validateWebhookUrlSyntax } = await import("@/lib/security/webhook-url");
+      const parsed = validateWebhookUrlSyntax(url.trim(), { allowHttp: import.meta.env.DEV });
       if (picked.length === 0) throw new Error("Pick at least one event");
       const { error } = await supabase.from("webhooks").insert({
         tenant_id: currentTenantId,
-        url: url.trim(),
+        url: parsed.toString(),
         events: picked,
         active: true,
       });

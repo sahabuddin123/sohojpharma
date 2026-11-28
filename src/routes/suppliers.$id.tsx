@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { getSupplierProfile } from "@/lib/api/supplier-ledger.functions";
+import { escapeHtml } from "@/lib/security/html-escape";
 import * as XLSX from "xlsx";
 
 export const Route = createFileRoute("/suppliers/$id")({
@@ -70,14 +71,14 @@ function SupplierDetailsPage() {
     if (!win) return;
     const rowsHtml = ledger.map((l) => `
       <tr>
-        <td>${(l.entry_date ?? "").slice(0, 10)}</td>
-        <td>${l.ref_no ?? ""}</td>
-        <td style="text-transform:capitalize">${l.entry_type}</td>
-        <td style="text-align:right">${Number(l.debit ?? 0) ? fmt(Number(l.debit)) : "-"}</td>
-        <td style="text-align:right">${Number(l.credit ?? 0) ? fmt(Number(l.credit)) : "-"}</td>
-        <td style="text-align:right;font-weight:600">${fmt(Number(l.running_balance ?? 0))}</td>
+        <td>${escapeHtml((l.entry_date ?? "").slice(0, 10))}</td>
+        <td>${escapeHtml(l.ref_no ?? "")}</td>
+        <td style="text-transform:capitalize">${escapeHtml(l.entry_type)}</td>
+        <td style="text-align:right">${Number(l.debit ?? 0) ? escapeHtml(fmt(Number(l.debit))) : "-"}</td>
+        <td style="text-align:right">${Number(l.credit ?? 0) ? escapeHtml(fmt(Number(l.credit))) : "-"}</td>
+        <td style="text-align:right;font-weight:600">${escapeHtml(fmt(Number(l.running_balance ?? 0)))}</td>
       </tr>`).join("");
-    win.document.write(`<!doctype html><html><head><title>Statement - ${supplier.name}</title>
+    win.document.write(`<!doctype html><html><head><title>Statement - ${escapeHtml(supplier.name)}</title>
       <style>
         body{font-family:Arial,sans-serif;padding:24px;color:#111}
         h1{margin:0 0 4px} .meta{color:#555;font-size:13px;margin-bottom:16px}
@@ -86,9 +87,9 @@ function SupplierDetailsPage() {
         th{background:#f4f4f5;text-align:left}
         .totals{margin-top:12px;font-size:14px}
       </style></head><body>
-      <h1>${supplier.name}</h1>
-      <div class="meta">${supplier.phone ?? ""} • ${supplier.email ?? ""}<br/>
-        ${supplier.address ?? ""}</div>
+      <h1>${escapeHtml(supplier.name)}</h1>
+      <div class="meta">${escapeHtml(supplier.phone ?? "")} • ${escapeHtml(supplier.email ?? "")}<br/>
+        ${escapeHtml(supplier.address ?? "")}</div>
       <div class="totals">
         <strong>Opening Balance:</strong> ${fmt(Number(supplier.opening_balance ?? 0))}<br/>
         <strong>As of:</strong> ${new Date().toLocaleDateString()}

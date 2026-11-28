@@ -252,28 +252,30 @@ function OpeningStockWizard() {
           if (name) names.add(name);
         });
 
-        // Fetch only the products referenced in the sheet (tenant-scoped)
+        // Fetch only the products referenced in the sheet (tenant-scoped via parameterized .in() filters)
         const codeList = Array.from(codes);
         const nameList = Array.from(names);
-        const orParts: string[] = [];
-        if (codeList.length) {
-          orParts.push(`sku.in.(${codeList.map((c) => `"${c}"`).join(",")})`);
-          orParts.push(`barcode.in.(${codeList.map((c) => `"${c}"`).join(",")})`);
-        }
-        if (nameList.length) {
-          orParts.push(`name.in.(${nameList.map((n) => `"${n.replace(/"/g, '\\"')}"`).join(",")})`);
-        }
-        let lookup: Array<{ id: string; name: string; sku: string | null; barcode: string | null; purchase_price: number | null; retail_price: number | null }> = [];
-        if (orParts.length) {
-          const { data, error } = await supabase
-            .from("products")
-            .select("id,name,sku,barcode,purchase_price,retail_price")
-            .eq("tenant_id", tenantId)
-            .is("deleted_at", null)
-            .or(orParts.join(","));
-          if (error) throw error;
-          lookup = data ?? [];
-        }
+        type LookupRow = { id: string; name: string; sku: string | null; barcode: string | null; purchase_price: number | null; retail_price: number | null };
+        const lookupMap = new Map<string, LookupRow>();
+        const fetchChunked = async (col: "sku" | "barcode" | "name", vals: string[]) => {
+          for (let i = 0; i < vals.length; i += 200) {
+            const slice = vals.slice(i, i + 200);
+            const { data, error } = await supabase
+              .from("products")
+              .select("id,name,sku,barcode,purchase_price,retail_price")
+              .eq("tenant_id", tenantId)
+              .is("deleted_at", null)
+              .in(col, slice);
+            if (error) throw error;
+            for (const item of data ?? []) lookupMap.set(item.id, item as LookupRow);
+          }
+        };
+        await Promise.all([
+          codeList.length ? fetchChunked("sku", codeList) : Promise.resolve(),
+          codeList.length ? fetchChunked("barcode", codeList) : Promise.resolve(),
+          nameList.length ? fetchChunked("name", nameList) : Promise.resolve(),
+        ]);
+        const lookup = Array.from(lookupMap.values());
 
         // Check has_opening status for matched products
         const ids = lookup.map((p) => p.id);

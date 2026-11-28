@@ -22,6 +22,7 @@ import {
 } from "@/lib/api/product-batches.functions";
 import { recallBatch } from "@/lib/api/batch-control.functions";
 import { ExpiryMonthInput, formatMonthYear, formatFullDate } from "@/components/inventory/expiry-month-input";
+import { escapeHtml } from "@/lib/security/html-escape";
 
 type SortKey = "nearest" | "latest" | "highest_stock" | "lowest_stock" | "newest" | "oldest";
 
@@ -153,15 +154,15 @@ export function BatchManagementDialog({
   const printLabel = (r: ProductBatchRow) => {
     const w = window.open("", "_blank", "width=420,height=280");
     if (!w) return;
-    w.document.write(`<html><head><title>Batch ${r.batch_no}</title>
+    w.document.write(`<html><head><title>Batch ${escapeHtml(r.batch_no)}</title>
       <style>body{font-family:system-ui;padding:16px;font-size:12px}
       h1{font-size:14px;margin:0 0 8px} .row{margin:2px 0}</style></head>
-      <body><h1>${productName}</h1>
-      <div class="row"><b>Batch:</b> ${r.batch_no}</div>
-      <div class="row"><b>Expiry:</b> ${r.expiry_date}</div>
-      ${r.mfg_date ? `<div class="row"><b>Mfg:</b> ${r.mfg_date}</div>` : ""}
-      <div class="row"><b>Qty:</b> ${r.qty_on_hand}</div>
-      <div class="row"><b>MRP:</b> ${r.mrp ?? "-"}</div>
+      <body><h1>${escapeHtml(productName)}</h1>
+      <div class="row"><b>Batch:</b> ${escapeHtml(r.batch_no)}</div>
+      <div class="row"><b>Expiry:</b> ${escapeHtml(r.expiry_date)}</div>
+      ${r.mfg_date ? `<div class="row"><b>Mfg:</b> ${escapeHtml(r.mfg_date)}</div>` : ""}
+      <div class="row"><b>Qty:</b> ${escapeHtml(r.qty_on_hand)}</div>
+      <div class="row"><b>MRP:</b> ${escapeHtml(r.mrp ?? "-")}</div>
       <script>window.onload=()=>window.print()</script>
       </body></html>`);
     w.document.close();

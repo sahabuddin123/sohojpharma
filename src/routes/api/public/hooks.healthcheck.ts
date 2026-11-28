@@ -17,11 +17,13 @@ export const Route = createFileRoute('/api/public/hooks/healthcheck')({
             { auth: { persistSession: false, autoRefreshToken: false } },
           )
           const { error } = await supabase.from('plans').select('id').limit(1)
+          if (error) console.error('[healthcheck] database check failed:', error.message)
           checks.database = error
-            ? { ok: false, ms: Date.now() - t0, error: error.message }
+            ? { ok: false, ms: Date.now() - t0, error: 'unavailable' }
             : { ok: true, ms: Date.now() - t0 }
         } catch (e) {
-          checks.database = { ok: false, ms: Date.now() - t0, error: String(e) }
+          console.error('[healthcheck] database check threw:', e)
+          checks.database = { ok: false, ms: Date.now() - t0, error: 'unavailable' }
         }
 
         checks.runtime = { ok: true, ms: 0 }

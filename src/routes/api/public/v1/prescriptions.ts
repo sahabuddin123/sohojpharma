@@ -1,6 +1,9 @@
 // B6.9 — Prescription upload, list, detail.
 import { createFileRoute } from "@tanstack/react-router";
 import { guard, jsonError, jsonOk, preflight } from "@/lib/public-api/auth";
+import { verifySafeUploadBytes } from "@/lib/security/upload-validation.server";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const Route = createFileRoute("/api/public/v1/prescriptions")({
   server: {
@@ -33,35 +36,63 @@ export const Route = createFileRoute("/api/public/v1/prescriptions")({
         catch { return jsonError("invalid_request", "Expected multipart/form-data", 400); }
         const file = form.get("file");
         if (!(file instanceof File)) return jsonError("invalid_request", "file is required", 400);
-        if (file.size > 10 * 1024 * 1024) return jsonError("invalid_request", "file exceeds 10MB", 400);
-        const mime = file.type || "application/octet-stream";
-        const fileKind: "image" | "pdf" = mime === "application/pdf" ? "pdf" : "image";
-        if (fileKind === "image" && !mime.startsWith("image/")) {
-          return jsonError("invalid_request", "Unsupported file type", 400);
+        if (file.size === 0 || file.size > 10 * 1024 * 1024) {
+          return jsonError("invalid_request", "file must be between 1 byte and 10MB", 400);
         }
-        const ext = mime === "application/pdf" ? "pdf" : (file.name.split(".").pop() ?? "bin").toLowerCase().slice(0, 5);
-        const path = `${g.key.tenantId}/${crypto.randomUUID()}.${ext}`;
+
+        const branchId = String(form.get("branch_id") || "").trim();
+        if (!UUID_RE.test(branchId)) {
+          return jsonError("invalid_request", "valid branch_id is required", 400);
+        }
+        const customerIdRaw = String(form.get("customer_id") || "").trim();
+        if (customerIdRaw && !UUID_RE.test(customerIdRaw)) {
+          return jsonError("invalid_request", "invalid customer_id", 400);
+        }
+
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let verified: ReturnType<typeof verifySafeUploadBytes>;
+        try {
+          verified = verifySafeUploadBytes(buf, file.type);
+        } catch (err) {
+          return jsonError("invalid_request", err instanceof Error ? err.message : "Unsupported file type", 400);
+        }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const buf = new Uint8Array(await file.arrayBuffer());
-        const up = await supabaseAdmin.storage.from("prescriptions").upload(path, buf, { contentType: mime });
+        const { data: branchRow } = await supabaseAdmin
+          .from("branches")
+          .select("id")
+          .eq("id", branchId)
+          .eq("tenant_id", g.key.tenantId)
+          .maybeSingle();
+        if (!branchRow) return jsonError("forbidden", "Invalid branch_id for this tenant", 403);
+
+        if (customerIdRaw) {
+          const { data: custRow } = await supabaseAdmin
+            .from("customers")
+            .select("id")
+            .eq("id", customerIdRaw)
+            .eq("tenant_id", g.key.tenantId)
+            .maybeSingle();
+          if (!custRow) return jsonError("forbidden", "Invalid customer_id for this tenant", 403);
+        }
+
+        const path = `${g.key.tenantId}/${crypto.randomUUID()}.${verified.ext}`;
+        const up = await supabaseAdmin.storage.from("prescriptions").upload(path, buf, {
+          contentType: verified.contentType,
+        });
         if (up.error) return jsonError("server_error", up.error.message, 500);
 
-        const branchId = (form.get("branch_id") as string) || "";
-        if (!/^[0-9a-f-]{36}$/i.test(branchId)) {
-          return jsonError("invalid_request", "branch_id is required", 400);
-        }
         const { data, error } = await supabaseAdmin
           .from("prescriptions")
           .insert({
             tenant_id: g.key.tenantId,
             branch_id: branchId,
-            customer_id: (form.get("customer_id") as string) || null,
-            patient_name: (form.get("patient_name") as string) || null,
-            doctor_name: (form.get("doctor_name") as string) || null,
-            notes: (form.get("notes") as string) || null,
+            customer_id: customerIdRaw || null,
+            patient_name: (form.get("patient_name") as string)?.slice(0, 120) || null,
+            doctor_name: (form.get("doctor_name") as string)?.slice(0, 120) || null,
+            notes: (form.get("notes") as string)?.slice(0, 1000) || null,
             image_path: path,
-            file_kind: fileKind,
+            file_kind: verified.fileKind,
           })
           .select("id, image_path, status")
           .single();

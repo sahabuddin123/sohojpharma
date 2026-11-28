@@ -237,9 +237,11 @@ export const upsertWebhook = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data, context }): Promise<WebhookRow> => {
     await assertCanWrite(context, data.tenant_id);
+    const { assertSafeOutboundUrl } = await import("@/lib/security/ssrf-guard.server");
+    const safeUrl = await assertSafeOutboundUrl(data.url);
     const payload: Record<string, any> = {
       tenant_id: data.tenant_id,
-      url: data.url,
+      url: safeUrl.toString(),
       events: data.events,
       active: data.active,
     };

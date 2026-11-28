@@ -1,17 +1,14 @@
 // Cron-triggered scheduler for BI tasks: detect executive alerts + advance scheduled reports.
-// Called by pg_cron via the /api/public/* prefix; verifies the Supabase anon key in the apikey header.
+// Called by pg_cron via the /api/public/* prefix; verified via timing-safe CRON_SECRET header.
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { verifyCronRequest } from "@/lib/api/cron-auth.server";
 
 export const Route = createFileRoute("/api/public/hooks/bi-scheduled")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const cronSecret = process.env.CRON_SECRET;
-        const provided = request.headers.get("x-cron-secret");
-        if (!cronSecret || provided !== cronSecret) {
-          return new Response("Unauthorized", { status: 401 });
-        }
+        const denied = verifyCronRequest(request);
+        if (denied) return denied;
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
         const out: Record<string, unknown> = { detected: 0, advanced: 0 };

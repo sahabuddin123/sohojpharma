@@ -1,6 +1,7 @@
 // B6.5 — Customers list + due summary.
 import { createFileRoute } from "@tanstack/react-router";
 import { guard, jsonError, jsonOk, preflight } from "@/lib/public-api/auth";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 export const Route = createFileRoute("/api/public/v1/customers")({
   server: {
@@ -10,7 +11,7 @@ export const Route = createFileRoute("/api/public/v1/customers")({
         const g = await guard(request, "read");
         if (!g.ok) return g.response;
         const url = new URL(request.url);
-        const q = url.searchParams.get("q") ?? "";
+        const q = sanitizePostgrestSearch(url.searchParams.get("q") ?? "");
         const limit = Math.min(Number(url.searchParams.get("limit") ?? 50), 200);
         const offset = Math.max(Number(url.searchParams.get("offset") ?? 0), 0);
 

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireFeature } from "@/lib/api/middleware/require-feature";
 import { mapPgError } from "@/lib/api/errors";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 const BILLING = ["monthly", "quarterly", "half_yearly", "yearly", "lifetime"] as const;
 const SUB_STATUS = ["trial", "active", "past_due", "grace_period", "expired", "cancelled", "suspended"] as const;
@@ -315,10 +316,11 @@ export const adminUpsertPlan = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAppAdmin(context);
     // unique name (case-insensitive) + slug — pre-check
+    const safeName = sanitizePostgrestSearch(data.name);
     const { data: clash } = await context.supabase
       .from("plans")
       .select("id,name,slug")
-      .or(`slug.eq.${data.slug},name.ilike.${data.name}`)
+      .or(safeName ? `slug.eq.${data.slug},name.ilike.${safeName}` : `slug.eq.${data.slug}`)
       .neq("id", data.id ?? "00000000-0000-0000-0000-000000000000");
     if ((clash ?? []).length > 0) {
       throw new Error("Plan name or slug already exists");

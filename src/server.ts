@@ -37,7 +37,7 @@ async function normalizeCatastrophicSsrResponse(response: Response): Promise<Res
   });
 }
 
-function applySecurityHeaders(response: Response): Response {
+function applySecurityHeaders(response: Response, requestUrl?: string): Response {
   const headers = new Headers(response.headers);
 
   // Prevent MIME-sniffing
@@ -54,8 +54,32 @@ function applySecurityHeaders(response: Response): Response {
   // Restrict browser permissions (allow camera for barcode & blister scanning)
   headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=(self)");
 
-  // Legacy XSS filter protection
+  // Legacy XSS filter protection & cross-domain / opener isolation
   headers.set("X-XSS-Protection", "1; mode=block");
+  headers.set("X-Permitted-Cross-Domain-Policies", "none");
+  headers.set("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+
+  if (!headers.has("Content-Security-Policy")) {
+    headers.set(
+      "Content-Security-Policy",
+      "object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self' https://*.bka.sh;",
+    );
+  }
+
+  if (requestUrl) {
+    try {
+      const pathname = new URL(requestUrl).pathname;
+      if (
+        (pathname.startsWith("/_serverFn/") ||
+          (pathname.startsWith("/api/") && !pathname.startsWith("/api/public/media/"))) &&
+        !headers.has("Cache-Control")
+      ) {
+        headers.set("Cache-Control", "no-store");
+      }
+    } catch {
+      // Ignore unparseable request URL
+    }
+  }
 
   // HSTS in production
   if (process.env.NODE_ENV === "production") {
@@ -75,14 +99,14 @@ export default {
       const handler = await getServerEntry();
       const rawResponse = await handler.fetch(request, env, ctx);
       const normalizedResponse = await normalizeCatastrophicSsrResponse(rawResponse);
-      return applySecurityHeaders(normalizedResponse);
+      return applySecurityHeaders(normalizedResponse, request.url);
     } catch (error) {
       console.error(error);
       const fallbackResponse = new Response(renderErrorPage(), {
         status: 500,
         headers: { "content-type": "text/html; charset=utf-8" },
       });
-      return applySecurityHeaders(fallbackResponse);
+      return applySecurityHeaders(fallbackResponse, request.url);
     }
   },
 };

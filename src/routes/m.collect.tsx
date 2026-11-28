@@ -20,6 +20,7 @@ import { recordPayment } from "@/lib/api/collections.functions";
 import { cacheCustomers, searchCachedCustomers } from "@/lib/offline/db";
 import { queueCollection } from "@/lib/offline/queue";
 import { cn } from "@/lib/utils";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 export const Route = createFileRoute("/m/collect")({
   errorComponent: (p) => <RouteErrorPanel error={p.error as Error} reset={p.reset} />,
@@ -247,12 +248,14 @@ function MobileCashCollect() {
       if (typeof navigator !== "undefined" && !navigator.onLine) {
         return await searchCachedCustomers(tenantId, term);
       }
+      const safeTerm = sanitizePostgrestSearch(term);
+      if (!safeTerm) return [];
       try {
         const { data, error } = await supabase
           .from("customers")
           .select("id,name,phone,due_balance")
           .eq("tenant_id", tenantId)
-          .or(`name.ilike.%${term}%,phone.ilike.%${term}%`)
+          .or(`name.ilike.%${safeTerm}%,phone.ilike.%${safeTerm}%`)
           .order("due_balance", { ascending: false })
           .limit(20);
         if (error) throw error;

@@ -3,6 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getResolvedMasterId, resolveMasterIds } from "@/lib/api/master-resolver";
+import { sanitizePostgrestSearch } from "@/lib/security/postgrest";
 
 /* ------------------------------------------------------------------ */
 /*  Master kind dispatch                                              */
@@ -139,8 +140,9 @@ export const listMasters = createServerFn({ method: "POST" })
     if (data.status === "active") q = q.eq("status", "active");
     if (data.status === "inactive") q = q.neq("status", "active");
 
-    if (data.search && data.search.trim()) {
-      const s = `%${data.search.trim()}%`;
+    const safeSearch = sanitizePostgrestSearch(data.search);
+    if (safeSearch) {
+      const s = `%${safeSearch}%`;
       q = q.or(`name.ilike.${s},code.ilike.${s}`);
     }
     const from = (data.page - 1) * data.pageSize;
