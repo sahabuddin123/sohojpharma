@@ -408,86 +408,90 @@ function MobileProductListPage() {
           </Button>
         </div>
 
-        {/* Specific Filters: Search Scope, Company, Generic, Category */}
-        <PhoneChipRow>
-          <select
-            aria-label={t("pages.products.searchByAll")}
-            value={searchBy}
-            onChange={(e) => setSearchBy(e.target.value as ProductSearchScope)}
-            className={cn(
-              "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold outline-none",
-              searchBy !== "all"
-                ? "border-[#0d5c46] bg-[#0d5c46] text-white"
-                : "border-slate-200 bg-white text-slate-700",
-            )}
-          >
-            <option value="all">{t("pages.products.searchByAll")}</option>
-            <option value="name">{t("pages.products.searchByName")}</option>
-            <option value="company">{t("pages.products.searchByCompany")}</option>
-            <option value="generic">{t("pages.products.searchByGeneric")}</option>
-            <option value="category">{t("pages.products.searchByCategory")}</option>
-            <option value="barcode">{t("pages.products.searchByBarcode")}</option>
-          </select>
+        {/* Specific Filters Card: 3-col always-visible Company/Generic/Category + Scope */}
+        <div className="rounded-2xl border border-slate-200/90 bg-white p-2.5 shadow-2xs space-y-2">
+          <div className="grid grid-cols-3 gap-1.5">
+            <ProductFilterCombobox
+              variant="mobile"
+              label={t("pages.products.company")}
+              allLabel={t("pages.products.allCompanies")}
+              searchPlaceholder={t("pages.products.searchCompanyPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
+              options={filterOptions.manufacturers}
+              value={manufacturerId}
+              onChange={setManufacturerId}
+              icon={<Building2 className="size-3.5 shrink-0" />}
+            />
 
-          <ProductFilterCombobox
-            variant="mobile"
-            label={t("pages.products.company")}
-            allLabel={t("pages.products.allCompanies")}
-            searchPlaceholder={t("pages.products.searchCompanyPh")}
-            emptyLabel={t("pages.products.noOptions")}
-            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
-            options={filterOptions.manufacturers}
-            value={manufacturerId}
-            onChange={setManufacturerId}
-            icon={<Building2 className="h-3.5 w-3.5 shrink-0" />}
-          />
+            <ProductFilterCombobox
+              variant="mobile"
+              label={t("pages.products.generic")}
+              allLabel={t("pages.products.allGenerics")}
+              searchPlaceholder={t("pages.products.searchGenericPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
+              options={filterOptions.generics}
+              value={genericId}
+              onChange={setGenericId}
+              icon={<FlaskConical className="size-3.5 shrink-0" />}
+            />
 
-          <ProductFilterCombobox
-            variant="mobile"
-            label={t("pages.products.generic")}
-            allLabel={t("pages.products.allGenerics")}
-            searchPlaceholder={t("pages.products.searchGenericPh")}
-            emptyLabel={t("pages.products.noOptions")}
-            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
-            options={filterOptions.generics}
-            value={genericId}
-            onChange={setGenericId}
-            icon={<FlaskConical className="h-3.5 w-3.5 shrink-0" />}
-          />
+            <ProductFilterCombobox
+              variant="mobile"
+              label={t("pages.products.category")}
+              allLabel={t("pages.products.allCategories")}
+              searchPlaceholder={t("pages.products.searchCategoryPh")}
+              emptyLabel={t("pages.products.noOptions")}
+              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
+              options={filterOptions.categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              icon={<Tags className="size-3.5 shrink-0" />}
+            />
+          </div>
 
-          <ProductFilterCombobox
-            variant="mobile"
-            label={t("pages.products.category")}
-            allLabel={t("pages.products.allCategories")}
-            searchPlaceholder={t("pages.products.searchCategoryPh")}
-            emptyLabel={t("pages.products.noOptions")}
-            narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
-            options={filterOptions.categories}
-            value={categoryId}
-            onChange={setCategoryId}
-            icon={<Tags className="h-3.5 w-3.5 shrink-0" />}
-          />
-
-          {(term || searchBy !== "all" || manufacturerId || genericId || categoryId || filter !== "all") && (
-            <button
-              type="button"
-              onClick={() => {
-                setTerm("");
-                setSearch("");
-                setSearchBy("all");
-                setManufacturerId(undefined);
-                setGenericId(undefined);
-                setCategoryId(undefined);
-                setFilter("all");
-                setPage(1);
-              }}
-              className="inline-flex shrink-0 items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 whitespace-nowrap"
+          <div className="flex items-center justify-between gap-2">
+            <select
+              aria-label={t("pages.products.searchByAll")}
+              value={searchBy}
+              onChange={(e) => setSearchBy(e.target.value as ProductSearchScope)}
+              className={cn(
+                "h-8 rounded-lg border px-2.5 text-xs font-semibold outline-none",
+                searchBy !== "all"
+                  ? "border-[#0d5c46] bg-[#0d5c46]/10 text-[#0d5c46]"
+                  : "border-slate-200 bg-slate-50 text-slate-700",
+              )}
             >
-              <RotateCcw className="h-3 w-3" />
-              {t("m.productList.reset")}
-            </button>
-          )}
-        </PhoneChipRow>
+              <option value="all">{t("pages.products.searchByAll")}</option>
+              <option value="name">{t("pages.products.searchByName")}</option>
+              <option value="company">{t("pages.products.searchByCompany")}</option>
+              <option value="generic">{t("pages.products.searchByGeneric")}</option>
+              <option value="category">{t("pages.products.searchByCategory")}</option>
+              <option value="barcode">{t("pages.products.searchByBarcode")}</option>
+            </select>
+
+            {(term || searchBy !== "all" || manufacturerId || genericId || categoryId || filter !== "all") && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTerm("");
+                  setSearch("");
+                  setSearchBy("all");
+                  setManufacturerId(undefined);
+                  setGenericId(undefined);
+                  setCategoryId(undefined);
+                  setFilter("all");
+                  setPage(1);
+                }}
+                className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-semibold text-rose-700"
+              >
+                <RotateCcw className="size-3" />
+                {t("m.productList.reset")}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Filter & Action Chips */}
         <div>

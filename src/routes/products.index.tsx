@@ -12,7 +12,7 @@ import { exportCatalogData } from "@/lib/api/catalog-export.functions";
 import {
   Plus, Search, Download, Upload, Eye, Pencil, QrCode, Trash2, Zap, Copy, History, LineChart,
   Package, PackageCheck, PackageX, AlertTriangle, TrendingDown, Wallet, RefreshCw,
-  ChevronLeft, ChevronRight, ChevronDown, Building2, FlaskConical, Tags, X,
+  ChevronLeft, ChevronRight, ChevronDown, Building2, FlaskConical, Tags, X, RotateCcw,
 } from "lucide-react";
 import { AppShell } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/dashboard/page-header";
@@ -386,12 +386,30 @@ function ProductsPage() {
   const isInitialLoading = list.isFetching && products.length === 0;
 
   const filterChips = useMemo(() => ([
-    ["all", t("pages.products.filterAll")],
-    ["in", t("pages.products.filterIn")],
-    ["low", t("pages.products.filterLow")],
-    ["out", t("pages.products.filterOut")],
-    ["neg", t("pages.products.filterNeg")],
-  ] as const), [t]);
+    ["all", t("pages.products.filterAll"), kpi.total, "bg-slate-400"],
+    ["in", t("pages.products.filterIn"), kpi.inStock, "bg-emerald-500"],
+    ["low", t("pages.products.filterLow"), kpi.low, "bg-amber-500"],
+    ["out", t("pages.products.filterOut"), kpi.out, "bg-rose-500"],
+    ["neg", t("pages.products.filterNeg"), kpi.neg, "bg-rose-700"],
+  ] as const), [t, kpi.total, kpi.inStock, kpi.low, kpi.out, kpi.neg]);
+
+  const activeFilterCount =
+    (debouncedSearch ? 1 : 0) +
+    (searchBy !== "all" ? 1 : 0) +
+    (manufacturerId ? 1 : 0) +
+    (genericId ? 1 : 0) +
+    (categoryId ? 1 : 0) +
+    (filter !== "all" ? 1 : 0);
+
+  const resetAllFilters = () => {
+    setSearch("");
+    setSearchBy("all");
+    setManufacturerId(undefined);
+    setGenericId(undefined);
+    setCategoryId(undefined);
+    setFilter("all");
+    setPage(1);
+  };
 
   return (
     <AppShell variant="store" title={t("pages.products.title")}>
@@ -425,109 +443,139 @@ function ProductsPage() {
         </div>
 
         {/* Sticky search/filter */}
-        <div className="sticky top-0 z-20 -mx-1 mt-4 rounded-2xl border border-border bg-card/95 px-1 py-3 shadow-card backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <div className="flex flex-wrap items-center gap-2.5 px-3">
-            <Select value={searchBy} onValueChange={(v) => setSearchBy(v as ProductSearchScope)}>
-              <SelectTrigger className="h-10 w-[142px] shrink-0 rounded-xl bg-background text-xs font-medium">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("pages.products.searchByAll")}</SelectItem>
-                <SelectItem value="name">{t("pages.products.searchByName")}</SelectItem>
-                <SelectItem value="company">{t("pages.products.searchByCompany")}</SelectItem>
-                <SelectItem value="generic">{t("pages.products.searchByGeneric")}</SelectItem>
-                <SelectItem value="category">{t("pages.products.searchByCategory")}</SelectItem>
-                <SelectItem value="barcode">{t("pages.products.searchByBarcode")}</SelectItem>
-              </SelectContent>
-            </Select>
-            <div className="relative min-w-[200px] flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder={t("pages.products.searchPh")}
-                className="h-10 rounded-xl pl-9 pr-9"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+        <div className="sticky top-0 z-20 mt-4 rounded-2xl border border-border bg-card/95 p-3.5 shadow-card backdrop-blur supports-[backdrop-filter]:bg-card/85">
+          {/* Row 1: Unified search input + Company/Generic/Category filters + Reset */}
+          <div className="flex flex-col gap-2.5 xl:flex-row xl:items-center">
+            <div className="flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-xl border border-border bg-background/70 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/15">
+              <Select value={searchBy} onValueChange={(v) => setSearchBy(v as ProductSearchScope)}>
+                <SelectTrigger className="h-full w-[124px] shrink-0 rounded-none border-0 border-r border-border bg-muted/40 px-3 text-xs font-semibold shadow-none focus:ring-0 sm:w-[134px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("pages.products.searchByAll")}</SelectItem>
+                  <SelectItem value="name">{t("pages.products.searchByName")}</SelectItem>
+                  <SelectItem value="company">{t("pages.products.searchByCompany")}</SelectItem>
+                  <SelectItem value="generic">{t("pages.products.searchByGeneric")}</SelectItem>
+                  <SelectItem value="category">{t("pages.products.searchByCategory")}</SelectItem>
+                  <SelectItem value="barcode">{t("pages.products.searchByBarcode")}</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="relative flex h-full min-w-0 flex-1 items-center">
+                <Search className="pointer-events-none absolute left-3 size-4 text-muted-foreground" />
+                <Input
+                  placeholder={t("pages.products.searchPh")}
+                  className="h-full rounded-none border-0 bg-transparent pl-9 pr-9 text-sm shadow-none focus-visible:ring-0"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    aria-label="Clear search"
+                    onClick={() => setSearch("")}
+                    className="absolute right-2.5 rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 xl:flex xl:shrink-0 xl:items-center">
+              <ProductFilterCombobox
+                label={t("pages.products.company")}
+                allLabel={t("pages.products.allCompanies")}
+                searchPlaceholder={t("pages.products.searchCompanyPh")}
+                emptyLabel={t("pages.products.noOptions")}
+                narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
+                options={filterOptions.manufacturers}
+                value={manufacturerId}
+                onChange={setManufacturerId}
+                icon={<Building2 className="size-3.5" />}
+                className="w-full xl:w-[168px]"
               />
-              {search && (
-                <button
-                  type="button"
-                  aria-label="Clear search"
-                  onClick={() => setSearch("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground hover:bg-muted"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </button>
+              <ProductFilterCombobox
+                label={t("pages.products.generic")}
+                allLabel={t("pages.products.allGenerics")}
+                searchPlaceholder={t("pages.products.searchGenericPh")}
+                emptyLabel={t("pages.products.noOptions")}
+                narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
+                options={filterOptions.generics}
+                value={genericId}
+                onChange={setGenericId}
+                icon={<FlaskConical className="size-3.5" />}
+                className="w-full xl:w-[168px]"
+              />
+              <ProductFilterCombobox
+                label={t("pages.products.category")}
+                allLabel={t("pages.products.allCategories")}
+                searchPlaceholder={t("pages.products.searchCategoryPh")}
+                emptyLabel={t("pages.products.noOptions")}
+                narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
+                options={filterOptions.categories}
+                value={categoryId}
+                onChange={setCategoryId}
+                icon={<Tags className="size-3.5" />}
+                className="w-full xl:w-[152px]"
+              />
+            </div>
+
+            {activeFilterCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 shrink-0 gap-1.5 rounded-xl border-rose-200 bg-rose-50/70 px-3 text-xs font-semibold text-rose-700 hover:bg-rose-100 hover:text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300"
+                onClick={resetAllFilters}
+              >
+                <RotateCcw className="size-3.5" />
+                {t("pages.products.reset")}
+              </Button>
+            )}
+          </div>
+
+          {/* Row 2: Segmented status filter bar + balanced match summary */}
+          <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2.5 border-t border-border/60 pt-2.5">
+            <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-muted/60 p-1">
+              {filterChips.map(([k, label, chipCount, dotCls]) => {
+                const active = filter === k;
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setFilter(k as typeof filter)}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors",
+                      active
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:bg-card/80 hover:text-foreground",
+                    )}
+                  >
+                    {k !== "all" && !active && <span className={cn("size-1.5 rounded-full", dotCls)} />}
+                    <span>{label}</span>
+                    <span
+                      className={cn(
+                        "rounded-md px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
+                        active ? "bg-white/20 text-primary-foreground" : "bg-background/80 text-muted-foreground",
+                      )}
+                    >
+                      {fmtInt(chipCount)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
+              <span>{t("pages.products.matchesCount", { n: fmtInt(totalForPage) })}</span>
+              {activeFilterCount > 0 && (
+                <>
+                  <span className="text-border">•</span>
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                    {t("pages.products.activeFiltersCount", { n: activeFilterCount })}
+                  </span>
+                </>
               )}
             </div>
-            <Button
-              variant="outline"
-              className="h-10 rounded-xl"
-              onClick={() => {
-                setSearch("");
-                setSearchBy("all");
-                setManufacturerId(undefined);
-                setGenericId(undefined);
-                setCategoryId(undefined);
-                setFilter("all");
-                setPage(1);
-              }}
-            >
-              {t("pages.products.reset")}
-            </Button>
-          </div>
-          <div className="mt-2.5 flex flex-wrap items-center gap-2 px-3">
-            <ProductFilterCombobox
-              label={t("pages.products.company")}
-              allLabel={t("pages.products.allCompanies")}
-              searchPlaceholder={t("pages.products.searchCompanyPh")}
-              emptyLabel={t("pages.products.noOptions")}
-              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.manufacturers.length })}
-              options={filterOptions.manufacturers}
-              value={manufacturerId}
-              onChange={setManufacturerId}
-              icon={<Building2 className="h-3.5 w-3.5 shrink-0" />}
-              className="min-w-[165px] max-w-[240px]"
-            />
-            <ProductFilterCombobox
-              label={t("pages.products.generic")}
-              allLabel={t("pages.products.allGenerics")}
-              searchPlaceholder={t("pages.products.searchGenericPh")}
-              emptyLabel={t("pages.products.noOptions")}
-              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.generics.length })}
-              options={filterOptions.generics}
-              value={genericId}
-              onChange={setGenericId}
-              icon={<FlaskConical className="h-3.5 w-3.5 shrink-0" />}
-              className="min-w-[165px] max-w-[240px]"
-            />
-            <ProductFilterCombobox
-              label={t("pages.products.category")}
-              allLabel={t("pages.products.allCategories")}
-              searchPlaceholder={t("pages.products.searchCategoryPh")}
-              emptyLabel={t("pages.products.noOptions")}
-              narrowHint={t("pages.products.narrowOptionsHint", { n: filterOptions.categories.length })}
-              options={filterOptions.categories}
-              value={categoryId}
-              onChange={setCategoryId}
-              icon={<Tags className="h-3.5 w-3.5 shrink-0" />}
-              className="min-w-[155px] max-w-[220px]"
-            />
-          </div>
-          <div className="mt-2.5 flex flex-wrap gap-2 px-3">
-            {filterChips.map(([k, label]) => (
-              <button
-                key={k}
-                onClick={() => setFilter(k as typeof filter)}
-                className={cn(
-                  "rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
-                  filter === k
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-muted",
-                )}
-              >
-                {label}
-              </button>
-            ))}
           </div>
         </div>
 
@@ -545,25 +593,13 @@ function ProductsPage() {
           ) : products.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card py-16 text-center text-sm text-muted-foreground">
               <span>
-                {debouncedSearch || manufacturerId || genericId || categoryId || filter !== "all"
+                {activeFilterCount > 0
                   ? t("pages.products.noOptions")
                   : t("pages.products.empty", { action: t("pages.products.add") })}
               </span>
-              {(debouncedSearch || manufacturerId || genericId || categoryId || filter !== "all") && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-xl"
-                  onClick={() => {
-                    setSearch("");
-                    setSearchBy("all");
-                    setManufacturerId(undefined);
-                    setGenericId(undefined);
-                    setCategoryId(undefined);
-                    setFilter("all");
-                    setPage(1);
-                  }}
-                >
+              {activeFilterCount > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5 rounded-xl" onClick={resetAllFilters}>
+                  <RotateCcw className="size-3.5" />
                   {t("pages.products.reset")}
                 </Button>
               )}

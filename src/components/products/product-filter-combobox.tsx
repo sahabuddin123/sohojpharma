@@ -134,7 +134,7 @@ export function ProductFilterCombobox({
         )}
       </div>
 
-      <div className={cn("overflow-y-auto p-1", variant === "mobile" ? "max-h-[52vh]" : "max-h-64")}>
+      <div className={cn("overflow-y-auto p-1.5", variant === "mobile" ? "max-h-[55dvh]" : "max-h-64")}>
         <button
           type="button"
           onClick={() => handleSelect(undefined)}
@@ -144,7 +144,7 @@ export function ProductFilterCombobox({
           )}
         >
           <span>{allLabel}</span>
-          {!value && <Check className="h-3.5 w-3.5 shrink-0" />}
+          {!value && <Check className="size-3.5 shrink-0" />}
         </button>
 
         {filtered.length === 0 ? (
@@ -165,14 +165,14 @@ export function ProductFilterCombobox({
                 )}
               >
                 <span className="truncate">{opt.name}</span>
-                {active && <Check className="h-3.5 w-3.5 shrink-0" />}
+                {active && <Check className="size-3.5 shrink-0" />}
               </button>
             );
           })
         )}
 
         {!query && options.length > MAX_RENDERED_OPTIONS && narrowHint && (
-          <p className="border-t border-border/60 px-2.5 py-1.5 text-center text-[11px] text-muted-foreground">
+          <p className="border-t border-border/60 px-2.5 py-1.5 text-center text-[11px] text-muted-foreground tabular-nums">
             {narrowHint}
           </p>
         )}
@@ -187,16 +187,16 @@ export function ProductFilterCombobox({
           type="button"
           onClick={() => setOpen(true)}
           className={cn(
-            "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-all active:scale-95",
+            "inline-flex h-9 w-full items-center justify-between gap-1 rounded-xl border px-2.5 text-xs font-semibold transition-colors active:scale-[0.98]",
             selected
               ? "border-[#0d5c46] bg-[#0d5c46] text-white shadow-xs"
-              : "border-slate-200 bg-white text-slate-700 hover:border-[#0d5c46]/40",
+              : "border-slate-200 bg-slate-50/70 text-slate-700 hover:border-[#0d5c46]/40 hover:bg-white",
             className,
           )}
         >
-          {icon}
-          <span className="max-w-[140px] truncate">
-            {selected ? `${label}: ${selected.name}` : label}
+          <span className="flex min-w-0 items-center gap-1">
+            {icon}
+            <span className="truncate">{selected ? selected.name : label}</span>
           </span>
           {selected ? (
             <span
@@ -214,19 +214,22 @@ export function ProductFilterCombobox({
                   onChange(undefined);
                 }
               }}
-              className="ml-0.5 rounded-full bg-white/20 p-0.5 hover:bg-white/30"
+              className="shrink-0 rounded-full bg-white/20 p-0.5 hover:bg-white/30"
             >
-              <X className="h-3 w-3" />
+              <X className="size-3" />
             </span>
           ) : (
-            <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+            <ChevronDown className="size-3.5 shrink-0 opacity-60" />
           )}
         </button>
 
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent className="top-[8%] max-w-[calc(100vw-1.5rem)] translate-y-0 rounded-2xl p-0 sm:max-w-md">
-            <DialogHeader className="border-b border-border px-4 py-3 text-left">
+            <DialogHeader className="flex flex-row items-center justify-between border-b border-border px-4 py-3 text-left">
               <DialogTitle className="text-sm font-bold">{label}</DialogTitle>
+              <span className="mr-6 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground tabular-nums">
+                {options.length}
+              </span>
             </DialogHeader>
             {listContent}
           </DialogContent>
@@ -241,17 +244,19 @@ export function ProductFilterCombobox({
         <button
           type="button"
           className={cn(
-            "inline-flex h-9 items-center justify-between gap-2 rounded-xl border px-3 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "inline-flex h-10 items-center justify-between gap-2 rounded-xl border px-3 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             selected
-              ? "border-primary/50 bg-primary/8 text-primary"
-              : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground",
+              ? "border-primary/60 bg-primary/10 text-primary"
+              : "border-border bg-background/70 text-foreground hover:border-primary/40 hover:bg-muted/40",
             className,
           )}
         >
           <span className="flex min-w-0 items-center gap-1.5">
-            {icon}
+            <span className={cn("shrink-0", selected ? "text-primary" : "text-muted-foreground")}>
+              {icon}
+            </span>
             <span className="truncate">
-              {selected ? `${label}: ${selected.name}` : allLabel}
+              {selected ? selected.name : allLabel}
             </span>
           </span>
           {selected ? (
@@ -270,16 +275,20 @@ export function ProductFilterCombobox({
                   onChange(undefined);
                 }
               }}
-              className="rounded-full p-0.5 hover:bg-primary/15"
+              className="shrink-0 rounded-full p-0.5 hover:bg-primary/15"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="size-3.5" />
             </span>
           ) : (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
+            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground opacity-70" />
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-[min(300px,calc(100vw-2rem))] rounded-xl p-0">
+      <PopoverContent align="start" className="w-[min(300px,calc(100vw-2rem))] overflow-hidden rounded-xl p-0 shadow-lg">
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2 text-[11px] font-semibold uppercase text-muted-foreground">
+          <span>{label}</span>
+          <span className="tabular-nums">{options.length}</span>
+        </div>
         {listContent}
       </PopoverContent>
     </Popover>
